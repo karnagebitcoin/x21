@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { PageManager } from '@/PageManager'
 import ListPreviewDialog from '@/components/ListPreviewDialog'
 import InviteHandler from '@/components/InviteHandler'
-import { useLists, TStarterPack } from '@/providers/ListsProvider'
+import { useOptionalLists, TStarterPack } from '@/providers/ListsProvider'
 import { useOptionalNostr } from '@/providers/NostrProvider'
 import { useFeed } from '@/providers/FeedProvider'
 import client from '@/services/client.service'
@@ -32,7 +32,8 @@ export function AppWithListPreview() {
   const { t } = useTranslation()
   const nostr = useOptionalNostr()
   const myPubkey = nostr?.pubkey ?? null
-  const { lists } = useLists()
+  const listsContext = useOptionalLists()
+  const lists = listsContext?.lists ?? []
   const { switchFeed } = useFeed()
   const [listPreview, setListPreview] = useState<{
     isOpen: boolean

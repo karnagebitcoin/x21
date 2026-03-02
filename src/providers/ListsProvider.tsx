@@ -41,6 +41,10 @@ export const useLists = () => {
   return context
 }
 
+export const useOptionalLists = () => {
+  return useContext(ListsContext)
+}
+
 export function ListsProvider({ children }: { children: ReactNode }) {
   const { pubkey: accountPubkey, publish } = useNostr()
   const [lists, setLists] = useState<TStarterPack[]>([])
