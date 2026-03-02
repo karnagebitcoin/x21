@@ -4,8 +4,21 @@ import { Event as NostrEvent, nip19 } from 'nostr-tools'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
-import { Radio, Users, Send, Heart, Zap as ZapIcon } from 'lucide-react'
+import {
+  Radio,
+  Users,
+  Send,
+  Heart,
+  Zap as ZapIcon,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  Maximize2,
+  Minimize2
+} from 'lucide-react'
 import UserAvatar from '@/components/UserAvatar'
 import Username from '@/components/Username'
 import Content from '@/components/Content'
@@ -66,7 +79,14 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const [chatZapTarget, setChatZapTarget] = useState<NostrEvent | null>(null)
   const [isChatZapOpen, setIsChatZapOpen] = useState(false)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false)
+  const [isVideoMuted, setIsVideoMuted] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const videoContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!decodedEvent) {
@@ -74,6 +94,9 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
       setLiveEvent(null)
       setChatMessages([])
       setZaps([])
+      setCurrentTime(0)
+      setDuration(0)
+      setIsVideoPlaying(false)
       return
     }
 
@@ -87,6 +110,9 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
     setLiveEvent(null)
     setChatMessages([])
     setZaps([])
+    setCurrentTime(0)
+    setDuration(0)
+    setIsVideoPlaying(false)
 
     const liveSub = client.subscribe(
       relays,
@@ -168,6 +194,17 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
 
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === videoContainerRef.current)
+    }
+
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
+    }
+  }, [])
+
   const sendMessage = useCallback(async () => {
     if (!message.trim() || !decodedEvent || !pubkey) {
       await checkLogin()
@@ -203,6 +240,52 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
     setIsStreamZapOpen(true)
   }, [liveEvent])
 
+  const toggleVideoPlayback = useCallback(async () => {
+    const video = videoRef.current
+    if (!video) return
+
+    try {
+      if (video.paused) {
+        await video.play()
+      } else {
+        video.pause()
+      }
+    } catch (error) {
+      console.error('Failed to toggle video playback:', error)
+    }
+  }, [])
+
+  const toggleVideoMute = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+    video.muted = !video.muted
+    setIsVideoMuted(video.muted)
+  }, [])
+
+  const handleSeek = useCallback((value: number[]) => {
+    const video = videoRef.current
+    if (!video) return
+
+    const next = value[0] ?? 0
+    video.currentTime = next
+    setCurrentTime(next)
+  }, [])
+
+  const toggleFullscreen = useCallback(async () => {
+    const container = videoContainerRef.current
+    if (!container) return
+
+    try {
+      if (document.fullscreenElement === container) {
+        await document.exitFullscreen()
+      } else {
+        await container.requestFullscreen()
+      }
+    } catch (error) {
+      console.error('Failed to toggle fullscreen:', error)
+    }
+  }, [])
+
   if (isLoading) {
     return (
       <div className="p-4 space-y-4">
@@ -226,6 +309,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const streamingUrl = liveEvent.tags.find((tag) => tag[0] === 'streaming')?.[1]
   const currentParticipants = liveEvent.tags.find((tag) => tag[0] === 'current_participants')?.[1]
   const status = liveEvent.tags.find((tag) => tag[0] === 'status')?.[1]
+  const hasDuration = Number.isFinite(duration) && duration > 0
 
   return (
     <div className="h-[calc(100dvh-4rem)] flex flex-col overflow-hidden">
@@ -281,9 +365,93 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
       </div>
 
       <div className="flex-1 min-h-0 grid grid-rows-[minmax(220px,42vh)_minmax(0,1fr)]">
-        <div className="min-h-0 bg-black border-b">
+        <div className="min-h-0 bg-black border-b flex flex-col">
           {streamingUrl ? (
-            <video src={streamingUrl} controls autoPlay className="w-full h-full object-contain" />
+            <>
+              <div ref={videoContainerRef} className="relative flex-1 min-h-0 bg-black">
+                <video
+                  ref={videoRef}
+                  src={streamingUrl}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-contain"
+                  onPlay={() => setIsVideoPlaying(true)}
+                  onPause={() => setIsVideoPlaying(false)}
+                  onEnded={() => setIsVideoPlaying(false)}
+                  onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+                  onLoadedMetadata={(event) => {
+                    const nextDuration = event.currentTarget.duration
+                    setDuration(Number.isFinite(nextDuration) ? nextDuration : 0)
+                    setIsVideoMuted(event.currentTarget.muted)
+                  }}
+                  onDurationChange={(event) => {
+                    const nextDuration = event.currentTarget.duration
+                    setDuration(Number.isFinite(nextDuration) ? nextDuration : 0)
+                  }}
+                  onVolumeChange={(event) => setIsVideoMuted(event.currentTarget.muted)}
+                />
+              </div>
+
+              <div className="shrink-0 border-t border-white/10 bg-black px-2 py-1.5">
+                <div className="flex items-center gap-1.5 text-white/90">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+                    onClick={toggleVideoPlayback}
+                  >
+                    {isVideoPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+                    onClick={toggleVideoMute}
+                  >
+                    {isVideoMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  </Button>
+
+                  {hasDuration ? (
+                    <>
+                      <span className="w-11 shrink-0 text-[11px] tabular-nums text-white/70">
+                        {formatMediaTime(currentTime)}
+                      </span>
+                      <Slider
+                        value={[Math.min(currentTime, duration)]}
+                        max={duration}
+                        step={1}
+                        onValueChange={handleSeek}
+                        hideThumb
+                        className="flex-1"
+                      />
+                      <span className="w-11 shrink-0 text-[11px] tabular-nums text-white/70 text-right">
+                        {formatMediaTime(duration)}
+                      </span>
+                    </>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center">
+                      <Badge variant="outline" className="border-red-500/50 text-red-400 bg-transparent">
+                        {t('LIVE')}
+                      </Badge>
+                    </div>
+                  )}
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+                    onClick={toggleFullscreen}
+                  >
+                    {isFullscreen ? (
+                      <Minimize2 className="w-4 h-4" />
+                    ) : (
+                      <Maximize2 className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </>
           ) : image ? (
             <img src={image} alt={title} className="w-full h-full object-contain" />
           ) : (
@@ -319,14 +487,14 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
             )}
           </div>
 
-          <div className="shrink-0 border-t p-3">
-            <div className="flex gap-2 items-end">
+          <div className="shrink-0 border-t px-2.5 py-2">
+            <div className="flex gap-2 items-center">
               <Textarea
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 placeholder={t('Type a message...')}
-                className="resize-none"
-                rows={2}
+                className="h-10 min-h-0 max-h-24 resize-none py-2 text-sm leading-tight"
+                rows={1}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.shiftKey) {
                     event.preventDefault()
@@ -338,7 +506,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
                 onClick={sendMessage}
                 disabled={!message.trim() || isSending}
                 size="icon"
-                className="shrink-0"
+                className="h-10 w-10 shrink-0"
               >
                 <Send className="w-4 h-4" />
               </Button>
@@ -372,6 +540,13 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
       )}
     </div>
   )
+}
+
+function formatMediaTime(time: number) {
+  if (!Number.isFinite(time) || time < 0) return '0:00'
+  const minutes = Math.floor(time / 60)
+  const seconds = Math.floor(time % 60)
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
 function ChatMessage({
