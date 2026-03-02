@@ -79,7 +79,7 @@ export default function ZapDialog({
         >
           <DrawerHeader>
             <DrawerTitle className="flex gap-2 items-center">
-              <div className="shrink-0">{t('Zap to')}</div>
+              <div className="shrink-0">{t('Zap to', { defaultValue: 'Zap to' })}</div>
               <UserAvatar size="small" userId={pubkey} />
               <Username userId={pubkey} className="truncate flex-1 w-0 text-start h-5" />
             </DrawerTitle>
@@ -103,7 +103,7 @@ export default function ZapDialog({
       <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex gap-2 items-center">
-            <div className="shrink-0">{t('Zap to')}</div>
+            <div className="shrink-0">{t('Zap to', { defaultValue: 'Zap to' })}</div>
             <UserAvatar size="small" userId={pubkey} />
             <Username userId={pubkey} className="truncate flex-1 max-w-fit text-start h-5" />
           </DialogTitle>
@@ -243,7 +243,7 @@ function ZapDialogContent({
             className="bg-transparent text-center w-full p-0 focus-visible:outline-none text-6xl font-bold"
           />
         </div>
-        <Label htmlFor="sats">{t('Sats')}</Label>
+        <Label htmlFor="sats">{t('Sats', { defaultValue: 'Sats' })}</Label>
       </div>
 
       {/* Preset sats buttons */}
@@ -257,12 +257,13 @@ function ZapDialogContent({
 
       {/* Comment input */}
       <div>
-        <Label htmlFor="comment">{t('zapComment')}</Label>
+        <Label htmlFor="comment">{t('zapComment', { defaultValue: 'Comment' })}</Label>
         <Input id="comment" value={comment} onChange={(e) => setComment(e.target.value)} />
       </div>
 
       <Button onClick={handleZap}>
-        {zapping && <Loader className="animate-spin" />} {t('Zap n sats', { n: sats })}
+        {zapping && <Loader className="animate-spin" />}{' '}
+        {t('Zap n sats', { n: sats, defaultValue: 'Zap {{n}} sats' })}
       </Button>
     </>
   )
