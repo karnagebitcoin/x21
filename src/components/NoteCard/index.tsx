@@ -31,11 +31,6 @@ export default function NoteCard({
   const mutedDomains = useMemo(() => getMutedDomains(), [getMutedDomains])
   const { profile, isFetching } = useFetchProfile(event?.pubkey)
 
-  // Safety check: ensure event is valid
-  if (!event || !event.pubkey) {
-    return null
-  }
-
   const shouldHide = useMemo(() => {
     // If we have muted domains configured and profile is still loading, wait for profile to load
     if (filterMutedNotes && mutedDomains.length > 0 && isFetching) {

@@ -25,6 +25,11 @@ const getAppVersion = () => {
 
 // https://vite.dev/config/
 export default defineConfig({
+  esbuild: {
+    // Translation files are incrementally maintained and may contain duplicate keys.
+    // Keep the last value instead of failing production builds.
+    logOverride: { 'duplicate-object-key': 'warning' }
+  },
   define: {
     'import.meta.env.GIT_COMMIT': getGitHash(),
     'import.meta.env.APP_VERSION': getAppVersion()
@@ -53,7 +58,7 @@ export default defineConfig({
           // Heavy components that should be separate chunks
           'emoji-picker': ['emoji-picker-react'],
           'lightbox': ['yet-another-react-lightbox'],
-          'editor': ['@tiptap/react', '@tiptap/starter-kit', '@tiptap/pm'],
+          'editor': ['@tiptap/react', '@tiptap/starter-kit'],
           'qr': ['qr-code-styling', 'qr-scanner'],
           'markdown': ['react-markdown', 'remark-gfm', 'rehype-raw', 'rehype-sanitize']
         }

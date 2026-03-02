@@ -189,10 +189,6 @@ const PostTextarea = forwardRef<
       }
     }))
 
-    if (!editor) {
-      return null
-    }
-
     const previewContent = useMemo(() => {
       // Combine text with image URLs for preview
       let content = text.trim()
@@ -202,6 +198,10 @@ const PostTextarea = forwardRef<
       }
       return content
     }, [text, images])
+
+    if (!editor) {
+      return null
+    }
 
     return (
       <div className="space-y-2">

@@ -24,7 +24,7 @@ class NostrBandSearchService {
     const searchParams = new URLSearchParams()
 
     // Build the query string
-    let queryParts: string[] = []
+    const queryParts: string[] = []
 
     if (params.query) {
       queryParts.push(params.query)
@@ -115,7 +115,7 @@ class NostrBandSearchService {
     }
 
     // Extract the main search query (remove special parameters)
-    let query = text
+    const query = text
       .replace(/\bby:?\s*\S+/gi, '')
       .replace(/\bkind:?\s*\d+/gi, '')
       .replace(/\bsince:?\s*\d{4}-\d{2}-\d{2}/gi, '')
