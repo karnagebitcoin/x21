@@ -109,7 +109,7 @@ const PrimaryPageLayout = forwardRef(
             Skip to main content
           </a>
           <ScrollArea
-            className="h-full overflow-auto"
+            className="h-full"
             scrollBarClassName="z-50 pt-12"
             ref={scrollAreaRef}
           >
