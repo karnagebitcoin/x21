@@ -1,79 +1,86 @@
-<div align="center">
-  <picture>
-    <img src="./resources/logo-light.svg" alt="x21 Logo" width="400" />
-  </picture>
-  <p>logo designed by <a href="http://wolfertdan.com/">Daniel David</a></p>
-</div>
+# x21.social
 
-# x21
+A customizable Nostr client focused on real-time social feeds, lists, reads, live activity, widgets, and Bitcoin-native interactions.
 
-A user-friendly Nostr client for exploring relay feeds
+Live site: [https://x21.social](https://x21.social)
 
-Experience x21 at [https://x21.social](https://x21.social)
+## What x21 Includes
 
-## Run Locally
+- Multi-account Nostr login flows (`nsec`, `npub`, NIP-07 extension, Bunker, and Nostr Connection)
+- Core social surfaces: Home, Explore, Reads, Lists, Notifications, Search, Profile
+- Rich feed switching: following, bookmarks, highlights, one-note-per-person, relay sets, custom feeds
+- List system: create/edit/follow/share lists, list pages, list previews, list stats, list zaps
+- Long-form article support with markdown rendering and Nostr-aware links
+- Live stream support (NIP-53 style flows): discovery, live detail view, chat, and zap interactions
+- Wallet and zap settings with WebLN/Nostr wallet flows (default amount/comment, quick zap, charge zap, zap sounds, receiving settings)
+- Translation system with multiple providers (Jumble, LibreTranslate, OpenRouter) and staggered i18n fallback
+- AI tooling (provider/model configuration for OpenRouter and PPQ.ai)
+- Backup and restore via local JSON export/import and Nostr sync using NIP-78
+- Highly customizable UI (themes, palette, font controls, radii, media style, sidebar/menu controls, widget sidebar controls)
+- Optional widgets including Trending Notes, Bitcoin Ticker, Pinned Note widgets, AI Prompt widget, and Invite widget
+- Media and post tooling: image/gallery flows, GIF picker, polls, note expiration, relay targeting, upload service settings
+- PWA setup via `vite-plugin-pwa` and route-level lazy loading for better performance
 
-### Option 1: With URL Preview Cards (Recommended)
+## Tech Stack
+
+- React + TypeScript + Vite
+- Tailwind CSS + Radix UI
+- `nostr-tools` for protocol/event handling
+- i18next for localization
+
+## Local Development
+
+### Option 1: Docker (recommended for URL preview/proxy support)
 
 ```bash
-# Clone this repository
-git clone https://github.com/CodyTseng/x21.git
-
-# Go into the repository
+git clone git@github.com:karnagebitcoin/x21.git
 cd x21
-
-# Run with Docker (includes proxy server for URL previews)
 docker compose up -d
-
-# Access at http://localhost:8089
 ```
 
-### Option 2: Without Docker (No URL previews)
+App: `http://localhost:8089`
+
+### Option 2: Node only (fastest app iteration)
 
 ```bash
-# Clone this repository
-git clone https://github.com/CodyTseng/x21.git
-
-# Go into the repository
+git clone git@github.com:karnagebitcoin/x21.git
 cd x21
-
-# Install dependencies
 npm install
-
-# Run the app
 npm run dev
-
-# Note: URL preview cards won't work without the proxy server
 ```
 
-## Run Docker
+### Option 3: Dev stack with local relay
 
 ```bash
-# Clone this repository
-git clone https://github.com/CodyTseng/x21.git
-
-# Go into the repository
-cd x21
-
-# Run the docker compose
-docker compose up --build -d
+docker compose -f docker-compose.dev.yml up -d
 ```
 
-After finishing, access: http://localhost:8089
+This starts:
+- x21 app (`8089`)
+- proxy server (`8090`)
+- local `nostr-rs-relay` (`7000`)
 
-## Sponsors
+## Useful Scripts
 
-<a target="_blank" href="https://opensats.org/">
-  <img alt="open-sats-logo" src="./resources/open-sats-logo.svg" height="44">
-</a>
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run format
+npm run audit:maintainability
+```
 
-## Donate
+## Acknowledgment
 
-If you like this project, you can buy me a coffee :)
+x21.social is forked from Cody Tseng's Jumble project.
 
-- **Lightning:** ⚡️ codytseng@getalby.com ⚡️
-- **Bitcoin:** bc1qwp2uqjd2dy32qfe39kehnlgx3hyey0h502fvht
-- **Geyser:** https://geyser.fund/project/x21
+Huge thanks to Cody Tseng for building and open-sourcing the foundation this project is built on.
+
+Original project: [https://github.com/CodyTseng/x21](https://github.com/CodyTseng/x21)
+
+## Design Credit
+
+Logo designed by [Daniel David](http://wolfertdan.com/).
 
 ## License
 
