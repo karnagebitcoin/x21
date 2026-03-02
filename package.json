@@ -8,13 +8,14 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CodyTseng/x21"
+    "url": "git+https://github.com/karnagebitcoin/x21.git"
   },
-  "homepage": "https://github.com/CodyTseng/x21",
+  "homepage": "https://github.com/karnagebitcoin/x21",
   "scripts": {
     "dev": "vite --host",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "audit:maintainability": "bash ./scripts/maintainability-audit.sh",
     "format": "prettier --write .",
     "preview": "vite preview"
   },

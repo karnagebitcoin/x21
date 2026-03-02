@@ -11,8 +11,14 @@ node_modules
 dist
 dist-ssr
 dev-dist
+.vite
 *.local
 .env
+*.backup
+*.bak
+*.tmp
+*.orig
+*.rej
 
 # Editor directories and files
 .vscode/*
