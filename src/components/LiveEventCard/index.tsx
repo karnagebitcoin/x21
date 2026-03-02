@@ -61,21 +61,21 @@ export default function LiveEventCard({
       onClick={handleOpenStream}
     >
       {image && (
-        <div className="relative aspect-video overflow-hidden bg-muted">
+        <div className="relative aspect-[16/7] overflow-hidden bg-muted">
           <Image
             image={{ url: image, pubkey: event.pubkey }}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
           <div className="absolute top-2 left-2">
-            <Badge variant="destructive" className="bg-red-600 text-white flex items-center gap-1">
-              <Radio className="w-3 h-3 animate-pulse" />
+            <Badge variant="destructive" className="bg-red-600 text-white flex items-center gap-1 text-[11px] px-2 py-0.5">
+              <Radio className="w-2.5 h-2.5 animate-pulse" />
               {t('LIVE')}
             </Badge>
           </div>
           {currentParticipants && (
             <div className="absolute top-2 right-2">
-              <Badge variant="secondary" className="bg-black/70 text-white flex items-center gap-1">
-                <Users className="w-3 h-3" />
+              <Badge variant="secondary" className="bg-black/70 text-white flex items-center gap-1 text-[11px] px-2 py-0.5">
+                <Users className="w-2.5 h-2.5" />
                 {currentParticipants}
               </Badge>
             </div>
@@ -83,45 +83,45 @@ export default function LiveEventCard({
         </div>
       )}
 
-      <div className="p-4 space-y-3">
+      <div className="p-3 space-y-2">
         {!image && (
           <div className="flex items-center justify-between">
-            <Badge variant="destructive" className="bg-red-600 text-white flex items-center gap-1 w-fit">
-              <Radio className="w-3 h-3 animate-pulse" />
+            <Badge variant="destructive" className="bg-red-600 text-white flex items-center gap-1 w-fit text-[11px] px-2 py-0.5">
+              <Radio className="w-2.5 h-2.5 animate-pulse" />
               {t('LIVE')}
             </Badge>
             {currentParticipants && (
-              <Badge variant="secondary" className="flex items-center gap-1">
-                <Users className="w-3 h-3" />
+              <Badge variant="secondary" className="flex items-center gap-1 text-[11px] px-2 py-0.5">
+                <Users className="w-2.5 h-2.5" />
                 {currentParticipants}
               </Badge>
             )}
           </div>
         )}
 
-        <div className="flex items-start gap-3">
-          <UserAvatar userId={event.pubkey} size="medium" className="shrink-0" />
+        <div className="flex items-start gap-2.5">
+          <UserAvatar userId={event.pubkey} size="small" className="shrink-0" />
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-lg line-clamp-2 group-hover:text-primary transition-colors">
+            <h3 className="font-semibold text-base leading-tight line-clamp-1 group-hover:text-primary transition-colors">
               {title}
             </h3>
             <Username
               userId={event.pubkey}
-              className="text-sm text-muted-foreground"
+              className="text-xs text-muted-foreground"
             />
           </div>
         </div>
 
         {summary && (
-          <p className="text-sm text-muted-foreground line-clamp-2">
+          <p className="text-xs text-muted-foreground line-clamp-1">
             {summary}
           </p>
         )}
 
-        <div className="flex flex-wrap gap-3 items-center text-sm text-muted-foreground">
+        <div className="flex flex-wrap gap-2 items-center text-xs text-muted-foreground">
           {starts && (
             <div className="flex items-center gap-1">
-              <Calendar className="w-4 h-4" />
+              <Calendar className="w-3.5 h-3.5" />
               <span>
                 {t('Started')}{' '}
                 <FormattedTimestamp timestamp={parseInt(starts)} short />
@@ -131,7 +131,7 @@ export default function LiveEventCard({
 
           {totalParticipants && (
             <div className="flex items-center gap-1">
-              <Users className="w-4 h-4" />
+              <Users className="w-3.5 h-3.5" />
               <span>{totalParticipants} {t('total viewers')}</span>
             </div>
           )}
@@ -139,20 +139,20 @@ export default function LiveEventCard({
 
         {hashtags.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            {hashtags.slice(0, 5).map((tag, i) => (
-              <Badge key={i} variant="secondary" className="text-xs">
+            {hashtags.slice(0, 3).map((tag, i) => (
+              <Badge key={i} variant="secondary" className="text-[11px] px-1.5 py-0">
                 #{tag}
               </Badge>
             ))}
-            {hashtags.length > 5 && (
-              <Badge variant="secondary" className="text-xs">
-                +{hashtags.length - 5}
+            {hashtags.length > 3 && (
+              <Badge variant="secondary" className="text-[11px] px-1.5 py-0">
+                +{hashtags.length - 3}
               </Badge>
             )}
           </div>
         )}
 
-        <Button onClick={handleStreamClick} className="w-full" variant="default">
+        <Button onClick={handleStreamClick} className="w-full h-8 text-xs" variant="default">
           {t('Watch Stream')}
         </Button>
       </div>
@@ -163,38 +163,35 @@ export default function LiveEventCard({
 export function LiveEventCardSkeleton() {
   return (
     <Card className="overflow-hidden">
-      <div className="relative aspect-video overflow-hidden bg-muted">
+      <div className="relative aspect-[16/7] overflow-hidden bg-muted">
         <Skeleton className="h-full w-full rounded-none" />
-        <Skeleton className="absolute top-2 left-2 h-6 w-16 rounded-md" />
-        <Skeleton className="absolute top-2 right-2 h-6 w-14 rounded-md" />
+        <Skeleton className="absolute top-2 left-2 h-5 w-14 rounded-md" />
+        <Skeleton className="absolute top-2 right-2 h-5 w-12 rounded-md" />
       </div>
 
-      <div className="p-4 space-y-3">
-        <div className="flex items-start gap-3">
-          <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+      <div className="p-3 space-y-2">
+        <div className="flex items-start gap-2.5">
+          <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
           <div className="flex-1 min-w-0 space-y-2">
-            <Skeleton className="h-6 w-4/5" />
-            <Skeleton className="h-4 w-1/3" />
+            <Skeleton className="h-5 w-4/5" />
+            <Skeleton className="h-3 w-1/3" />
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-2/3" />
-        </div>
+        <Skeleton className="h-3 w-3/4" />
 
-        <div className="flex items-center gap-3">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-4 w-28" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-3 w-24" />
         </div>
 
         <div className="flex gap-1">
-          <Skeleton className="h-5 w-14 rounded-full" />
-          <Skeleton className="h-5 w-20 rounded-full" />
-          <Skeleton className="h-5 w-12 rounded-full" />
+          <Skeleton className="h-4 w-12 rounded-full" />
+          <Skeleton className="h-4 w-16 rounded-full" />
+          <Skeleton className="h-4 w-10 rounded-full" />
         </div>
 
-        <Skeleton className="h-10 w-full rounded-md" />
+        <Skeleton className="h-8 w-full rounded-md" />
       </div>
     </Card>
   )
