@@ -10,7 +10,6 @@ import {
   Radio,
   Users,
   Send,
-  Heart,
   Zap as ZapIcon,
   Play,
   Pause,
@@ -76,8 +75,6 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const [message, setMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [isStreamZapOpen, setIsStreamZapOpen] = useState(false)
-  const [chatZapTarget, setChatZapTarget] = useState<NostrEvent | null>(null)
-  const [isChatZapOpen, setIsChatZapOpen] = useState(false)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [isVideoMuted, setIsVideoMuted] = useState(false)
@@ -312,7 +309,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const hasDuration = Number.isFinite(duration) && duration > 0
 
   return (
-    <div className="h-[calc(100dvh-4rem)] flex flex-col overflow-hidden">
+    <div className="h-[calc(100dvh-5rem)] flex flex-col overflow-hidden">
       <div className="shrink-0 border-b px-3 py-2 bg-background">
         <div className="flex items-center gap-2 min-w-0">
           <UserAvatar userId={liveEvent.pubkey} size="small" />
@@ -349,19 +346,6 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
           </Button>
         </div>
         {summary && isAboutOpen && <p className="mt-2 text-sm text-muted-foreground">{summary}</p>}
-        {zaps.length > 0 && (
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-            {zaps.slice(0, 20).map((zap) => (
-              <div
-                key={zap.id}
-                className="flex-shrink-0 flex items-center gap-2 bg-card border rounded-full px-3 py-1.5"
-              >
-                <UserAvatar userId={zap.pubkey} size="small" />
-                <span className="text-sm font-semibold text-yellow-500">{formatAmount(zap.amount)}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="flex-1 min-h-0 grid grid-rows-[minmax(220px,42vh)_minmax(0,1fr)]">
@@ -462,21 +446,29 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
         </div>
 
         <div className="min-h-0 flex flex-col">
-          <div className="shrink-0 px-3 py-2 border-b font-semibold">
+          {zaps.length > 0 && (
+            <div className="shrink-0 border-b px-2 py-1">
+              <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-thin">
+                {zaps.slice(0, 20).map((zap) => (
+                  <div
+                    key={zap.id}
+                    className="flex-shrink-0 flex items-center gap-1 bg-card border rounded-full px-2 py-0.5"
+                  >
+                    <UserAvatar userId={zap.pubkey} size="xSmall" />
+                    <span className="text-xs font-semibold text-yellow-500">{formatAmount(zap.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="shrink-0 px-2.5 py-1.5 border-b font-semibold text-sm">
             {t('Live Chat')} ({chatMessages.length})
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto px-2.5 py-2 space-y-1.5 scrollbar-thin">
+          <div className="flex-1 min-h-0 overflow-y-auto px-2 py-1.5 space-y-0.5 scrollbar-thin">
             {chatMessages.map((msg) => (
-              <ChatMessage
-                key={msg.id}
-                event={msg}
-                isSmallScreen={isSmallScreen}
-                onZapMessage={(target) => {
-                  setChatZapTarget(target)
-                  setIsChatZapOpen(true)
-                }}
-              />
+              <ChatMessage key={msg.id} event={msg} isSmallScreen={isSmallScreen} />
             ))}
             <div ref={chatEndRef} />
 
@@ -487,13 +479,13 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
             )}
           </div>
 
-          <div className="shrink-0 border-t px-2.5 py-2">
+          <div className="shrink-0 border-t px-2 py-1.5">
             <div className="flex gap-2 items-center">
               <Textarea
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 placeholder={t('Type a message...')}
-                className="h-10 min-h-0 max-h-24 resize-none py-2 text-sm leading-tight"
+                className="h-9 min-h-0 max-h-20 resize-none py-1.5 text-sm leading-tight"
                 rows={1}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.shiftKey) {
@@ -506,7 +498,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
                 onClick={sendMessage}
                 disabled={!message.trim() || isSending}
                 size="icon"
-                className="h-10 w-10 shrink-0"
+                className="h-9 w-9 shrink-0"
               >
                 <Send className="w-4 h-4" />
               </Button>
@@ -523,21 +515,6 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
           event={liveEvent}
         />
       )}
-
-      {chatZapTarget && (
-        <ZapDialog
-          open={isChatZapOpen}
-          setOpen={(next) => {
-            const nextOpen = typeof next === 'function' ? next(isChatZapOpen) : next
-            setIsChatZapOpen(nextOpen)
-            if (!nextOpen) {
-              setChatZapTarget(null)
-            }
-          }}
-          pubkey={chatZapTarget.pubkey}
-          event={chatZapTarget}
-        />
-      )}
     </div>
   )
 }
@@ -551,37 +528,27 @@ function formatMediaTime(time: number) {
 
 function ChatMessage({
   event,
-  isSmallScreen,
-  onZapMessage
+  isSmallScreen
 }: {
   event: NostrEvent
   isSmallScreen: boolean
-  onZapMessage: (event: NostrEvent) => void
 }) {
   const { push } = useSecondaryPage()
 
-  const handleZapMessage = () => {
-    onZapMessage(event)
-  }
-
-  const handleReact = async () => {
-    // TODO: add reactions for live chat messages
-  }
-
   return (
-    <div className="flex gap-1.5 group hover:bg-accent/50 px-2 py-1.5 rounded-md transition-colors">
+    <div className="flex gap-1.5 group hover:bg-accent/50 px-1.5 py-1 rounded-md transition-colors">
       <button
         type="button"
-        className="shrink-0 mt-0.5 cursor-pointer"
+        className="shrink-0 mt-0.5 cursor-pointer leading-none"
         onClick={() => push(`/users/${nip19.npubEncode(event.pubkey)}`)}
       >
-        <UserAvatar userId={event.pubkey} size="small" noLink />
+        <UserAvatar userId={event.pubkey} size="xSmall" noLink />
       </button>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-1.5 flex-wrap">
           <button
             type="button"
-            className="text-[13px] font-semibold cursor-pointer hover:underline leading-tight"
+            className="text-xs font-semibold cursor-pointer hover:underline leading-tight"
             onClick={() => push(`/users/${nip19.npubEncode(event.pubkey)}`)}
           >
             <Username userId={event.pubkey} noLink />
@@ -592,22 +559,7 @@ function ChatMessage({
             short={isSmallScreen}
           />
         </div>
-        <Content content={event.content} className="text-[13px] mt-0.5 leading-snug" />
-
-        <div className="flex gap-1.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={handleZapMessage}
-            className="text-xs text-muted-foreground hover:text-yellow-500 flex items-center gap-1"
-          >
-            <ZapIcon className="w-3 h-3" />
-          </button>
-          <button
-            onClick={handleReact}
-            className="text-xs text-muted-foreground hover:text-red-500 flex items-center gap-1"
-          >
-            <Heart className="w-3 h-3" />
-          </button>
-        </div>
+        <Content content={event.content} className="text-xs mt-0.5 leading-snug" />
       </div>
     </div>
   )
