@@ -72,7 +72,7 @@ export default function FollowButton({ pubkey, size = 'default' }: { pubkey: str
           disabled={updating}
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
-          aria-label={hover ? t('Unfollow') : t('buttonFollowing')}
+          aria-label={hover ? t('Unfollow') : t('Following')}
           aria-pressed="true"
         >
           {updating ? (
@@ -80,7 +80,7 @@ export default function FollowButton({ pubkey, size = 'default' }: { pubkey: str
           ) : hover ? (
             t('Unfollow')
           ) : (
-            t('buttonFollowing')
+            t('Following')
           )}
         </Button>
       </AlertDialogTrigger>

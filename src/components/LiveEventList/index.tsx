@@ -25,12 +25,22 @@ function getTagValue(event: NostrEvent, tagName: string): string | undefined {
 
 function parseUnix(value?: string): number | null {
   if (!value) return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
+  const normalized = value.trim()
+  const parsed = Number(normalized)
+  if (Number.isFinite(parsed)) {
+    // Some clients publish unix timestamps in milliseconds.
+    if (parsed > 1e10) return Math.floor(parsed / 1000)
+    return Math.floor(parsed)
+  }
+
+  const dateMs = Date.parse(normalized)
+  if (!Number.isNaN(dateMs)) return Math.floor(dateMs / 1000)
+
+  return null
 }
 
 function isActiveLiveStream(event: NostrEvent, now: number): boolean {
-  const status = getTagValue(event, 'status')?.toLowerCase()
+  const status = getTagValue(event, 'status')?.trim().toLowerCase()
   if (status !== 'live') return false
 
   const starts = parseUnix(getTagValue(event, 'starts'))
@@ -51,6 +61,20 @@ const LiveEventList = forwardRef<
   const [isLoading, setIsLoading] = useState(true)
   const subCloserRef = useRef<{ close: () => void } | null>(null)
   const eventMapRef = useRef<Map<string, NostrEvent>>(new Map())
+  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearLoadingTimeout = useCallback(() => {
+    if (!loadingTimeoutRef.current) return
+    clearTimeout(loadingTimeoutRef.current)
+    loadingTimeoutRef.current = null
+  }, [])
+
+  const clearReconnectTimeout = useCallback(() => {
+    if (!reconnectTimeoutRef.current) return
+    clearTimeout(reconnectTimeoutRef.current)
+    reconnectTimeoutRef.current = null
+  }, [])
 
   const updateEventList = useCallback(() => {
     const now = Math.floor(Date.now() / 1000)
@@ -72,7 +96,15 @@ const LiveEventList = forwardRef<
   }, [])
 
   const loadLiveEvents = useCallback(() => {
+    clearReconnectTimeout()
+    clearLoadingTimeout()
     setIsLoading(true)
+
+    // Avoid a permanent skeleton if some relays never EOSE.
+    loadingTimeoutRef.current = setTimeout(() => {
+      setIsLoading(false)
+      loadingTimeoutRef.current = null
+    }, 12_000)
 
     if (subCloserRef.current) {
       subCloserRef.current.close()
@@ -97,15 +129,23 @@ const LiveEventList = forwardRef<
             eventMapRef.current.set(key, event)
             updateEventList()
           }
+          setIsLoading(false)
         },
-        oneose: (eosed: boolean) => {
-          if (eosed) setIsLoading(false)
+        oneose: () => {
+          setIsLoading(false)
+        },
+        onAllClose: (reasons) => {
+          if (reasons.every((reason) => reason === 'closed by caller')) return
+          clearReconnectTimeout()
+          reconnectTimeoutRef.current = setTimeout(() => {
+            loadLiveEvents()
+          }, 5_000)
         }
       }
     )
 
     subCloserRef.current = sub
-  }, [updateEventList])
+  }, [clearLoadingTimeout, clearReconnectTimeout, updateEventList])
 
   useEffect(() => {
     loadLiveEvents()
@@ -115,12 +155,14 @@ const LiveEventList = forwardRef<
     }, 30_000)
 
     return () => {
+      clearLoadingTimeout()
+      clearReconnectTimeout()
       if (subCloserRef.current) {
         subCloserRef.current.close()
       }
       clearInterval(interval)
     }
-  }, [loadLiveEvents, updateEventList])
+  }, [clearLoadingTimeout, clearReconnectTimeout, loadLiveEvents, updateEventList])
 
   useImperativeHandle(ref, () => ({
     refresh: loadLiveEvents
