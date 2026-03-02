@@ -81,7 +81,10 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const chatEndRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
+  const prevChatCountRef = useRef(0)
+  const autoScrollRef = useRef(true)
+  const chatScrollRafRef = useRef<number | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const videoContainerRef = useRef<HTMLDivElement>(null)
 
@@ -187,9 +190,46 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
     }
   }, [decodedEvent])
 
+  const scrollChatToBottom = useCallback(() => {
+    const container = chatContainerRef.current
+    if (!container) return
+    container.scrollTop = container.scrollHeight
+  }, [])
+
+  const scheduleScrollChatToBottom = useCallback(() => {
+    if (chatScrollRafRef.current !== null) {
+      cancelAnimationFrame(chatScrollRafRef.current)
+    }
+    chatScrollRafRef.current = requestAnimationFrame(() => {
+      scrollChatToBottom()
+      chatScrollRafRef.current = null
+    })
+  }, [scrollChatToBottom])
+
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMessages])
+    return () => {
+      if (chatScrollRafRef.current !== null) {
+        cancelAnimationFrame(chatScrollRafRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const count = chatMessages.length
+    const prevCount = prevChatCountRef.current
+
+    if (count === 0) {
+      prevChatCountRef.current = 0
+      return
+    }
+
+    // Jump once after initial load, then only keep autoscrolling if user stays near bottom.
+    if (prevCount === 0 || (count > prevCount && autoScrollRef.current)) {
+      scheduleScrollChatToBottom()
+    }
+
+    prevChatCountRef.current = count
+  }, [chatMessages.length, scheduleScrollChatToBottom])
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -225,12 +265,14 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
 
       await publish(draft, { additionalRelayUrls: relays })
       setMessage('')
+      autoScrollRef.current = true
+      scheduleScrollChatToBottom()
     } catch (error) {
       console.error('Failed to send live chat message:', error)
     } finally {
       setIsSending(false)
     }
-  }, [message, decodedEvent, pubkey, checkLogin, publish])
+  }, [message, decodedEvent, pubkey, checkLogin, publish, scheduleScrollChatToBottom])
 
   const zapLiveEvent = useCallback(() => {
     if (!liveEvent) return
@@ -307,9 +349,15 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const currentParticipants = liveEvent.tags.find((tag) => tag[0] === 'current_participants')?.[1]
   const status = liveEvent.tags.find((tag) => tag[0] === 'status')?.[1]
   const hasDuration = Number.isFinite(duration) && duration > 0
+  const handleChatScroll = () => {
+    const container = chatContainerRef.current
+    if (!container) return
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+    autoScrollRef.current = distanceFromBottom <= 48
+  }
 
   return (
-    <div className="h-[calc(100dvh-5rem)] flex flex-col overflow-hidden">
+    <div className="h-[calc(100dvh-4rem)] flex flex-col overflow-hidden">
       <div className="shrink-0 border-b px-3 py-2 bg-background">
         <div className="flex items-center gap-2 min-w-0">
           <UserAvatar userId={liveEvent.pubkey} size="small" />
@@ -466,11 +514,14 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
             {t('Live Chat')} ({chatMessages.length})
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto px-2 py-1.5 space-y-0.5 scrollbar-thin">
+          <div
+            ref={chatContainerRef}
+            onScroll={handleChatScroll}
+            className="flex-1 min-h-0 overflow-y-auto px-2 py-1.5 space-y-0.5 scrollbar-thin"
+          >
             {chatMessages.map((msg) => (
               <ChatMessage key={msg.id} event={msg} isSmallScreen={isSmallScreen} />
             ))}
-            <div ref={chatEndRef} />
 
             {chatMessages.length === 0 && (
               <div className="text-center text-sm text-muted-foreground py-8">

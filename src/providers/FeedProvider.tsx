@@ -30,6 +30,10 @@ export const useFeed = () => {
   return context
 }
 
+export const useOptionalFeed = () => {
+  return useContext(FeedContext)
+}
+
 export function FeedProvider({ children }: { children: React.ReactNode }) {
   const { pubkey, isInitialized, followListEvent } = useNostr()
   const { relaySets, favoriteRelays } = useFavoriteRelays()

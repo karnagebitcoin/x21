@@ -14,13 +14,15 @@ const PrimaryPageLayout = forwardRef(
       titlebar,
       pageName,
       displayScrollToTopButton = false,
-      hideTitlebarBottomBorder = false
+      hideTitlebarBottomBorder = false,
+      hideBottomSpacer = false
     }: {
       children?: React.ReactNode
       titlebar: React.ReactNode
       pageName: TPrimaryPageName
       displayScrollToTopButton?: boolean
       hideTitlebarBottomBorder?: boolean
+      hideBottomSpacer?: boolean
     },
     ref
   ) => {
@@ -117,7 +119,7 @@ const PrimaryPageLayout = forwardRef(
             <main id="main-content">
               {children}
             </main>
-            <div className="h-4" />
+            {!hideBottomSpacer && <div className="h-4" />}
           </ScrollArea>
           {displayScrollToTopButton && <ScrollToTopButton scrollAreaRef={scrollAreaRef} />}
         </DeepBrowsingProvider>

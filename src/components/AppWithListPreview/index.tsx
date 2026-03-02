@@ -4,7 +4,7 @@ import ListPreviewDialog from '@/components/ListPreviewDialog'
 import InviteHandler from '@/components/InviteHandler'
 import { useOptionalLists, TStarterPack } from '@/providers/ListsProvider'
 import { useOptionalNostr } from '@/providers/NostrProvider'
-import { useFeed } from '@/providers/FeedProvider'
+import { useOptionalFeed } from '@/providers/FeedProvider'
 import client from '@/services/client.service'
 import { Event } from 'nostr-tools'
 import { BIG_RELAY_URLS, ExtendedKind } from '@/constants'
@@ -34,7 +34,7 @@ export function AppWithListPreview() {
   const myPubkey = nostr?.pubkey ?? null
   const listsContext = useOptionalLists()
   const lists = listsContext?.lists ?? []
-  const { switchFeed } = useFeed()
+  const feedContext = useOptionalFeed()
   const [listPreview, setListPreview] = useState<{
     isOpen: boolean
     listData: TStarterPack | null
@@ -172,8 +172,8 @@ export function AppWithListPreview() {
 
   const handleClosePreview = async () => {
     // Switch to Following feed if user is logged in
-    if (myPubkey) {
-      await switchFeed('following', { pubkey: myPubkey })
+    if (myPubkey && feedContext?.switchFeed) {
+      await feedContext.switchFeed('following', { pubkey: myPubkey })
     }
 
     // Navigate to home
