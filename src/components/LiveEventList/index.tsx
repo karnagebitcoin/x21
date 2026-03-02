@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Event as NostrEvent } from 'nostr-tools'
+import { BIG_RELAY_URLS } from '@/constants'
 import client from '@/services/client.service'
 import LiveEventCard from '@/components/LiveEventCard'
 import { LiveEventCardSkeleton } from '@/components/LiveEventCard'
@@ -9,15 +10,12 @@ export type TLiveEventListRef = {
   refresh: () => void
 }
 
-const LIVE_STREAM_RELAYS = [
-  'wss://relay.damus.io',
-  'wss://nos.lol',
-  'wss://relay.nostr.band',
-  'wss://nostr.mom',
-  'wss://relay.snort.social',
-  'wss://relay.primal.net',
-  'wss://nostr.wine'
-]
+const LIVE_STREAM_RELAYS = Array.from(new Set([
+  ...BIG_RELAY_URLS,
+  'wss://relay.snort.social/',
+  'wss://relay.primal.net/',
+  'wss://nostr.wine/'
+]))
 
 function getTagValue(event: NostrEvent, tagName: string): string | undefined {
   return event.tags.find((tag) => tag[0] === tagName)?.[1]
@@ -111,6 +109,33 @@ const LiveEventList = forwardRef<
     }
     eventMapRef.current.clear()
     setEvents([])
+
+    // Seed with a one-shot query so back-navigation does not depend on subscription EOSE timing.
+    client
+      .querySync(LIVE_STREAM_RELAYS, {
+        kinds: [30311],
+        limit: 200
+      })
+      .then((seedEvents) => {
+        for (const event of seedEvents) {
+          const dTag = getTagValue(event, 'd')
+          if (!dTag) continue
+
+          const key = `${event.pubkey}:${dTag}`
+          const existing = eventMapRef.current.get(key)
+          if (!existing || event.created_at > existing.created_at) {
+            eventMapRef.current.set(key, event)
+          }
+        }
+        updateEventList()
+        if (seedEvents.length > 0) {
+          setIsLoading(false)
+          clearLoadingTimeout()
+        }
+      })
+      .catch(() => {
+        // Ignore seed errors; live subscription remains the source of truth.
+      })
 
     const sub = client.subscribe(
       LIVE_STREAM_RELAYS,
