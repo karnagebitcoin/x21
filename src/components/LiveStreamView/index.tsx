@@ -65,6 +65,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const [isStreamZapOpen, setIsStreamZapOpen] = useState(false)
   const [chatZapTarget, setChatZapTarget] = useState<NostrEvent | null>(null)
   const [isChatZapOpen, setIsChatZapOpen] = useState(false)
+  const [isAboutOpen, setIsAboutOpen] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -227,56 +228,45 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const status = liveEvent.tags.find((tag) => tag[0] === 'status')?.[1]
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="p-4 space-y-4 border-b">
-        <div className="flex items-start gap-3">
-          <UserAvatar userId={liveEvent.pubkey} size="large" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-bold text-xl">{title}</h1>
+    <div className="h-[calc(100dvh-4rem)] flex flex-col overflow-hidden">
+      <div className="shrink-0 border-b px-3 py-2 bg-background">
+        <div className="flex items-center gap-2 min-w-0">
+          <UserAvatar userId={liveEvent.pubkey} size="small" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <h1 className="font-semibold text-base truncate">{title}</h1>
               <Badge variant="destructive" className="bg-red-600 text-white flex items-center gap-1">
                 <Radio className="w-3 h-3 animate-pulse" />
                 {status === 'live' ? t('LIVE') : status?.toUpperCase()}
               </Badge>
             </div>
-            <Username userId={liveEvent.pubkey} className="text-sm text-muted-foreground" />
-
-            {currentParticipants && (
-              <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                <Users className="w-4 h-4" />
-                <span>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Username userId={liveEvent.pubkey} noLink className="truncate" />
+              {currentParticipants && (
+                <span className="inline-flex items-center gap-1">
+                  <Users className="w-3 h-3" />
                   {currentParticipants} {t('watching')}
                 </span>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-
-        {summary && <p className="text-sm text-muted-foreground">{summary}</p>}
-
-        {streamingUrl && (
-          <div className="aspect-video bg-black rounded-lg overflow-hidden">
-            <video src={streamingUrl} controls autoPlay className="w-full h-full" />
-          </div>
-        )}
-
-        {image && !streamingUrl && <img src={image} alt={title} className="w-full rounded-lg" />}
-
-        <div className="flex gap-2">
-          <Button onClick={zapLiveEvent} size="sm" variant="outline">
-            <ZapIcon className="w-4 h-4 mr-2 text-yellow-500" />
-            {t('Zap Stream')}
+          {summary && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setIsAboutOpen((previous) => !previous)}
+            >
+              {t('About')} {isAboutOpen ? '−' : '+'}
+            </Button>
+          )}
+          <Button onClick={zapLiveEvent} size="sm" variant="outline" className="shrink-0">
+            <ZapIcon className="w-4 h-4 text-yellow-500" />
           </Button>
         </div>
-      </div>
-
-      {zaps.length > 0 && (
-        <div className="p-4 border-b">
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            <ZapIcon className="w-4 h-4 text-yellow-500" />
-            {t('Recent Zaps')}
-          </h3>
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+        {summary && isAboutOpen && <p className="mt-2 text-sm text-muted-foreground">{summary}</p>}
+        {zaps.length > 0 && (
+          <div className="mt-2 flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
             {zaps.slice(0, 20).map((zap) => (
               <div
                 key={zap.id}
@@ -287,57 +277,73 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      <div className="p-4 space-y-4">
-        <h3 className="font-semibold">
-          {t('Live Chat')} ({chatMessages.length})
-        </h3>
-
-        <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin">
-          {chatMessages.map((msg) => (
-            <ChatMessage
-              key={msg.id}
-              event={msg}
-              isSmallScreen={isSmallScreen}
-              onZapMessage={(target) => {
-                setChatZapTarget(target)
-                setIsChatZapOpen(true)
-              }}
-            />
-          ))}
-          <div ref={chatEndRef} />
-
-          {chatMessages.length === 0 && (
-            <div className="text-center text-sm text-muted-foreground py-8">
-              {t('No messages yet. Be the first to chat!')}
+      <div className="flex-1 min-h-0 grid grid-rows-[minmax(220px,40vh)_minmax(0,1fr)] md:grid-rows-1 md:grid-cols-5">
+        <div className="min-h-0 bg-black border-b md:border-b-0 md:border-r">
+          {streamingUrl ? (
+            <video src={streamingUrl} controls autoPlay className="w-full h-full object-contain" />
+          ) : image ? (
+            <img src={image} alt={title} className="w-full h-full object-contain" />
+          ) : (
+            <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground">
+              {t('Live stream not found')}
             </div>
           )}
         </div>
 
-        <div className="flex gap-2">
-          <Textarea
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            placeholder={t('Type a message...')}
-            className="resize-none"
-            rows={2}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                sendMessage()
-              }
-            }}
-          />
-          <Button
-            onClick={sendMessage}
-            disabled={!message.trim() || isSending}
-            size="icon"
-            className="shrink-0"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
+        <div className="md:col-span-2 min-h-0 flex flex-col">
+          <div className="shrink-0 px-3 py-2 border-b font-semibold">
+            {t('Live Chat')} ({chatMessages.length})
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-3 scrollbar-thin">
+            {chatMessages.map((msg) => (
+              <ChatMessage
+                key={msg.id}
+                event={msg}
+                isSmallScreen={isSmallScreen}
+                onZapMessage={(target) => {
+                  setChatZapTarget(target)
+                  setIsChatZapOpen(true)
+                }}
+              />
+            ))}
+            <div ref={chatEndRef} />
+
+            {chatMessages.length === 0 && (
+              <div className="text-center text-sm text-muted-foreground py-8">
+                {t('No messages yet. Be the first to chat!')}
+              </div>
+            )}
+          </div>
+
+          <div className="shrink-0 border-t p-3">
+            <div className="flex gap-2 items-end">
+              <Textarea
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder={t('Type a message...')}
+                className="resize-none"
+                rows={2}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault()
+                    sendMessage()
+                  }
+                }}
+              />
+              <Button
+                onClick={sendMessage}
+                disabled={!message.trim() || isSending}
+                size="icon"
+                className="shrink-0"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
