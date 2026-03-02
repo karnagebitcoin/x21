@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Event } from 'nostr-tools'
 import { useTranslation } from 'react-i18next'
-import { Radio, Users, Calendar, ExternalLink } from 'lucide-react'
+import { Radio, Users, Calendar } from 'lucide-react'
 import UserAvatar from '@/components/UserAvatar'
 import Username from '@/components/Username'
 import { FormattedTimestamp } from '@/components/FormattedTimestamp'
@@ -11,14 +11,19 @@ import Image from '@/components/Image'
 import { nip19 } from 'nostr-tools'
 import { Button } from '@/components/ui/button'
 
-export default function LiveEventCard({ event }: { event: Event }) {
+export default function LiveEventCard({
+  event,
+  onOpenStream
+}: {
+  event: Event
+  onOpenStream?: (naddr: string, event: Event) => void
+}) {
   const { t } = useTranslation()
   const { push } = useSecondaryPage()
 
   const title = event.tags.find(t => t[0] === 'title')?.[1] || t('Untitled Live Stream')
   const summary = event.tags.find(t => t[0] === 'summary')?.[1]
   const image = event.tags.find(t => t[0] === 'image')?.[1]
-  const streamingUrl = event.tags.find(t => t[0] === 'streaming')?.[1]
   const currentParticipants = event.tags.find(t => t[0] === 'current_participants')?.[1]
   const totalParticipants = event.tags.find(t => t[0] === 'total_participants')?.[1]
   const starts = event.tags.find(t => t[0] === 'starts')?.[1]
@@ -36,27 +41,23 @@ export default function LiveEventCard({ event }: { event: Event }) {
     relays: relays.length > 0 ? relays : ['wss://relay.damus.io']
   })
 
-  const handleCardClick = () => {
-    // If there's a streaming URL, we could navigate to a detail page
-    // For now, just try to open the streaming URL if it exists
-    if (streamingUrl) {
-      window.open(streamingUrl, '_blank', 'noopener,noreferrer')
-    } else {
-      push(`/live/${naddr}`)
+  const handleOpenStream = () => {
+    if (onOpenStream) {
+      onOpenStream(naddr, event)
+      return
     }
+    push(`/live/${naddr}`)
   }
 
   const handleStreamClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (streamingUrl) {
-      window.open(streamingUrl, '_blank', 'noopener,noreferrer')
-    }
+    handleOpenStream()
   }
 
   return (
     <Card
       className="overflow-hidden hover:shadow-lg transition-all cursor-pointer group"
-      onClick={handleCardClick}
+      onClick={handleOpenStream}
     >
       {image && (
         <div className="relative aspect-video overflow-hidden bg-muted">
@@ -150,16 +151,9 @@ export default function LiveEventCard({ event }: { event: Event }) {
           </div>
         )}
 
-        {streamingUrl && (
-          <Button
-            onClick={handleStreamClick}
-            className="w-full"
-            variant="default"
-          >
-            <ExternalLink className="w-4 h-4 mr-2" />
-            {t('Watch Stream')}
-          </Button>
-        )}
+        <Button onClick={handleStreamClick} className="w-full" variant="default">
+          {t('Watch Stream')}
+        </Button>
       </div>
     </Card>
   )
