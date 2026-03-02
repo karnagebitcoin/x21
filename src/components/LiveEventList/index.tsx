@@ -110,12 +110,22 @@ const LiveEventList = forwardRef<
     eventMapRef.current.clear()
     setEvents([])
 
-    // Seed with a one-shot query so back-navigation does not depend on subscription EOSE timing.
+    // Use warm cache first when available for instant paint.
+    const cachedEvents = client.getCachedLiveStreamEvents()
+    if (cachedEvents.length > 0) {
+      for (const event of cachedEvents) {
+        const dTag = getTagValue(event, 'd')
+        if (!dTag) continue
+        eventMapRef.current.set(`${event.pubkey}:${dTag}`, event)
+      }
+      updateEventList()
+      setIsLoading(false)
+      clearLoadingTimeout()
+    }
+
+    // Then refresh cache from relays in the background.
     client
-      .querySync(LIVE_STREAM_RELAYS, {
-        kinds: [30311],
-        limit: 200
-      })
+      .prefetchLiveStreamEvents({ relays: LIVE_STREAM_RELAYS })
       .then((seedEvents) => {
         for (const event of seedEvents) {
           const dTag = getTagValue(event, 'd')
@@ -154,6 +164,7 @@ const LiveEventList = forwardRef<
             eventMapRef.current.set(key, event)
             updateEventList()
           }
+          client.cacheLiveStreamEvents([event])
           setIsLoading(false)
         },
         oneose: (eosed: boolean) => {

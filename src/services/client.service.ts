@@ -69,6 +69,20 @@ class ClientService extends EventTarget {
   private trendingNotesCache: NEvent[] | null = null
   private trendingNotesCacheTime: number = 0
   private readonly TRENDING_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+  private liveStreamCacheMap = new Map<string, NEvent>()
+  private liveStreamCacheTime = 0
+  private liveStreamPrefetchPromise: Promise<NEvent[]> | null = null
+  private readonly LIVE_STREAM_CACHE_DURATION = 60 * 1000 // 1 minute
+  private readonly LIVE_STREAM_RELAYS = Array.from(
+    new Set([
+      ...BIG_RELAY_URLS,
+      'wss://relay.snort.social/',
+      'wss://relay.primal.net/',
+      'wss://nostr.wine/'
+    ])
+  )
+    .map((relay) => normalizeUrl(relay))
+    .filter((relay): relay is string => relay.length > 0)
 
   private userIndex = new FlexSearch.Index({
     tokenize: 'forward'
@@ -863,6 +877,69 @@ class ClientService extends EventTarget {
       // Return cached data if available, even if expired, as fallback
       return this.trendingNotesCache || []
     }
+  }
+
+  cacheLiveStreamEvents(events: NEvent[]) {
+    if (events.length === 0) return
+
+    events.forEach((event) => {
+      if (event.kind !== 30311) return
+
+      const dTag = event.tags.find((tag) => tag[0] === 'd')?.[1]
+      const key = dTag ? `${event.pubkey}:${dTag}` : event.id
+      const existing = this.liveStreamCacheMap.get(key)
+      if (!existing || event.created_at > existing.created_at) {
+        this.liveStreamCacheMap.set(key, event)
+      }
+    })
+
+    this.liveStreamCacheTime = Date.now()
+  }
+
+  getCachedLiveStreamEvents(
+    maxAgeMs = this.LIVE_STREAM_CACHE_DURATION
+  ): NEvent[] {
+    if (!this.liveStreamCacheMap.size) return []
+    if (Date.now() - this.liveStreamCacheTime > maxAgeMs) return []
+    return Array.from(this.liveStreamCacheMap.values()).sort((a, b) => b.created_at - a.created_at)
+  }
+
+  async prefetchLiveStreamEvents({
+    relays,
+    force = false
+  }: {
+    relays?: string[]
+    force?: boolean
+  } = {}) {
+    if (!force) {
+      const cached = this.getCachedLiveStreamEvents()
+      if (cached.length > 0) return cached
+    }
+
+    if (this.liveStreamPrefetchPromise) {
+      return this.liveStreamPrefetchPromise
+    }
+
+    const targetRelays = Array.from(
+      new Set((relays && relays.length > 0 ? relays : this.LIVE_STREAM_RELAYS).map((relay) => normalizeUrl(relay)).filter((relay): relay is string => relay.length > 0))
+    )
+    this.liveStreamPrefetchPromise = this.querySync(targetRelays, {
+      kinds: [30311],
+      limit: 200
+    })
+      .then((events) => {
+        this.cacheLiveStreamEvents(events)
+        return this.getCachedLiveStreamEvents(Number.MAX_SAFE_INTEGER)
+      })
+      .catch((error) => {
+        console.error('prefetchLiveStreamEvents error', error)
+        return this.getCachedLiveStreamEvents(Number.MAX_SAFE_INTEGER)
+      })
+      .finally(() => {
+        this.liveStreamPrefetchPromise = null
+      })
+
+    return this.liveStreamPrefetchPromise
   }
 
   addEventToCache(event: NEvent) {

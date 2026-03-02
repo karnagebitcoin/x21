@@ -111,6 +111,25 @@ export function AppWithListPreview() {
     checkForListPreview()
   }, [lists, myPubkey])
 
+  useEffect(() => {
+    const warmUpTimer = window.setTimeout(() => {
+      client.prefetchLiveStreamEvents().catch(() => {
+        // Ignore warm-up errors; live stream page will retry on demand.
+      })
+    }, 1500)
+
+    const interval = window.setInterval(() => {
+      client.prefetchLiveStreamEvents().catch(() => {
+        // Ignore warm-up errors; live stream page will retry on demand.
+      })
+    }, 60_000)
+
+    return () => {
+      clearTimeout(warmUpTimer)
+      clearInterval(interval)
+    }
+  }, [])
+
   // Show list preview dialog after login/signup
   useEffect(() => {
     const showPendingList = async () => {
