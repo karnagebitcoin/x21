@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Event } from 'nostr-tools'
 import { useTranslation } from 'react-i18next'
-import { Radio, Users, Calendar } from 'lucide-react'
+import { Radio, Users } from 'lucide-react'
 import UserAvatar from '@/components/UserAvatar'
 import Username from '@/components/Username'
 import { FormattedTimestamp } from '@/components/FormattedTimestamp'
@@ -29,7 +29,6 @@ export default function LiveEventCard({
   const totalParticipants = event.tags.find(t => t[0] === 'total_participants')?.[1]
   const starts = event.tags.find(t => t[0] === 'starts')?.[1]
   const dTag = event.tags.find(t => t[0] === 'd')?.[1] || ''
-  const hashtags = event.tags.filter(t => t[0] === 't').map(t => t[1])
   
   // Get relay hints from the event's relays tag
   const relays = event.tags.find(t => t[0] === 'relays')?.slice(1) || []
@@ -105,10 +104,23 @@ export default function LiveEventCard({
             <h3 className="font-semibold text-base leading-tight line-clamp-1 group-hover:text-primary transition-colors">
               {title}
             </h3>
-            <Username
-              userId={event.pubkey}
-              className="text-xs text-muted-foreground"
-            />
+            <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+              <Username userId={event.pubkey} className="text-xs text-muted-foreground" />
+              {starts && (
+                <>
+                  <span>•</span>
+                  <span>
+                    {t('Started')} <FormattedTimestamp timestamp={parseInt(starts)} short />
+                  </span>
+                </>
+              )}
+              {totalParticipants && (
+                <>
+                  <span>•</span>
+                  <span>{totalParticipants} {t('total viewers')}</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -116,40 +128,6 @@ export default function LiveEventCard({
           <p className="text-xs text-muted-foreground line-clamp-1">
             {summary}
           </p>
-        )}
-
-        <div className="flex flex-wrap gap-2 items-center text-xs text-muted-foreground">
-          {starts && (
-            <div className="flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5" />
-              <span>
-                {t('Started')}{' '}
-                <FormattedTimestamp timestamp={parseInt(starts)} short />
-              </span>
-            </div>
-          )}
-
-          {totalParticipants && (
-            <div className="flex items-center gap-1">
-              <Users className="w-3.5 h-3.5" />
-              <span>{totalParticipants} {t('total viewers')}</span>
-            </div>
-          )}
-        </div>
-
-        {hashtags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {hashtags.slice(0, 3).map((tag, i) => (
-              <Badge key={i} variant="secondary" className="text-[11px] px-1.5 py-0">
-                #{tag}
-              </Badge>
-            ))}
-            {hashtags.length > 3 && (
-              <Badge variant="secondary" className="text-[11px] px-1.5 py-0">
-                +{hashtags.length - 3}
-              </Badge>
-            )}
-          </div>
         )}
 
         <Button onClick={handleStreamClick} className="w-full h-8 text-xs" variant="default">
@@ -180,16 +158,7 @@ export function LiveEventCardSkeleton() {
 
         <Skeleton className="h-3 w-3/4" />
 
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-3 w-28" />
-          <Skeleton className="h-3 w-24" />
-        </div>
-
-        <div className="flex gap-1">
-          <Skeleton className="h-4 w-12 rounded-full" />
-          <Skeleton className="h-4 w-16 rounded-full" />
-          <Skeleton className="h-4 w-10 rounded-full" />
-        </div>
+        <Skeleton className="h-3 w-11/12" />
 
         <Skeleton className="h-8 w-full rounded-md" />
       </div>
