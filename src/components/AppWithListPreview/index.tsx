@@ -3,7 +3,7 @@ import { PageManager } from '@/PageManager'
 import ListPreviewDialog from '@/components/ListPreviewDialog'
 import InviteHandler from '@/components/InviteHandler'
 import { useLists, TStarterPack } from '@/providers/ListsProvider'
-import { useNostr } from '@/providers/NostrProvider'
+import { useOptionalNostr } from '@/providers/NostrProvider'
 import { useFeed } from '@/providers/FeedProvider'
 import client from '@/services/client.service'
 import { Event } from 'nostr-tools'
@@ -30,7 +30,8 @@ export function AppWithListPreview() {
   useKeyboardFeedScroll()
 
   const { t } = useTranslation()
-  const { pubkey: myPubkey } = useNostr()
+  const nostr = useOptionalNostr()
+  const myPubkey = nostr?.pubkey ?? null
   const { lists } = useLists()
   const { switchFeed } = useFeed()
   const [listPreview, setListPreview] = useState<{
