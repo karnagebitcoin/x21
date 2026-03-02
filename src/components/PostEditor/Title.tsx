@@ -1,14 +1,32 @@
 import { Event } from 'nostr-tools'
+import { Dispatch, SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
+import PostRelaySelector from './PostRelaySelector'
 
-export default function Title({ parentEvent }: { parentEvent?: Event }) {
+export default function Title({
+  parentEvent,
+  openFrom,
+  setIsProtectedEvent,
+  setAdditionalRelayUrls
+}: {
+  parentEvent?: Event
+  openFrom?: string[]
+  setIsProtectedEvent: Dispatch<SetStateAction<boolean>>
+  setAdditionalRelayUrls: Dispatch<SetStateAction<string[]>>
+}) {
   const { t } = useTranslation()
 
-  return parentEvent ? (
-    <div className="flex gap-2 items-center w-full">
-      <div className="shrink-0">{t('Reply to')}</div>
+  return (
+    <div className="flex items-center justify-between w-full gap-4">
+      <div className="shrink-0">
+        {parentEvent ? t('Reply to') : t('New Note')}
+      </div>
+      <PostRelaySelector
+        parentEvent={parentEvent}
+        openFrom={openFrom}
+        setIsProtectedEvent={setIsProtectedEvent}
+        setAdditionalRelayUrls={setAdditionalRelayUrls}
+      />
     </div>
-  ) : (
-    t('New Note')
   )
 }

@@ -14,7 +14,7 @@ import { useCurrentRelays } from '@/providers/CurrentRelaysProvider'
 import { useFavoriteRelays } from '@/providers/FavoriteRelaysProvider'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
 import client from '@/services/client.service'
-import { Check } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 import { NostrEvent } from 'nostr-tools'
 import { Dispatch, SetStateAction, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -206,15 +206,15 @@ export default function PostRelaySelector({
   if (isSmallScreen) {
     return (
       <>
-        <div className="flex items-center gap-2">
-          {t('Post to')}
-          <Button
-            variant="outline"
-            className="px-2 flex-1 max-w-fit justify-start"
-            onClick={() => setIsDrawerOpen(true)}
-          >
-            <div className="truncate">{description}</div>
-          </Button>
+        <div
+          className="flex items-center gap-2 px-2.5 py-1.5 border rounded-full cursor-pointer hover:bg-accent/50 transition-colors"
+          onClick={() => setIsDrawerOpen(true)}
+        >
+          <span className="text-xs text-muted-foreground shrink-0">{t('Post to')}</span>
+          <div className="flex items-center gap-1 flex-1 min-w-0">
+            <div className="truncate text-xs">{description}</div>
+            <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+          </div>
         </div>
         <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
           <DrawerOverlay onClick={() => setIsDrawerOpen(false)} />
@@ -233,15 +233,16 @@ export default function PostRelaySelector({
 
   return (
     <DropdownMenu>
-      <div className="flex items-center gap-2">
-        {t('Post to')}
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="px-2 flex-1 max-w-fit justify-start">
-            <div className="truncate">{description}</div>
-          </Button>
-        </DropdownMenuTrigger>
-      </div>
-      <DropdownMenuContent align="start" className="max-w-96 max-h-[50vh]" showScrollButtons>
+      <DropdownMenuTrigger asChild>
+        <div className="flex items-center gap-2 px-2.5 py-1.5 border rounded-full cursor-pointer hover:bg-accent/50 transition-colors">
+          <span className="text-xs text-muted-foreground shrink-0">{t('Post to')}</span>
+          <div className="flex items-center gap-1 min-w-0">
+            <div className="truncate text-xs max-w-[150px]">{description}</div>
+            <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+          </div>
+        </div>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="max-w-96 max-h-[50vh]" showScrollButtons>
         {content}
       </DropdownMenuContent>
     </DropdownMenu>

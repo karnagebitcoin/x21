@@ -7,28 +7,29 @@ import ExternalLink from '../ExternalLink'
 
 export default function MediaPlayer({
   src,
+  pubkey,
   className,
   mustLoad = false,
-  compactMedia = false
+  compactMedia = false,
+  isSingleMedia = true
 }: {
   src: string
+  pubkey?: string
   className?: string
   mustLoad?: boolean
   compactMedia?: boolean
+  isSingleMedia?: boolean
 }) {
   const { t } = useTranslation()
-  const { autoLoadMedia } = useContentPolicy()
-  const [display, setDisplay] = useState(autoLoadMedia)
+  const { shouldAutoLoadMedia } = useContentPolicy()
+  const [display, setDisplay] = useState(() => shouldAutoLoadMedia(pubkey))
   const [mediaType, setMediaType] = useState<'video' | 'audio' | null>(null)
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    if (autoLoadMedia) {
-      setDisplay(true)
-    } else {
-      setDisplay(false)
-    }
-  }, [autoLoadMedia])
+    const shouldLoad = shouldAutoLoadMedia(pubkey)
+    setDisplay(shouldLoad)
+  }, [shouldAutoLoadMedia, pubkey])
 
   useEffect(() => {
     if (!mustLoad && !display) {
@@ -90,7 +91,7 @@ export default function MediaPlayer({
   }
 
   if (mediaType === 'video') {
-    return <VideoPlayer src={src} className={compactMedia ? 'w-20 h-20 rounded overflow-hidden' : className} compactMedia={compactMedia} />
+    return <VideoPlayer src={src} className={compactMedia ? 'w-20 h-20 rounded overflow-hidden' : className} compactMedia={compactMedia} isSingleMedia={isSingleMedia} />
   }
 
   return <AudioPlayer src={src} className={className} />

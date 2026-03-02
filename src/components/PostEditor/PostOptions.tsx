@@ -27,7 +27,9 @@ export default function PostOptions({
   const { t } = useTranslation()
 
   useEffect(() => {
-    setAddClientTag(window.localStorage.getItem(StorageKey.ADD_CLIENT_TAG) === 'true')
+    const stored = window.localStorage.getItem(StorageKey.ADD_CLIENT_TAG)
+    // Default to true if not set, otherwise use stored value
+    setAddClientTag(stored === null ? true : stored === 'true')
   }, [])
 
   if (!show) return null
@@ -54,7 +56,7 @@ export default function PostOptions({
           />
         </div>
         <div className="text-muted-foreground text-xs">
-          {t('Show others this was sent via Jumble')}
+          {t('Show others this was sent via x21')}
         </div>
       </div>
 

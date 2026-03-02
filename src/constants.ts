@@ -23,6 +23,7 @@ export const RECOMMENDED_BLOSSOM_SERVERS = [
 export const StorageKey = {
   VERSION: 'version',
   THEME_SETTING: 'themeSetting',
+  COLOR_PALETTE: 'colorPalette',
   RELAY_SETS: 'relaySets',
   ACCOUNTS: 'accounts',
   CURRENT_ACCOUNT: 'currentAccount',
@@ -40,10 +41,12 @@ export const StorageKey = {
   TRANSLATION_SERVICE_CONFIG_MAP: 'translationServiceConfigMap',
   MEDIA_UPLOAD_SERVICE_CONFIG_MAP: 'mediaUploadServiceConfigMap',
   HIDE_UNTRUSTED_NOTES: 'hideUntrustedNotes',
+  TRUST_LEVEL: 'trustLevel',
   DEFAULT_SHOW_NSFW: 'defaultShowNsfw',
   DISMISSED_TOO_MANY_RELAYS_ALERT: 'dismissedTooManyRelaysAlert',
   SHOW_KINDS: 'showKinds',
   SHOW_KINDS_VERSION: 'showKindsVersion',
+  MEDIA_ONLY: 'mediaOnly',
   HIDE_CONTENT_MENTIONING_MUTED_USERS: 'hideContentMentioningMutedUsers',
   ALWAYS_HIDE_MUTED_NOTES: 'alwaysHideMutedNotes',
   HIDE_NOTIFICATIONS_FROM_MUTED_USERS: 'hideNotificationsFromMutedUsers',
@@ -51,18 +54,31 @@ export const StorageKey = {
   MEDIA_AUTO_LOAD_POLICY: 'mediaAutoLoadPolicy',
   SHOWN_CREATE_WALLET_GUIDE_TOAST_PUBKEYS: 'shownCreateWalletGuideToastPubkeys',
   FONT_SIZE: 'fontSize',
+  TITLE_FONT_SIZE: 'titleFontSize',
   PRIMARY_COLOR: 'primaryColor',
   LAYOUT_MODE: 'layoutMode',
   BUTTON_RADIUS: 'buttonRadius',
+  POST_BUTTON_STYLE: 'postButtonStyle',
+  CARD_RADIUS: 'cardRadius',
+  MEDIA_RADIUS: 'mediaRadius',
   PAGE_THEME: 'pageTheme',
   PRIVATE_NOTES: 'privateNotes',
   TRENDING_NOTES_DISMISSED: 'trendingNotesDismissed',
   TRENDING_NOTES_HEIGHT: 'trendingNotesHeight',
   BITCOIN_TICKER_ALIGNMENT: 'bitcoinTickerAlignment',
   BITCOIN_TICKER_TEXT_SIZE: 'bitcoinTickerTextSize',
+  BITCOIN_TICKER_SHOW_BLOCK_HEIGHT: 'bitcoinTickerShowBlockHeight',
+  BITCOIN_TICKER_SHOW_SATS_MODE: 'bitcoinTickerShowSatsMode',
   COMPACT_SIDEBAR: 'compactSidebar',
+  LOGO_STYLE: 'logoStyle',
+  CUSTOM_LOGO_TEXT: 'customLogoText',
+  LOGO_FONT_SIZE: 'logoFontSize',
+  WIDGET_SIDEBAR_TITLE: 'widgetSidebarTitle',
+  WIDGET_SIDEBAR_ICON: 'widgetSidebarIcon',
+  HIDE_WIDGET_TITLES: 'hideWidgetTitles',
   ENABLED_WIDGETS: 'enabledWidgets',
   PINNED_NOTE_WIDGETS: 'pinnedNoteWidgets',
+  AI_PROMPT_WIDGETS: 'aiPromptWidgets',
   ZAP_SOUND: 'zapSound',
   FONT_FAMILY: 'fontFamily',
   CUSTOM_FEEDS: 'customFeeds',
@@ -70,8 +86,30 @@ export const StorageKey = {
   CHARGE_ZAP_LIMIT: 'chargeZapLimit',
   ZAP_ON_REACTIONS: 'zapOnReactions',
   ONLY_ZAPS_MODE: 'onlyZapsMode',
+  PAYMENTS_ENABLED: 'paymentsEnabled',
   DECK_VIEW_MODE: 'deckViewMode',
   PINNED_COLUMNS: 'pinnedColumns',
+  DISTRACTION_FREE_MODE: 'distractionFreeMode',
+  AI_SERVICE_CONFIG_MAP: 'aiServiceConfigMap',
+  AI_TOOLS_CONFIG_MAP: 'aiToolsConfigMap',
+  HIDE_READS_IN_NAVIGATION: 'hideReadsInNavigation',
+  HIDE_READS_IN_PROFILES: 'hideReadsInProfiles',
+  HIDE_LISTS_IN_NAVIGATION: 'hideListsInNavigation',
+  FAVORITE_LISTS: 'favoriteLists',
+  MEDIA_STYLE: 'mediaStyle',
+  DEFAULT_NOTE_EXPIRATION: 'defaultNoteExpiration',
+  READ_ARTICLES: 'readArticles',
+  BOOKMARK_TAGS: 'bookmarkTags',
+  PINNED_REPLIES: 'pinnedReplies',
+  MAX_HASHTAGS: 'maxHashtags',
+  MAX_MENTIONS: 'maxMentions',
+  MENU_ITEMS: 'menuItems',
+  TEXT_ONLY_MODE: 'textOnlyMode',
+  LOW_BANDWIDTH_MODE: 'lowBandwidthMode',
+  DISABLE_AVATAR_ANIMATIONS: 'disableAvatarAnimations',
+  DEFAULT_REACTION_EMOJIS: 'defaultReactionEmojis',
+  COLLAPSE_LONG_NOTES: 'collapseLongNotes',
+  ALWAYS_SHOW_FULL_MEDIA: 'alwaysShowFullMedia',
   MEDIA_UPLOAD_SERVICE: 'mediaUploadService', // deprecated
   HIDE_UNTRUSTED_EVENTS: 'hideUntrustedEvents', // deprecated
   ACCOUNT_RELAY_LIST_EVENT_MAP: 'accountRelayListEventMap', // deprecated
@@ -102,6 +140,7 @@ export const ExtendedKind = {
   PICTURE: 20,
   VIDEO: 21,
   SHORT_VIDEO: 22,
+  FILE_METADATA: 1063,
   POLL: 1068,
   POLL_RESPONSE: 1018,
   COMMENT: 1111,
@@ -109,13 +148,17 @@ export const ExtendedKind = {
   VOICE_COMMENT: 1244,
   FAVORITE_RELAYS: 10012,
   BLOSSOM_SERVER_LIST: 10063,
+  BOOKMARK_SET: 30001,
   RELAY_REVIEW: 31987,
-  GROUP_METADATA: 39000
+  MUSIC_TRACK: 36787,
+  GROUP_METADATA: 39000,
+  STARTER_PACK: 39089
 }
 
 export const SUPPORTED_KINDS = [
   kinds.ShortTextNote,
   kinds.Repost,
+  kinds.Highlights,
   ExtendedKind.PICTURE,
   ExtendedKind.VIDEO,
   ExtendedKind.SHORT_VIDEO,
@@ -123,9 +166,9 @@ export const SUPPORTED_KINDS = [
   ExtendedKind.COMMENT,
   ExtendedKind.VOICE,
   ExtendedKind.VOICE_COMMENT,
-  kinds.Highlights,
   kinds.LongFormArticle,
-  ExtendedKind.RELAY_REVIEW
+  ExtendedKind.RELAY_REVIEW,
+  ExtendedKind.MUSIC_TRACK
 ]
 
 export const URL_REGEX =
@@ -175,20 +218,40 @@ export const NOTIFICATION_LIST_STYLE = {
 export const MEDIA_AUTO_LOAD_POLICY = {
   ALWAYS: 'always',
   WIFI_ONLY: 'wifi-only',
-  NEVER: 'never'
+  NEVER: 'never',
+  FOLLOWS_ONLY: 'follows-only',
+  WEB_OF_TRUST: 'web-of-trust'
 } as const
 
-export const FONT_SIZES = [10, 12, 14, 16, 18, 20] as const
-export const DEFAULT_FONT_SIZE = 14
+export const DISTRACTION_FREE_MODE = {
+  DRAIN_MY_TIME: 'drain-my-time',
+  FOCUS_MODE: 'focus-mode'
+} as const
 
+export const DEFAULT_DISTRACTION_FREE_MODE = 'drain-my-time'
+
+export const FONT_SIZES = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const
+export const DEFAULT_FONT_SIZE = 15
+
+export const TITLE_FONT_SIZES = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24] as const
+export const DEFAULT_TITLE_FONT_SIZE = 15
+
+export const LOGO_FONT_SIZES = [16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40] as const
+export const DEFAULT_LOGO_FONT_SIZE = 24
+
+// Available font families for the application
 export const FONT_FAMILIES = {
   DEFAULT: {
-    name: 'Default',
+    name: 'Inter',
     value: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   },
   SYSTEM: {
     name: 'System',
     value: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif'
+  },
+  DM_SANS: {
+    name: 'DM Sans',
+    value: '"DM Sans", system-ui, sans-serif'
   },
   IBM_PLEX_SANS: {
     name: 'IBM Plex Sans',
@@ -198,17 +261,37 @@ export const FONT_FAMILIES = {
     name: 'Lato',
     value: 'Lato, system-ui, sans-serif'
   },
+  MONA_SANS: {
+    name: 'Mona Sans',
+    value: '"Mona Sans", system-ui, sans-serif'
+  },
   OUTFIT: {
     name: 'Outfit',
     value: 'Outfit, system-ui, sans-serif'
   },
+  PUBLIC_SANS: {
+    name: 'Public Sans',
+    value: '"Public Sans", system-ui, sans-serif'
+  },
   ROBOTO: {
     name: 'Roboto',
     value: 'Roboto, system-ui, sans-serif'
+  },
+  SPACE_GROTESK: {
+    name: 'Space Grotesk',
+    value: '"Space Grotesk", system-ui, sans-serif'
+  },
+  GEIST: {
+    name: 'Geist',
+    value: 'Geist, system-ui, sans-serif'
+  },
+  GEIST_MONO: {
+    name: 'Geist Mono',
+    value: '"Geist Mono", monospace'
   }
 } as const
 
-export const DEFAULT_FONT_FAMILY = 'DEFAULT'
+export const DEFAULT_FONT_FAMILY = 'DEFAULT' // Inter
 
 export const ZAP_SOUNDS = {
   NONE: 'none',
@@ -234,7 +317,20 @@ export const ACTUAL_ZAP_SOUNDS = [
 ] as const
 
 export const BUTTON_RADIUS_VALUES = [0, 2, 4, 6, 8, 12, 16, 9999] as const
-export const DEFAULT_BUTTON_RADIUS = 6
+export const DEFAULT_BUTTON_RADIUS = 9999 // Fully rounded
+
+export const POST_BUTTON_STYLE = {
+  FILLED: 'filled',
+  OUTLINED: 'outlined'
+} as const
+
+export const DEFAULT_POST_BUTTON_STYLE = 'filled' // Filled
+
+export const CARD_RADIUS_VALUES = [0, 4, 8, 12, 16, 20, 24] as const
+export const DEFAULT_CARD_RADIUS = 20
+
+export const MEDIA_RADIUS_VALUES = [0, 4, 8, 12, 16, 20, 24] as const
+export const DEFAULT_MEDIA_RADIUS = 12
 
 export const PRIMARY_COLORS = {
   RED: {
@@ -358,16 +454,17 @@ export const PRIMARY_COLORS = {
   }
 } as const
 
-export const DEFAULT_PRIMARY_COLOR = 'PURPLE'
+export const DEFAULT_PRIMARY_COLOR = 'ORANGE'
 
 export const MAX_PINNED_NOTES = 10
 
 export const LAYOUT_MODE = {
   BOXED: 'boxed',
-  FULL_WIDTH: 'full-width'
+  FULL_WIDTH: 'full-width',
+  ISLAND: 'island'
 } as const
 
-export const DEFAULT_LAYOUT_MODE = 'boxed'
+export const DEFAULT_LAYOUT_MODE = 'island'
 
 export const DECK_VIEW_MODE = {
   STANDARD: 'standard',
@@ -376,4 +473,11 @@ export const DECK_VIEW_MODE = {
 
 export const DEFAULT_DECK_VIEW_MODE = 'standard'
 
-export const DEFAULT_PAGE_THEME = 'default'
+export const DEFAULT_PAGE_THEME = 'pure-black'
+
+export const MEDIA_STYLE = {
+  DEFAULT: 'default',
+  FULL_WIDTH: 'full-width'
+} as const
+
+export const DEFAULT_MEDIA_STYLE = 'full-width'

@@ -11,6 +11,7 @@ import { TRelaySet } from '@/types'
 import { Event, kinds } from 'nostr-tools'
 import { createContext, useContext, useEffect, useState } from 'react'
 import { useNostr } from './NostrProvider'
+import { useLowBandwidthMode } from './LowBandwidthModeProvider'
 
 type TFavoriteRelaysContext = {
   favoriteRelays: string[]
@@ -37,6 +38,7 @@ export const useFavoriteRelays = () => {
 
 export function FavoriteRelaysProvider({ children }: { children: React.ReactNode }) {
   const { favoriteRelaysEvent, updateFavoriteRelaysEvent, pubkey, relayList, publish } = useNostr()
+  const { lowBandwidthMode } = useLowBandwidthMode()
   const [favoriteRelays, setFavoriteRelays] = useState<string[]>([])
   const [relaySetEvents, setRelaySetEvents] = useState<Event[]>([])
   const [relaySets, setRelaySets] = useState<TRelaySet[]>([])
@@ -237,14 +239,23 @@ export function FavoriteRelaysProvider({ children }: { children: React.ReactNode
     updateFavoriteRelaysEvent(newFavoriteRelaysEvent)
   }
 
+  // In low bandwidth mode, override to use only relay.damus.io
+  const effectiveFavoriteRelays = lowBandwidthMode ? ['wss://relay.damus.io/'] : favoriteRelays
+  const effectiveRelaySets = lowBandwidthMode ? [] : relaySets
+
+  // Update client service with favorite relays for tiered metadata fetching
+  useEffect(() => {
+    client.setFavoriteRelays(effectiveFavoriteRelays)
+  }, [effectiveFavoriteRelays])
+
   return (
     <FavoriteRelaysContext.Provider
       value={{
-        favoriteRelays,
+        favoriteRelays: effectiveFavoriteRelays,
         addFavoriteRelays,
         deleteFavoriteRelays,
         reorderFavoriteRelays,
-        relaySets,
+        relaySets: effectiveRelaySets,
         createRelaySet,
         addRelaySets,
         deleteRelaySet,

@@ -1,5 +1,6 @@
 import Collapsible from '@/components/Collapsible'
 import FollowButton from '@/components/FollowButton'
+import InvitedBy from '@/components/InvitedBy'
 import Nip05 from '@/components/Nip05'
 import NpubQrCode from '@/components/NpubQrCode'
 import PrivateNote from '@/components/PrivateNote'
@@ -7,7 +8,7 @@ import ProfileAbout from '@/components/ProfileAbout'
 import ProfileBanner from '@/components/ProfileBanner'
 import ProfileOptions from '@/components/ProfileOptions'
 import ProfileZapButton from '@/components/ProfileZapButton'
-import PubkeyCopy from '@/components/PubkeyCopy'
+
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -34,7 +35,7 @@ import Followings from './Followings'
 import ProfileFeed from './ProfileFeed'
 import Relays from './Relays'
 
-export default function Profile({ id }: { id?: string }) {
+export default function Profile({ id, isInDeckView = false }: { id?: string; isInDeckView?: boolean }) {
   const { t } = useTranslation()
   const { push } = useSecondaryPage()
   const { profile, isFetching } = useFetchProfile(id)
@@ -163,6 +164,7 @@ export default function Profile({ id }: { id?: string }) {
               banner && 'cursor-pointer hover:opacity-90 transition-opacity'
             )}
             onClick={handleBannerClick}
+            isLCP={true}
           />
           <Avatar
             className="w-24 h-24 absolute left-3 bottom-0 translate-y-1/2 border-4 border-background cursor-pointer hover:opacity-90 transition-opacity"
@@ -176,17 +178,21 @@ export default function Profile({ id }: { id?: string }) {
         </div>
         <div className="px-4">
           <div className="flex justify-end h-8 gap-2 items-center">
-            <ProfileOptions pubkey={pubkey} />
             {isSelf ? (
-              <Button
-                className="w-20 min-w-20 rounded-full"
-                variant="secondary"
-                onClick={() => push(toProfileEditor())}
-              >
-                {t('Edit')}
-              </Button>
+              <>
+                <ProfileOptions pubkey={pubkey} />
+                <NpubQrCode pubkey={pubkey} variant="button" />
+                <Button
+                  className="w-20 min-w-20 rounded-full"
+                  variant="secondary"
+                  onClick={() => push(toProfileEditor())}
+                >
+                  {t('Edit')}
+                </Button>
+              </>
             ) : (
               <>
+                <ProfileOptions pubkey={pubkey} />
                 {!!lightningAddress && <ProfileZapButton pubkey={pubkey} />}
                 <FollowButton pubkey={pubkey} />
               </>
@@ -203,16 +209,14 @@ export default function Profile({ id }: { id?: string }) {
               )}
             </div>
             <Nip05 pubkey={pubkey} />
+            <InvitedBy pubkey={pubkey} />
             {lightningAddress && (
               <div className="text-sm text-yellow-400 flex gap-1 items-center select-text">
                 <Zap className="size-4 shrink-0" />
                 <div className="flex-1 max-w-fit w-0 truncate">{lightningAddress}</div>
               </div>
             )}
-            <div className="flex gap-1 mt-1">
-              <PubkeyCopy pubkey={pubkey} />
-              <NpubQrCode pubkey={pubkey} />
-            </div>
+
             <Collapsible>
               <ProfileAbout
                 about={about}
@@ -244,11 +248,11 @@ export default function Profile({ id }: { id?: string }) {
               </div>
               {!isSelf && <FollowedBy pubkey={pubkey} />}
             </div>
-            {gallery && gallery.length > 0 && <ProfileGallery gallery={gallery} maxImages={8} />}
+            <ProfileGallery pubkey={pubkey} gallery={gallery} maxImages={8} />
           </div>
         </div>
       </div>
-      <ProfileFeed pubkey={pubkey} topSpace={topContainerHeight + 100} />
+      <ProfileFeed pubkey={pubkey} topSpace={topContainerHeight + 100} isInDeckView={isInDeckView} />
       {avatarLightboxIndex >= 0 &&
         avatar &&
         createPortal(

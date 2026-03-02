@@ -1,4 +1,4 @@
-import { TGalleryImage } from '@/types'
+import { TGalleryImage, TGalleryImageEvent } from '@/types'
 import { ExternalLink } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -9,15 +9,43 @@ import { randomString } from '@/lib/random'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { useFetchGallery } from '@/hooks/useFetchGallery'
 
 interface ProfileGalleryProps {
-  gallery: TGalleryImage[]
+  pubkey?: string
+  gallery?: TGalleryImage[] // Legacy format (deprecated)
   maxImages?: number
 }
 
-export default function ProfileGallery({ gallery, maxImages = 8 }: ProfileGalleryProps) {
+export default function ProfileGallery({
+  pubkey,
+  gallery: legacyGallery,
+  maxImages = 8
+}: ProfileGalleryProps) {
   const [lightboxIndex, setLightboxIndex] = useState(-1)
   const lightboxId = useMemo(() => `profile-gallery-lightbox-${randomString()}`, [])
+
+  // Try to fetch new format gallery (kind 30001 + kind 1063)
+  const { isFetching, images: newGalleryImages } = useFetchGallery(pubkey)
+
+  // Use new gallery if available, otherwise fall back to legacy
+  const usingNewFormat = newGalleryImages.length > 0
+  const gallery = usingNewFormat
+    ? newGalleryImages.map((img): TGalleryImage => ({
+        url: img.url,
+        description: img.description,
+        link: img.link
+      }))
+    : legacyGallery || []
+
+  console.log('[ProfileGallery] Debug:', {
+    pubkey,
+    isFetching,
+    newGalleryImagesCount: newGalleryImages.length,
+    legacyGalleryCount: legacyGallery?.length || 0,
+    finalGalleryCount: gallery.length,
+    usingNewFormat
+  })
 
   // Limit gallery images to maxImages (default 8 for 4x2 grid)
   const visibleGallery = useMemo(() => {
@@ -47,6 +75,7 @@ export default function ProfileGallery({ gallery, maxImages = 8 }: ProfileGaller
     setLightboxIndex(index)
   }, [])
 
+  // Don't show anything if no gallery data
   if (!gallery || gallery.length === 0) {
     return null
   }
@@ -59,12 +88,18 @@ export default function ProfileGallery({ gallery, maxImages = 8 }: ProfileGaller
           <Badge variant="secondary" className="text-xs">
             {gallery.length}
           </Badge>
+          {usingNewFormat && (
+            <Badge variant="outline" className="text-xs">
+              NIP-94
+            </Badge>
+          )}
         </div>
         <div className="grid grid-cols-4 gap-2">
           {visibleGallery.map((image, index) => (
             <div
               key={index}
-              className="relative aspect-square overflow-hidden rounded-md cursor-pointer group bg-muted"
+              className="relative aspect-square overflow-hidden cursor-pointer group bg-muted"
+              style={{ borderRadius: 'var(--media-radius, 12px)' }}
               onClick={() => handleImageClick(index)}
             >
               <img
@@ -106,7 +141,6 @@ export default function ProfileGallery({ gallery, maxImages = 8 }: ProfileGaller
                 slide: ({ slide }) => {
                   // Use the slide's stored index to get the correct image data
                   const currentImage = visibleGallery[slide.index]
-                  console.log('Rendering slide:', slide.index, 'Image data:', currentImage)
                   return (
                     <div className="flex flex-col items-center justify-center h-full w-full p-4">
                       <div className="relative max-w-full max-h-full flex items-center justify-center">
@@ -130,7 +164,6 @@ export default function ProfileGallery({ gallery, maxImages = 8 }: ProfileGaller
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation()
-                              console.log('Opening link:', currentImage.link)
                               window.open(currentImage.link, '_blank', 'noopener,noreferrer')
                             }}
                             className="flex items-center gap-2"

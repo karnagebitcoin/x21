@@ -72,8 +72,8 @@ export default function RepostButton({ event }: { event: Event }) {
   const trigger = (
     <button
       className={cn(
-        'flex gap-1 items-center enabled:hover:text-lime-500 px-3 h-full',
-        hasReposted ? 'text-lime-500' : 'text-muted-foreground'
+        'flex gap-1 items-center enabled:hover:text-primary px-3 h-full',
+        hasReposted ? 'text-primary' : 'text-muted-foreground'
       )}
       title={t('Repost')}
       onClick={() => {
@@ -81,9 +81,11 @@ export default function RepostButton({ event }: { event: Event }) {
           setIsDrawerOpen(true)
         }
       }}
+      aria-label={hasReposted ? t('Repost') + `, ${t('you have reposted')}` : t('Repost')}
+      aria-pressed={hasReposted}
     >
-      {reposting ? <Loader className="animate-spin" /> : <Repeat />}
-      {!!repostCount && <div className="text-sm">{formatCount(repostCount)}</div>}
+      {reposting ? <Loader className="animate-spin" aria-hidden="true" /> : <Repeat aria-hidden="true" />}
+      {!!repostCount && <div className="text-sm ml-1" aria-label={`${repostCount} ${repostCount === 1 ? t('repost') : t('reposts')}`}>{formatCount(repostCount)}</div>}
     </button>
   )
 

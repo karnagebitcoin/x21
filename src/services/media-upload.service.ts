@@ -4,6 +4,7 @@ import { BlossomClient } from 'blossom-client-sdk'
 import { z } from 'zod'
 import client from './client.service'
 import storage from './local-storage.service'
+import imageCompression from 'browser-image-compression'
 
 type UploadOptions = {
   onProgress?: (progressPercent: number) => void
@@ -30,12 +31,42 @@ class MediaUploadService {
     this.serviceConfig = config
   }
 
+  private async convertToWebP(file: File): Promise<File> {
+    // Only convert PNG and JPEG images
+    if (!file.type.match(/^image\/(png|jpeg|jpg)$/)) {
+      return file
+    }
+
+    try {
+      // Use browser-image-compression to convert to WebP
+      const options = {
+        maxSizeMB: 10, // Don't compress file size, just convert format
+        fileType: 'image/webp',
+        initialQuality: 0.9,
+        alwaysKeepResolution: true,
+        useWebWorker: true
+      }
+
+      const compressedFile = await imageCompression(file, options)
+
+      // Update filename to have .webp extension
+      const fileName = file.name.replace(/\.(png|jpe?g)$/i, '.webp')
+      return new File([compressedFile], fileName, { type: 'image/webp' })
+    } catch (error) {
+      console.error('Failed to convert to WebP, using original file:', error)
+      return file
+    }
+  }
+
   async upload(file: File, options?: UploadOptions) {
+    // Convert PNG/JPEG to WebP before uploading
+    const fileToUpload = await this.convertToWebP(file)
+
     let result: { url: string; tags: string[][] }
     if (this.serviceConfig.type === 'nip96') {
-      result = await this.uploadByNip96(this.serviceConfig.service, file, options)
+      result = await this.uploadByNip96(this.serviceConfig.service, fileToUpload, options)
     } else {
-      result = await this.uploadByBlossom(file, options)
+      result = await this.uploadByBlossom(fileToUpload, options)
     }
 
     if (result.tags.length > 0) {

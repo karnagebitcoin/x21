@@ -1,8 +1,9 @@
 import { useSecondaryPage } from '@/PageManager'
 import { ExtendedKind, SUPPORTED_KINDS } from '@/constants'
-import { getParentBech32Id, isNsfwEvent } from '@/lib/event'
+import { getParentBech32Id, isFromMutedDomain, isNsfwEvent } from '@/lib/event'
 import { toNote } from '@/lib/link'
 import { cn } from '@/lib/utils'
+import { useFetchProfile } from '@/hooks'
 import { useContentPolicy } from '@/providers/ContentPolicyProvider'
 import { useMuteList } from '@/providers/MuteListProvider'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
@@ -32,6 +33,7 @@ import Poll from './Poll'
 import UnknownNote from './UnknownNote'
 import VideoNote from './VideoNote'
 import RelayReview from './RelayReview'
+import MusicTrack from './MusicTrack'
 
 export default function Note({
   event,
@@ -41,7 +43,8 @@ export default function Note({
   hideParentNotePreview = false,
   showFull = false,
   compactMedia = false,
-  metadataClassName
+  metadataClassName,
+  filterMutedNotes = true
 }: {
   event: Event
   originalNoteId?: string
@@ -51,6 +54,7 @@ export default function Note({
   showFull?: boolean
   compactMedia?: boolean
   metadataClassName?: string
+  filterMutedNotes?: boolean
 }) {
   const { push } = useSecondaryPage()
   const { isSmallScreen } = useScreenSize()
@@ -60,11 +64,28 @@ export default function Note({
   )
   const { defaultShowNsfw, alwaysHideMutedNotes } = useContentPolicy()
   const [showNsfw, setShowNsfw] = useState(false)
-  const { mutePubkeySet } = useMuteList()
+  const { mutePubkeySet, getMutedDomains } = useMuteList()
   const [showMuted, setShowMuted] = useState(false)
+  const { profile, isFetching } = useFetchProfile(event.pubkey)
+  const mutedDomains = getMutedDomains()
 
-  // If alwaysHideMutedNotes is enabled, completely hide the note
-  if (alwaysHideMutedNotes && mutePubkeySet.has(event.pubkey)) {
+  const isMutedByPubkey = mutePubkeySet.has(event.pubkey)
+  const isMutedByDomain = useMemo(() => {
+    return profile && isFromMutedDomain(profile.nip05, mutedDomains)
+  }, [profile, mutedDomains])
+
+  // If alwaysHideMutedNotes is enabled AND we're filtering mutes, completely hide pubkey-muted notes
+  if (filterMutedNotes && alwaysHideMutedNotes && isMutedByPubkey) {
+    return null
+  }
+
+  // Always completely hide domain-muted notes when filtering is enabled
+  if (filterMutedNotes && isMutedByDomain) {
+    return null
+  }
+
+  // If we have muted domains configured and profile is still loading, wait for profile to load
+  if (filterMutedNotes && mutedDomains.length > 0 && isFetching) {
     return null
   }
 
@@ -78,7 +99,7 @@ export default function Note({
     ].includes(event.kind)
   ) {
     content = <UnknownNote className="mt-2" event={event} />
-  } else if (mutePubkeySet.has(event.pubkey) && !showMuted) {
+  } else if (filterMutedNotes && isMutedByPubkey && !showMuted) {
     content = <MutedNote show={() => setShowMuted(true)} />
   } else if (!defaultShowNsfw && isNsfwEvent(event) && !showNsfw) {
     content = <NsfwNote show={() => setShowNsfw(true)} />
@@ -111,13 +132,24 @@ export default function Note({
     content = <VideoNote className="mt-2" event={event} compactMedia={compactMedia} />
   } else if (event.kind === ExtendedKind.RELAY_REVIEW) {
     content = <RelayReview className="mt-2" event={event} />
+  } else if (event.kind === ExtendedKind.MUSIC_TRACK) {
+    content = <MusicTrack className="mt-2" event={event} />
   } else {
     content = <Content className="mt-2" event={event} compactMedia={compactMedia} />
   }
 
+  // For music tracks when embedded (quoted), render only the player without header/metadata
+  if (event.kind === ExtendedKind.MUSIC_TRACK && size === 'small') {
+    return (
+      <div className={className}>
+        {content}
+      </div>
+    )
+  }
+
   return (
     <div className={className}>
-      <div className="flex justify-between items-start gap-2">
+      <header className="flex justify-between items-start gap-2">
         <div className="flex items-center space-x-2 flex-1">
           <UserAvatar userId={event.pubkey} size={size === 'small' ? 'medium' : 'normal'} />
           <div className="flex-1 w-0">
@@ -126,6 +158,8 @@ export default function Note({
                 userId={event.pubkey}
                 className={`font-semibold flex truncate ${size === 'small' ? 'text-sm' : ''}`}
                 skeletonClassName={size === 'small' ? 'h-3' : 'h-4'}
+                asHeading={true}
+                headingLevel={size === 'small' ? 4 : 3}
               />
               <ClientTag event={event} />
             </div>
@@ -145,7 +179,7 @@ export default function Note({
             <NoteOptions event={event} className="py-1 shrink-0 [&_svg]:size-5" />
           )}
         </div>
-      </div>
+      </header>
       {parentEventId && (
         <ParentNotePreview
           eventId={parentEventId}

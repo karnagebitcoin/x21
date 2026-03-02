@@ -1,5 +1,6 @@
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { useTranslationService } from '@/providers/TranslationServiceProvider'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,6 +14,9 @@ export default function LibreTranslate() {
   const [apiKey, setApiKey] = useState(
     config.service === 'libre_translate' ? (config.api_key ?? '') : ''
   )
+  const [autoTranslate, setAutoTranslate] = useState(
+    config.service === 'libre_translate' ? (config.auto_translate ?? false) : false
+  )
   const initialized = useRef(false)
 
   useEffect(() => {
@@ -24,9 +28,10 @@ export default function LibreTranslate() {
     updateConfig({
       service: 'libre_translate',
       server,
-      api_key: apiKey
+      api_key: apiKey,
+      auto_translate: autoTranslate
     })
-  }, [server, apiKey])
+  }, [server, apiKey, autoTranslate])
 
   return (
     <div className="space-y-4">
@@ -53,6 +58,21 @@ export default function LibreTranslate() {
           onChange={(e) => setApiKey(e.target.value)}
           placeholder="Enter API Key"
         />
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="auto-translate" className="text-base">
+            Auto-translate notes
+          </Label>
+          <Switch
+            id="auto-translate"
+            checked={autoTranslate}
+            onCheckedChange={setAutoTranslate}
+          />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Automatically translate notes in foreign languages to English
+        </p>
       </div>
     </div>
   )

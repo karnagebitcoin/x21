@@ -34,7 +34,7 @@ class LightningService {
 
   async zap(
     sender: string,
-    recipientOrEvent: string | NostrEvent,
+    recipientOrEventOrCoordinate: string | NostrEvent,
     sats: number,
     comment: string,
     closeOuterModel?: () => void
@@ -42,10 +42,31 @@ class LightningService {
     if (!client.signer) {
       throw new Error('You need to be logged in to zap')
     }
-    const { recipient, event } =
-      typeof recipientOrEvent === 'string'
-        ? { recipient: recipientOrEvent }
-        : { recipient: recipientOrEvent.pubkey, event: recipientOrEvent }
+
+    // Parse recipient and event/coordinate
+    let recipient: string
+    let event: NostrEvent | undefined
+    let coordinate: string | undefined
+
+    if (typeof recipientOrEventOrCoordinate === 'string') {
+      // Check if it's a coordinate (format: kind:pubkey:d-tag)
+      if (recipientOrEventOrCoordinate.includes(':')) {
+        const parts = recipientOrEventOrCoordinate.split(':')
+        if (parts.length === 3) {
+          // It's a coordinate
+          coordinate = recipientOrEventOrCoordinate
+          recipient = parts[1] // Extract pubkey from coordinate
+        } else {
+          // It's just a pubkey
+          recipient = recipientOrEventOrCoordinate
+        }
+      } else {
+        recipient = recipientOrEventOrCoordinate
+      }
+    } else {
+      recipient = recipientOrEventOrCoordinate.pubkey
+      event = recipientOrEventOrCoordinate
+    }
 
     const [profile, receiptRelayList, senderRelayList] = await Promise.all([
       client.fetchProfile(recipient, true),
@@ -64,7 +85,7 @@ class LightningService {
     const { callback, lnurl } = zapEndpoint
     const amount = sats * 1000
     const zapRequestDraft = makeZapRequest({
-      ...(event ? { event } : { pubkey: recipient }),
+      ...(event ? { event } : coordinate ? { pubkey: recipient } : { pubkey: recipient }),
       amount,
       relays: receiptRelayList.read
         .slice(0, 4)
@@ -72,6 +93,11 @@ class LightningService {
         .concat(BIG_RELAY_URLS),
       comment
     })
+
+    // If we have a coordinate, add the 'a' tag manually
+    if (coordinate) {
+      zapRequestDraft.tags.push(['a', coordinate])
+    }
     const zapRequest = await client.signer.signEvent(zapRequestDraft)
     const zapRequestRes = await fetch(
       `${callback}?amount=${amount}&nostr=${encodeURI(JSON.stringify(zapRequest))}&lnurl=${lnurl}`
@@ -128,6 +154,8 @@ class LightningService {
         }
         if (event) {
           filter['#e'] = [event.id]
+        } else if (coordinate) {
+          filter['#a'] = [coordinate]
         }
         subCloser = client.subscribe(
           senderRelayList.write.concat(BIG_RELAY_URLS).slice(0, 4),

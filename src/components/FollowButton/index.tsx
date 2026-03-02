@@ -17,7 +17,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-export default function FollowButton({ pubkey }: { pubkey: string }) {
+export default function FollowButton({ pubkey, size = 'default' }: { pubkey: string; size?: 'default' | 'sm' }) {
   const { t } = useTranslation()
   const { pubkey: accountPubkey, checkLogin } = useNostr()
   const { followings, follow, unfollow } = useFollowList()
@@ -59,18 +59,24 @@ export default function FollowButton({ pubkey }: { pubkey: string }) {
     })
   }
 
+  const buttonClass = size === 'sm' ? 'rounded-full min-w-20 h-8 text-xs px-3' : 'rounded-full min-w-28'
+  const buttonSize = size === 'sm' ? 'sm' : 'default'
+
   return isFollowing ? (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button
-          className="rounded-full min-w-28"
+          className={buttonClass}
+          size={buttonSize}
           variant={hover ? 'destructive' : 'secondary'}
           disabled={updating}
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
+          aria-label={hover ? t('Unfollow') : t('buttonFollowing')}
+          aria-pressed="true"
         >
           {updating ? (
-            <Loader className="animate-spin" />
+            <Loader className="animate-spin" aria-hidden="true" />
           ) : hover ? (
             t('Unfollow')
           ) : (
@@ -94,8 +100,15 @@ export default function FollowButton({ pubkey }: { pubkey: string }) {
       </AlertDialogContent>
     </AlertDialog>
   ) : (
-    <Button className="rounded-full min-w-28" onClick={handleFollow} disabled={updating}>
-      {updating ? <Loader className="animate-spin" /> : t('Follow')}
+    <Button
+      className={buttonClass}
+      size={buttonSize}
+      onClick={handleFollow}
+      disabled={updating}
+      aria-label={t('Follow')}
+      aria-pressed="false"
+    >
+      {updating ? <Loader className="animate-spin" aria-hidden="true" /> : t('Follow')}
     </Button>
   )
 }

@@ -15,6 +15,7 @@ import NormalContentPreview from './NormalContentPreview'
 import PictureNotePreview from './PictureNotePreview'
 import PollPreview from './PollPreview'
 import VideoNotePreview from './VideoNotePreview'
+import MusicTrackPreview from './MusicTrackPreview'
 
 export default function ContentPreview({
   event,
@@ -98,6 +99,10 @@ export default function ContentPreview({
 
   if (event.kind === kinds.LiveEvent) {
     return <LiveEventPreview event={event} className={className} />
+  }
+
+  if (event.kind === ExtendedKind.MUSIC_TRACK) {
+    return <MusicTrackPreview event={event} className={className} />
   }
 
   return <div className={className}>[{t('Cannot handle event of kind k', { k: event.kind })}]</div>

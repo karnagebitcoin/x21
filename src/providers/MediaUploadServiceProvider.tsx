@@ -2,7 +2,7 @@ import storage from '@/services/local-storage.service'
 import mediaUpload from '@/services/media-upload.service'
 import { TMediaUploadServiceConfig } from '@/types'
 import { createContext, useContext, useEffect, useState } from 'react'
-import { useNostr } from './NostrProvider'
+import { useOptionalNostr } from './NostrProvider'
 
 type TMediaUploadServiceContext = {
   serviceConfig: TMediaUploadServiceConfig
@@ -20,7 +20,8 @@ export const useMediaUploadService = () => {
 }
 
 export function MediaUploadServiceProvider({ children }: { children: React.ReactNode }) {
-  const { pubkey, startLogin } = useNostr()
+  const nostr = useOptionalNostr()
+  const pubkey = nostr?.pubkey ?? null
   const [serviceConfig, setServiceConfig] = useState(storage.getMediaUploadServiceConfig())
 
   useEffect(() => {
@@ -31,7 +32,7 @@ export function MediaUploadServiceProvider({ children }: { children: React.React
 
   const updateServiceConfig = (newService: TMediaUploadServiceConfig) => {
     if (!pubkey) {
-      startLogin()
+      nostr?.startLogin()
       return
     }
     setServiceConfig(newService)

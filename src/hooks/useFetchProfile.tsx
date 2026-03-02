@@ -25,6 +25,17 @@ export function useFetchProfile(id?: string, skipCache = false) {
 
         const pubkey = userIdToPubkey(id)
         setPubkey(pubkey)
+
+        // Check in-memory cache first for instant access
+        if (!skipCache) {
+          const cachedProfile = client.getCachedProfile(pubkey)
+          if (cachedProfile) {
+            setProfile(cachedProfile)
+            setIsFetching(false)
+            return
+          }
+        }
+
         const profile = await client.fetchProfile(id, skipCache)
         if (profile) {
           setProfile(profile)
@@ -37,7 +48,7 @@ export function useFetchProfile(id?: string, skipCache = false) {
     }
 
     fetchProfile()
-  }, [id])
+  }, [id, skipCache])
 
   useEffect(() => {
     if (currentAccountProfile && pubkey === currentAccountProfile.pubkey) {

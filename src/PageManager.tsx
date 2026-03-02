@@ -27,9 +27,12 @@ import DeckColumn from './components/DeckColumn'
 import TooManyRelaysAlertDialog from './components/TooManyRelaysAlertDialog'
 import { normalizeUrl } from './lib/url'
 import ExplorePage from './pages/primary/ExplorePage'
+import ListsPage from './pages/primary/ListsPage'
+import LiveStreamsPage from './pages/primary/LiveStreamsPage'
 import MePage from './pages/primary/MePage'
 import NotificationListPage from './pages/primary/NotificationListPage'
 import ProfilePage from './pages/primary/ProfilePage'
+import ReadsPage from './pages/primary/ReadsPage'
 import RelayPage from './pages/primary/RelayPage'
 import SearchPage from './pages/primary/SearchPage'
 import { NotificationProvider } from './providers/NotificationProvider'
@@ -63,8 +66,11 @@ type TStackItem = {
 
 const PRIMARY_PAGE_REF_MAP = {
   home: createRef<TPageRef>(),
+  reads: createRef<TPageRef>(),
+  lists: createRef<TPageRef>(),
   explore: createRef<TPageRef>(),
   notifications: createRef<TPageRef>(),
+  livestreams: createRef<TPageRef>(),
   me: createRef<TPageRef>(),
   profile: createRef<TPageRef>(),
   relay: createRef<TPageRef>(),
@@ -73,8 +79,11 @@ const PRIMARY_PAGE_REF_MAP = {
 
 const PRIMARY_PAGE_MAP = {
   home: <NoteListPage ref={PRIMARY_PAGE_REF_MAP.home} />,
+  reads: <ReadsPage ref={PRIMARY_PAGE_REF_MAP.reads} />,
+  lists: <ListsPage ref={PRIMARY_PAGE_REF_MAP.lists} />,
   explore: <ExplorePage ref={PRIMARY_PAGE_REF_MAP.explore} />,
   notifications: <NotificationListPage ref={PRIMARY_PAGE_REF_MAP.notifications} />,
+  livestreams: <LiveStreamsPage ref={PRIMARY_PAGE_REF_MAP.livestreams} />,
   me: <MePage ref={PRIMARY_PAGE_REF_MAP.me} />,
   profile: <ProfilePage ref={PRIMARY_PAGE_REF_MAP.profile} />,
   relay: <RelayPage ref={PRIMARY_PAGE_REF_MAP.relay} />,
@@ -120,9 +129,11 @@ export function PageManager({ maxStackSize = 5 }: { maxStackSize?: number }) {
   const { widgetSidebarDismissed } = useWidgetSidebarDismissed()
   const ignorePopStateRef = useRef(false)
 
-  // Auto-collapse sidebar when in multi-column mode
+  // Auto-collapse sidebar when in multi-column mode or island mode
   useEffect(() => {
-    if (layoutMode === LAYOUT_MODE.FULL_WIDTH && deckViewMode === DECK_VIEW_MODE.MULTI_COLUMN) {
+    if (layoutMode === LAYOUT_MODE.ISLAND) {
+      setCompactSidebar(true)
+    } else if (layoutMode === LAYOUT_MODE.FULL_WIDTH && deckViewMode === DECK_VIEW_MODE.MULTI_COLUMN) {
       setCompactSidebar(true)
     }
   }, [layoutMode, deckViewMode, setCompactSidebar])
@@ -388,13 +399,23 @@ export function PageManager({ maxStackSize = 5 }: { maxStackSize?: number }) {
         <CurrentRelaysProvider>
           <NotificationProvider>
             <div className="flex h-[var(--vh)] overflow-hidden bg-surface-background justify-center">
-              <div className={cn(
-                "shrink-0",
-                pageTheme === 'pure-black' && "border-r border-neutral-900"
-              )}>
-                <Sidebar />
-              </div>
-              {layoutMode === LAYOUT_MODE.FULL_WIDTH && deckViewMode === DECK_VIEW_MODE.MULTI_COLUMN ? (
+              {/* Sidebar positioning based on layout mode */}
+              {layoutMode === LAYOUT_MODE.ISLAND ? (
+                <div className={cn(
+                  "fixed left-0 top-0 h-full z-10 shrink-0",
+                  pageTheme === 'pure-black' && "border-r border-neutral-900"
+                )}>
+                  <Sidebar />
+                </div>
+              ) : (
+                <div className={cn(
+                  "shrink-0",
+                  pageTheme === 'pure-black' && "border-r border-neutral-900"
+                )}>
+                  <Sidebar />
+                </div>
+              )}
+              {(layoutMode === LAYOUT_MODE.FULL_WIDTH || layoutMode === LAYOUT_MODE.ISLAND) && deckViewMode === DECK_VIEW_MODE.MULTI_COLUMN ? (
                 <DeckLayout
                   primaryPages={primaryPages}
                   currentPrimaryPage={currentPrimaryPage}
@@ -402,11 +423,19 @@ export function PageManager({ maxStackSize = 5 }: { maxStackSize?: number }) {
                   pinnedColumns={pinnedColumns}
                 />
               ) : (
-                <div className={cn("grid grid-cols-2 gap-2 w-full px-2 py-2", layoutMode === LAYOUT_MODE.BOXED && "max-w-screen-xl")}>
-                  <div className={cn(
-                    "rounded-lg shadow-lg bg-background overflow-hidden",
-                    pageTheme === 'pure-black' && "border border-neutral-900"
-                  )}>
+                <div className={cn(
+                  "grid grid-cols-2 gap-2 w-full px-2 py-2",
+                  layoutMode === LAYOUT_MODE.BOXED && "max-w-screen-xl",
+                  layoutMode === LAYOUT_MODE.ISLAND && "max-w-screen-xl ml-16"
+                )}>
+                  <div
+                    className={cn(
+                      "bg-card overflow-hidden",
+                      pageTheme === 'pure-black' && "border border-neutral-900",
+                      pageTheme === 'white' ? "border border-border" : "shadow-lg"
+                    )}
+                    style={{ borderRadius: 'var(--card-radius, 8px)' }}
+                  >
                     {primaryPages.map(({ name, element, props }) => (
                       <div
                         key={name}
@@ -544,11 +573,16 @@ function HomePageWrapper({
   return (
     <div
       className={cn(
-        'rounded-lg overflow-hidden',
+        'overflow-hidden',
         // Make the wrapper transparent when on home page or when dismissed
-        isHomePage || isDismissed ? 'bg-transparent shadow-none' : 'bg-background shadow-lg',
-        pageTheme === 'pure-black' && !isHomePage && !isDismissed && 'border border-neutral-900'
+        isHomePage || isDismissed ? 'bg-transparent shadow-none' : cn(
+          'bg-card',
+          pageTheme === 'white' ? '' : 'shadow-lg'
+        ),
+        pageTheme === 'pure-black' && !isHomePage && !isDismissed && 'border border-neutral-900',
+        pageTheme === 'white' && !isHomePage && !isDismissed && 'border border-border'
       )}
+      style={{ borderRadius: 'var(--card-radius, 8px)' }}
     >
       {children}
     </div>
@@ -569,8 +603,28 @@ function DeckLayout({
   const { pageTheme } = usePageTheme()
   const { pop } = useSecondaryPage()
 
+  // Filter out pinned columns that fail to render (no content)
+  const validPinnedColumns = pinnedColumns.filter((column) => {
+    // Check if the column would have content
+    switch (column.type) {
+      case 'custom':
+        return !!column.props?.customFeedId
+      case 'relay':
+        return !!column.props?.url
+      case 'relays':
+        return !!column.props?.activeRelaySetId
+      case 'profile':
+        return !!column.props?.pubkey
+      case 'search':
+        return !!column.props?.searchParams
+      default:
+        // explore, notifications, bookmarks always have content
+        return true
+    }
+  })
+
   // Calculate the number of columns (no right sidebar in multi-column mode)
-  const columnCount = 1 + pinnedColumns.length // main + pinned only
+  const columnCount = 1 + validPinnedColumns.length // main + valid pinned only
 
   // Check if drawer should be open
   const isDrawerOpen = secondaryStack.length > 0
@@ -585,10 +639,14 @@ function DeckLayout({
         }}
       >
         {/* Main column */}
-        <div className={cn(
-          "rounded-lg shadow-lg bg-background overflow-hidden w-full",
-          pageTheme === 'pure-black' && "border border-neutral-900"
-        )}>
+        <div
+          className={cn(
+            "bg-background overflow-hidden w-full",
+            pageTheme === 'pure-black' && "border border-neutral-900",
+            pageTheme === 'white' ? "border border-border" : "shadow-lg"
+          )}
+          style={{ borderRadius: 'var(--card-radius, 8px)' }}
+        >
           {primaryPages.map(({ name, element, props }) => (
             <div
               key={name}
@@ -603,7 +661,7 @@ function DeckLayout({
         </div>
 
         {/* Pinned columns */}
-        {pinnedColumns.map((column) => (
+        {validPinnedColumns.map((column) => (
           <DeckColumn key={column.id} column={column} />
         ))}
       </div>

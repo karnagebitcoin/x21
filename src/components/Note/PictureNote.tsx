@@ -10,7 +10,7 @@ export default function PictureNote({ event, className, compactMedia = false }: 
   return (
     <div className={className}>
       <Content event={event} compactMedia={compactMedia} />
-      {imageInfos.length > 0 && <ImageGallery images={imageInfos} compactMedia={compactMedia} />}
+      {imageInfos.length > 0 && <ImageGallery images={imageInfos} compactMedia={compactMedia} isSingleMedia={imageInfos.length <= 2} />}
     </div>
   )
 }

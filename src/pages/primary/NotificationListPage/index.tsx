@@ -3,6 +3,8 @@ import NotificationList from '@/components/NotificationList'
 import PinButton from '@/components/PinButton'
 import PrimaryPageLayout from '@/layouts/PrimaryPageLayout'
 import { usePrimaryPage } from '@/PageManager'
+import { useScreenSize } from '@/providers/ScreenSizeProvider'
+
 import { Bell } from 'lucide-react'
 import { forwardRef, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,15 +37,16 @@ export default NotificationListPage
 
 function NotificationListPageTitlebar() {
   const { t } = useTranslation()
+  const { isSmallScreen } = useScreenSize()
 
   return (
     <div className="flex gap-2 items-center justify-between h-full pl-3">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 [&_svg]:text-muted-foreground">
         <Bell />
-        <div className="text-lg font-semibold" style={{ fontSize: `calc(var(--font-size, 14px) * 1.286)` }}>{t('Notifications')}</div>
+        <div className="text-lg font-semibold" style={{ fontSize: `var(--title-font-size, 18px)` }}>{t('Notifications')}</div>
       </div>
       <div className="flex gap-1 items-center">
-        <PinButton column={{ type: 'notifications' }} />
+        <PinButton column={{ type: 'notifications' }} size="titlebar-icon" />
         <HideUntrustedContentButton type="notifications" size="titlebar-icon" />
       </div>
     </div>

@@ -29,7 +29,7 @@ export function PageThemeProvider({ children, ...props }: PageThemeProviderProps
     const updatePageTheme = () => {
       const root = window.document.documentElement
       // Remove all page theme classes
-      root.classList.remove('page-theme-default', 'page-theme-pure-black')
+      root.classList.remove('page-theme-default', 'page-theme-pure-black', 'page-theme-white')
       // Add the current page theme class
       root.classList.add(`page-theme-${pageTheme}`)
     }

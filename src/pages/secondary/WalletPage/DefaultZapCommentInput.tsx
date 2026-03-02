@@ -6,12 +6,17 @@ import { useTranslation } from 'react-i18next'
 
 export default function DefaultZapCommentInput() {
   const { t } = useTranslation()
-  const { defaultZapComment, updateDefaultComment } = useZap()
+  const { defaultZapComment, updateDefaultComment, isWalletConnected } = useZap()
   const [defaultZapCommentInput, setDefaultZapCommentInput] = useState(defaultZapComment)
 
   return (
     <div className="w-full space-y-1">
-      <Label htmlFor="default-zap-comment-input">{t('Default zap comment')}</Label>
+      <Label
+        htmlFor="default-zap-comment-input"
+        className={!isWalletConnected ? "opacity-50" : ""}
+      >
+        {t('Default zap comment')}
+      </Label>
       <div className="flex w-full items-center gap-2">
         <Input
           id="default-zap-comment-input"
@@ -20,6 +25,7 @@ export default function DefaultZapCommentInput() {
           onBlur={() => {
             updateDefaultComment(defaultZapCommentInput)
           }}
+          disabled={!isWalletConnected}
         />
       </div>
     </div>

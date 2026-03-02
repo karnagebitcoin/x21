@@ -3,6 +3,7 @@ import { useSecondaryPage } from '@/PageManager'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
+import RelayHealthBadge from '../RelayHealthBadge'
 import RelayIcon from '../RelayIcon'
 import SaveRelayDropdownMenu from '../SaveRelayDropdownMenu'
 
@@ -25,7 +26,7 @@ export default function RelayItem({ relay }: { relay: string }) {
       style={style}
       onClick={() => push(toRelay(relay))}
     >
-      <div className="flex items-center gap-1 flex-1">
+      <div className="flex items-center gap-1 flex-1 min-w-0">
         <div
           className="cursor-grab active:cursor-grabbing p-2 hover:bg-muted rounded touch-none shrink-0"
           {...attributes}
@@ -33,12 +34,15 @@ export default function RelayItem({ relay }: { relay: string }) {
         >
           <GripVertical className="size-4 text-muted-foreground" />
         </div>
-        <div className="flex gap-2 items-center flex-1">
+        <div className="flex gap-2 items-center flex-1 min-w-0">
           <RelayIcon url={relay} />
           <div className="flex-1 w-0 truncate font-semibold">{relay}</div>
         </div>
       </div>
-      <SaveRelayDropdownMenu urls={[relay]} />
+      <div className="flex items-center gap-2 shrink-0">
+        <RelayHealthBadge url={relay} />
+        <SaveRelayDropdownMenu urls={[relay]} />
+      </div>
     </div>
   )
 }

@@ -14,6 +14,7 @@ import { forwardRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import JumbleTranslate from './JumbleTranslate'
 import LibreTranslate from './LibreTranslate'
+import OpenRouter from './OpenRouter'
 
 const TranslationPage = forwardRef(({ index }: { index?: number }, ref) => {
   const { t, i18n } = useTranslation()
@@ -53,7 +54,7 @@ const TranslationPage = forwardRef(({ index }: { index?: number }, ref) => {
             defaultValue={config.service}
             value={config.service}
             onValueChange={(newService) => {
-              updateConfig({ service: newService as 'jumble' | 'libre_translate' })
+              updateConfig({ service: newService as 'jumble' | 'libre_translate' | 'openrouter' })
             }}
           >
             <SelectTrigger id="translation-service-select" className="w-[180px]">
@@ -62,10 +63,17 @@ const TranslationPage = forwardRef(({ index }: { index?: number }, ref) => {
             <SelectContent>
               <SelectItem value="jumble">Jumble</SelectItem>
               <SelectItem value="libre_translate">LibreTranslate</SelectItem>
+              <SelectItem value="openrouter">OpenRouter</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        {config.service === 'jumble' ? <JumbleTranslate /> : <LibreTranslate />}
+        {config.service === 'jumble' ? (
+          <JumbleTranslate />
+        ) : config.service === 'libre_translate' ? (
+          <LibreTranslate />
+        ) : (
+          <OpenRouter />
+        )}
       </div>
     </SecondaryPageLayout>
   )

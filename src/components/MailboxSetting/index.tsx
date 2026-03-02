@@ -25,6 +25,7 @@ import MailboxRelay from './MailboxRelay'
 import NewMailboxRelayInput from './NewMailboxRelayInput'
 import RelayCountWarning from './RelayCountWarning'
 import SaveButton from './SaveButton'
+import FollowsRelayRecommendations from './FollowsRelayRecommendations'
 
 export default function MailboxSetting() {
   const { t } = useTranslation()
@@ -109,10 +110,10 @@ export default function MailboxSetting() {
 
   return (
     <div className="space-y-4">
-      <div className="text-xs text-muted-foreground space-y-1">
-        <div>{t('read relays description')}</div>
-        <div>{t('write relays description')}</div>
-        <div>{t('read & write relays notice')}</div>
+      <div className="space-y-2">
+        <p><strong>{t('Read')}</strong> – {t('read relays description')}</p>
+        <p><strong>{t('Write')}</strong> – {t('write relays description')}</p>
+        <p><strong>{t('Tip')}:</strong> {t('read & write relays notice')}</p>
       </div>
       <RelayCountWarning relays={relays} />
       <SaveButton mailboxRelays={relays} hasChange={hasChange} setHasChange={setHasChange} />
@@ -136,6 +137,12 @@ export default function MailboxSetting() {
         </SortableContext>
       </DndContext>
       <NewMailboxRelayInput saveNewMailboxRelay={saveNewMailboxRelay} />
+      <FollowsRelayRecommendations
+        existingRelayUrls={relays.map((r) => r.url)}
+        onAddRelay={(url) => {
+          saveNewMailboxRelay(url)
+        }}
+      />
     </div>
   )
 }

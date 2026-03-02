@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 
 export default function ZapSoundSelect() {
   const { t } = useTranslation()
-  const { zapSound, updateZapSound } = useZap()
+  const { zapSound, updateZapSound, isWalletConnected } = useZap()
 
   const handleChange = (value: TZapSound) => {
     updateZapSound(value)
@@ -38,8 +38,13 @@ export default function ZapSoundSelect() {
 
   return (
     <div className="flex flex-col gap-2">
-      <Label htmlFor="zap-sound">{t('Zap Sound')}</Label>
-      <Select value={zapSound} onValueChange={handleChange}>
+      <Label
+        htmlFor="zap-sound"
+        className={!isWalletConnected ? "opacity-50" : ""}
+      >
+        {t('Zap Sound')}
+      </Label>
+      <Select value={zapSound} onValueChange={handleChange} disabled={!isWalletConnected}>
         <SelectTrigger id="zap-sound">
           <SelectValue />
         </SelectTrigger>

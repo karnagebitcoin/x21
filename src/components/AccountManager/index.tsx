@@ -11,8 +11,9 @@ import GenerateNewAccount from './GenerateNewAccount'
 import NostrConnectLogin from './NostrConnectionLogin'
 import NpubLogin from './NpubLogin'
 import PrivateKeyLogin from './PrivateKeyLogin'
+import SignupOnboarding from './SignupOnboarding'
 
-type TAccountManagerPage = 'nsec' | 'bunker' | 'generate' | 'npub' | null
+type TAccountManagerPage = 'nsec' | 'bunker' | 'generate' | 'npub' | 'signup' | null
 
 export default function AccountManager({ close }: { close?: () => void }) {
   const [page, setPage] = useState<TAccountManagerPage>(null)
@@ -27,6 +28,8 @@ export default function AccountManager({ close }: { close?: () => void }) {
         <GenerateNewAccount back={() => setPage(null)} onLoginSuccess={() => close?.()} />
       ) : page === 'npub' ? (
         <NpubLogin back={() => setPage(null)} onLoginSuccess={() => close?.()} />
+      ) : page === 'signup' ? (
+        <SignupOnboarding back={() => setPage(null)} onComplete={() => close?.()} />
       ) : (
         <AccountManagerNav setPage={setPage} close={close} />
       )}
@@ -44,6 +47,7 @@ function AccountManagerNav({
   const { t, i18n } = useTranslation()
   const { themeSetting } = useTheme()
   const { nip07Login, bunkerLogin, nsecLogin, ncryptsecLogin, accounts } = useNostr()
+  const [showMoreOptions, setShowMoreOptions] = useState(false)
 
   return (
     <div onClick={(e) => e.stopPropagation()} className="flex flex-col gap-8">
@@ -60,14 +64,25 @@ function AccountManagerNav({
           <Button variant="secondary" onClick={() => setPage('bunker')} className="w-full">
             {t('Login with Bunker')}
           </Button>
-          <Button variant="secondary" onClick={() => setPage('nsec')} className="w-full">
-            {t('Login with Private Key')}
-          </Button>
-          {isDevEnv() && (
-            <Button variant="secondary" onClick={() => setPage('npub')} className="w-full">
-              Login with Public key (for development)
-            </Button>
+          {showMoreOptions && (
+            <>
+              <Button variant="secondary" onClick={() => setPage('nsec')} className="w-full">
+                {t('Login with Private Key')}
+              </Button>
+              {isDevEnv() && (
+                <Button variant="secondary" onClick={() => setPage('npub')} className="w-full">
+                  Login with Public Key
+                </Button>
+              )}
+            </>
           )}
+          <Button
+            variant="link"
+            onClick={() => setShowMoreOptions(!showMoreOptions)}
+            className="w-full text-muted-foreground py-0 h-fit"
+          >
+            {showMoreOptions ? t('Less options') : t('More options')}
+          </Button>
         </div>
       </div>
       <Separator />
@@ -76,28 +91,8 @@ function AccountManagerNav({
           {t("Don't have an account yet?")}
         </div>
         <Button
-          onClick={() => {
-            const wizard = new NstartModal({
-              baseUrl: 'https://nstart.me',
-              an: 'Jumble',
-              am: themeSetting,
-              al: i18n.language.slice(0, 2),
-              onComplete: ({ nostrLogin }) => {
-                if (!nostrLogin) return
-
-                if (nostrLogin.startsWith('bunker://')) {
-                  bunkerLogin(nostrLogin)
-                } else if (nostrLogin.startsWith('ncryptsec')) {
-                  ncryptsecLogin(nostrLogin)
-                } else if (nostrLogin.startsWith('nsec')) {
-                  nsecLogin(nostrLogin)
-                }
-              }
-            })
-            close?.()
-            wizard.open()
-          }}
-          className="w-full mt-4"
+          onClick={() => setPage('signup')}
+          className="w-full mt-2"
         >
           {t('Sign up')}
         </Button>

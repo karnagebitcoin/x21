@@ -2,6 +2,9 @@ import NewNotesButton from '@/components/NewNotesButton'
 import { Button } from '@/components/ui/button'
 import {
   getReplaceableCoordinateFromEvent,
+  hasMedia,
+  hasExcessiveHashtags,
+  hasExcessiveMentions,
   isMentioningMutedUsers,
   isReplaceableEvent,
   isReplyNoteEvent
@@ -9,8 +12,10 @@ import {
 import { isTouchDevice } from '@/lib/utils'
 import { useContentPolicy } from '@/providers/ContentPolicyProvider'
 import { useDeletedEvent } from '@/providers/DeletedEventProvider'
+import { useDistractionFreeMode } from '@/providers/DistractionFreeModeProvider'
 import { useMuteList } from '@/providers/MuteListProvider'
 import { useNostr } from '@/providers/NostrProvider'
+import { useTextOnlyMode } from '@/providers/TextOnlyModeProvider'
 import { useUserTrust } from '@/providers/UserTrustProvider'
 import client from '@/services/client.service'
 import { TFeedSubRequest } from '@/types'
@@ -34,44 +39,53 @@ import PinnedNoteCard from '../PinnedNoteCard'
 
 const LIMIT = 200
 const ALGO_LIMIT = 500
-const SHOW_COUNT = 10
+const SHOW_COUNT_STANDARD = 10
+const SHOW_COUNT_TEXT_ONLY = 50
 
 const NoteList = forwardRef(
   (
     {
       subRequests,
       showKinds,
+      mediaOnly = false,
       filterMutedNotes = true,
       hideReplies = false,
       hideUntrustedNotes = false,
       areAlgoRelays = false,
       showRelayCloseReason = false,
-      pinnedEventIds = []
+      pinnedEventIds = [],
+      onEventsChange
     }: {
       subRequests: TFeedSubRequest[]
       showKinds: number[]
+      mediaOnly?: boolean
       filterMutedNotes?: boolean
       hideReplies?: boolean
       hideUntrustedNotes?: boolean
       areAlgoRelays?: boolean
       showRelayCloseReason?: boolean
       pinnedEventIds?: string[]
+      onEventsChange?: (events: Event[]) => void
     },
     ref
   ) => {
     const { t } = useTranslation()
     const { startLogin, pubkey } = useNostr()
     const { isUserTrusted } = useUserTrust()
-    const { mutePubkeySet } = useMuteList()
-    const { hideContentMentioningMutedUsers } = useContentPolicy()
+    const { textOnlyMode } = useTextOnlyMode()
+    const { mutePubkeySet, getMutedWords } = useMuteList()
+    const { hideContentMentioningMutedUsers, maxHashtags, maxMentions } = useContentPolicy()
+    const mutedWords = useMemo(() => getMutedWords(), [getMutedWords])
     const { isEventDeleted } = useDeletedEvent()
+    const { isDistractionFree } = useDistractionFreeMode()
+    const showCountIncrement = textOnlyMode ? SHOW_COUNT_TEXT_ONLY : SHOW_COUNT_STANDARD
     const [events, setEvents] = useState<Event[]>([])
     const [newEvents, setNewEvents] = useState<Event[]>([])
     const [hasMore, setHasMore] = useState<boolean>(true)
     const [loading, setLoading] = useState(true)
     const [timelineKey, setTimelineKey] = useState<string | undefined>(undefined)
     const [refreshCount, setRefreshCount] = useState(0)
-    const [showCount, setShowCount] = useState(SHOW_COUNT)
+    const [showCount, setShowCount] = useState(showCountIncrement)
     const supportTouch = useMemo(() => isTouchDevice(), [])
     const bottomRef = useRef<HTMLDivElement | null>(null)
     const topRef = useRef<HTMLDivElement | null>(null)
@@ -103,9 +117,32 @@ const NoteList = forwardRef(
           return true
         }
 
+        // Check for muted words in content
+        if (filterMutedNotes && mutedWords.length > 0) {
+          const content = evt.content.toLowerCase()
+          if (mutedWords.some(word => content.includes(word.toLowerCase()))) {
+            return true
+          }
+        }
+
+        // Check media only filter
+        if (mediaOnly && !hasMedia(evt)) {
+          return true
+        }
+
+        // Check hashtag spam filter
+        if (hasExcessiveHashtags(evt, maxHashtags)) {
+          return true
+        }
+
+        // Check mention spam filter
+        if (hasExcessiveMentions(evt, maxMentions)) {
+          return true
+        }
+
         return false
       },
-      [hideReplies, hideUntrustedNotes, mutePubkeySet, pinnedEventIds, isEventDeleted]
+      [hideReplies, hideUntrustedNotes, mutePubkeySet, pinnedEventIds, isEventDeleted, filterMutedNotes, mutedWords, hideContentMentioningMutedUsers, isUserTrusted, mediaOnly, maxHashtags, maxMentions]
     )
 
     const filteredEvents = useMemo(() => {
@@ -239,6 +276,12 @@ const NoteList = forwardRef(
     }, [JSON.stringify(subRequests), refreshCount, showKinds])
 
     useEffect(() => {
+      if (onEventsChange) {
+        onEventsChange(events)
+      }
+    }, [events, onEventsChange])
+
+    useEffect(() => {
       const options = {
         root: null,
         rootMargin: '10px',
@@ -247,7 +290,7 @@ const NoteList = forwardRef(
 
       const loadMore = async () => {
         if (showCount < events.length) {
-          setShowCount((prev) => prev + SHOW_COUNT)
+          setShowCount((prev) => prev + showCountIncrement)
           // preload more
           if (events.length - showCount > LIMIT / 2) {
             return
@@ -298,23 +341,31 @@ const NoteList = forwardRef(
 
     const list = (
       <div className="min-h-screen">
-        {pinnedEventIds.map((id) => (
-          <PinnedNoteCard key={id} eventId={id} className="w-full" />
-        ))}
-        {filteredEvents.map((event) => (
-          <NoteCard
-            key={event.id}
-            className="w-full"
-            event={event}
-            filterMutedNotes={filterMutedNotes}
-          />
-        ))}
+        <ul role="feed" aria-label="Notes feed" className="list-none">
+          {pinnedEventIds.map((id) => (
+            <li key={id}>
+              <PinnedNoteCard eventId={id} className="w-full" />
+            </li>
+          ))}
+          {filteredEvents.map((event) => (
+            <li key={event.id}>
+              <NoteCard
+                className="w-full"
+                event={event}
+                filterMutedNotes={filterMutedNotes}
+              />
+            </li>
+          ))}
+        </ul>
         {hasMore || loading ? (
           <div ref={bottomRef}>
+            <div role="status" aria-live="polite" className="sr-only">
+              {loading && t('Loading more posts')}
+            </div>
             <NoteCardLoadingSkeleton />
           </div>
         ) : events.length ? (
-          <div className="text-center text-sm text-muted-foreground mt-2">{t('no more notes')}</div>
+          <div role="status" aria-live="polite" className="text-center text-sm text-muted-foreground mt-2">{t('no more notes')}</div>
         ) : (
           <div className="flex justify-center w-full mt-2">
             <Button size="lg" onClick={() => setRefreshCount((count) => count + 1)}>
@@ -327,7 +378,7 @@ const NoteList = forwardRef(
 
     return (
       <div>
-        {filteredNewEvents.length > 0 && (
+        {filteredNewEvents.length > 0 && !isDistractionFree && (
           <NewNotesButton newEvents={filteredNewEvents} onClick={showNewEvents} />
         )}
         <div ref={topRef} className="scroll-mt-[calc(6rem+1px)]" />

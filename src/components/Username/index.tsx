@@ -11,13 +11,19 @@ export default function Username({
   showAt = false,
   className,
   skeletonClassName,
-  withoutSkeleton = false
+  withoutSkeleton = false,
+  noLink = false,
+  asHeading = false,
+  headingLevel = 3
 }: {
   userId: string
   showAt?: boolean
   className?: string
   skeletonClassName?: string
   withoutSkeleton?: boolean
+  noLink?: boolean
+  asHeading?: boolean
+  headingLevel?: 1 | 2 | 3 | 4 | 5 | 6
 }) {
   const { profile } = useFetchProfile(userId)
   if (!profile && !withoutSkeleton) {
@@ -30,11 +36,30 @@ export default function Username({
   if (!profile) return null
 
   const { username, pubkey } = profile
+  const HeadingTag = asHeading ? (`h${headingLevel}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') : 'div'
+
+  if (noLink) {
+    return (
+      <HoverCard>
+        <HoverCardTrigger asChild>
+          <HeadingTag className={className}>
+            <span className="truncate">
+              {showAt && '@'}
+              {username}
+            </span>
+          </HeadingTag>
+        </HoverCardTrigger>
+        <HoverCardContent className="w-80">
+          <ProfileCard pubkey={pubkey} />
+        </HoverCardContent>
+      </HoverCard>
+    )
+  }
 
   return (
     <HoverCard>
       <HoverCardTrigger asChild>
-        <div className={className}>
+        <HeadingTag className={className}>
           <SecondaryPageLink
             to={toProfile(pubkey)}
             className="truncate hover:underline"
@@ -43,7 +68,7 @@ export default function Username({
             {showAt && '@'}
             {username}
           </SecondaryPageLink>
-        </div>
+        </HeadingTag>
       </HoverCardTrigger>
       <HoverCardContent className="w-80">
         <ProfileCard pubkey={pubkey} />

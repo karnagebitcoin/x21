@@ -20,7 +20,7 @@ export function LayoutModeProvider({ children }: { children: ReactNode }) {
   }, [layoutMode])
 
   const setLayoutMode = (mode: TLayoutMode) => {
-    if (mode === LAYOUT_MODE.BOXED || mode === LAYOUT_MODE.FULL_WIDTH) {
+    if (mode === LAYOUT_MODE.BOXED || mode === LAYOUT_MODE.FULL_WIDTH || mode === LAYOUT_MODE.ISLAND) {
       _setLayoutMode(mode)
     }
   }

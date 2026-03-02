@@ -1,6 +1,7 @@
 import { Separator } from '@/components/ui/separator'
-import { isMentioningMutedUsers } from '@/lib/event'
+import { isMentioningMutedUsers, isFromMutedDomain } from '@/lib/event'
 import { tagNameEquals } from '@/lib/tag'
+import { useFetchProfile } from '@/hooks'
 import { useContentPolicy } from '@/providers/ContentPolicyProvider'
 import { useMuteList } from '@/providers/MuteListProvider'
 import client from '@/services/client.service'
@@ -15,31 +16,49 @@ export default function RepostNoteCard({
   className,
   filterMutedNotes = true,
   pinned = false,
-  hideSeparator = false
+  hideSeparator = false,
+  onTagsChange,
+  bookmarkId
 }: {
   event: Event
   className?: string
   filterMutedNotes?: boolean
   pinned?: boolean
   hideSeparator?: boolean
+  onTagsChange?: () => void
+  bookmarkId?: string
 }) {
   const { t } = useTranslation()
-  const { mutePubkeySet } = useMuteList()
+  const { mutePubkeySet, getMutedDomains } = useMuteList()
   const { hideContentMentioningMutedUsers, alwaysHideMutedNotes } = useContentPolicy()
   const [targetEvent, setTargetEvent] = useState<Event | null>(null)
-  const isMuted = useMemo(() => {
+  const { profile, isFetching } = useFetchProfile(targetEvent?.pubkey)
+  const mutedDomains = getMutedDomains()
+  const isMutedByPubkey = useMemo(() => {
     return targetEvent && filterMutedNotes && mutePubkeySet.has(targetEvent.pubkey)
   }, [targetEvent, filterMutedNotes, mutePubkeySet])
+  const isMutedByDomain = useMemo(() => {
+    return targetEvent && filterMutedNotes && profile && isFromMutedDomain(profile.nip05, mutedDomains)
+  }, [targetEvent, filterMutedNotes, profile, mutedDomains])
   const shouldHide = useMemo(() => {
     if (!targetEvent) return true
-    if (isMuted && !alwaysHideMutedNotes) {
+    // If we have muted domains and profile is loading, hide while we check
+    if (filterMutedNotes && mutedDomains.length > 0 && isFetching) {
+      return true
+    }
+    // Always hide domain-muted content
+    if (isMutedByDomain) {
+      return true
+    }
+    // Hide pubkey-muted content only if alwaysHideMutedNotes is disabled
+    if (isMutedByPubkey && !alwaysHideMutedNotes) {
       return true
     }
     if (hideContentMentioningMutedUsers && isMentioningMutedUsers(targetEvent, mutePubkeySet)) {
       return true
     }
     return false
-  }, [targetEvent, isMuted, alwaysHideMutedNotes, hideContentMentioningMutedUsers, mutePubkeySet])
+  }, [targetEvent, isMutedByPubkey, isMutedByDomain, alwaysHideMutedNotes, hideContentMentioningMutedUsers, mutePubkeySet, filterMutedNotes, mutedDomains, isFetching])
   useEffect(() => {
     const fetch = async () => {
       try {
@@ -82,8 +101,8 @@ export default function RepostNoteCard({
 
   if (!targetEvent || shouldHide) return null
 
-  // If alwaysHideMutedNotes is enabled and the note is muted, show a message in the repost
-  if (alwaysHideMutedNotes && isMuted) {
+  // If alwaysHideMutedNotes is enabled and the note is muted by pubkey, show a message in the repost
+  if (alwaysHideMutedNotes && isMutedByPubkey) {
     return (
       <div className={className}>
         <div className="py-3">
@@ -104,6 +123,9 @@ export default function RepostNoteCard({
       event={targetEvent}
       pinned={pinned}
       hideSeparator={hideSeparator}
+      onTagsChange={onTagsChange}
+      bookmarkId={bookmarkId}
+      filterMutedNotes={filterMutedNotes}
     />
   )
 }

@@ -34,6 +34,32 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src')
     }
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core vendor chunks
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-nostr': ['nostr-tools'],
+          'vendor-ui': [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-dropdown-menu',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-tooltip',
+            '@radix-ui/react-tabs',
+            '@radix-ui/react-avatar',
+            '@radix-ui/react-scroll-area'
+          ],
+          // Heavy components that should be separate chunks
+          'emoji-picker': ['emoji-picker-react'],
+          'lightbox': ['yet-another-react-lightbox'],
+          'editor': ['@tiptap/react', '@tiptap/starter-kit', '@tiptap/pm'],
+          'qr': ['qr-code-styling', 'qr-scanner'],
+          'markdown': ['react-markdown', 'remark-gfm', 'rehype-raw', 'rehype-sanitize']
+        }
+      }
+    }
+  },
   plugins: [
     react(),
     VitePWA({
@@ -48,35 +74,35 @@ export default defineConfig({
         enabled: true
       },
       manifest: {
-        name: 'Jumble',
-        short_name: 'Jumble',
+        name: 'JumbleKat',
+        short_name: 'JumbleKat',
         icons: [
           {
-            src: '/pwa-512x512.png',
+            src: '/pwa-512x512.png?v=2',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/pwa-192x192.png',
+            src: '/pwa-192x192.png?v=2',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/pwa-512x512.png',
+            src: '/pwa-512x512.png?v=2',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
           },
           {
-            src: '/pwa-192x192.png',
+            src: '/pwa-192x192.png?v=2',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'maskable'
           },
           {
-            src: '/pwa-monochrome.svg',
+            src: '/pwa-monochrome.svg?v=2',
             sizes: '512x512',
             type: 'image/svg+xml',
             purpose: 'monochrome'

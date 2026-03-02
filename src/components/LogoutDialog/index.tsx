@@ -38,7 +38,7 @@ export default function LogoutDialog({
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>{t('Logout')}</DrawerTitle>
-            <DrawerDescription>{t('Are you sure you want to logout?')}</DrawerDescription>
+            <DrawerDescription>{t('Are you sure you want to sign out??')}</DrawerDescription>
           </DrawerHeader>
           <DrawerFooter>
             <Button variant="outline" onClick={() => setOpen(false)} className="w-full">
@@ -67,7 +67,7 @@ export default function LogoutDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{t('Logout')}</AlertDialogTitle>
-          <AlertDialogDescription>{t('Are you sure you want to logout?')}</AlertDialogDescription>
+          <AlertDialogDescription>{t('Are you sure you want to sign out??')}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>

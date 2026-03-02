@@ -1,6 +1,38 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer utilities {
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  .select-text {
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+  }
+
+  /*
+   * Freeze GIF animations
+   * Note: CSS cannot directly stop GIF animations, but this class can be used
+   * to identify elements where GIF animations should be frozen.
+   * The actual freezing is handled by replacing the img element or using canvas.
+   */
+  .freeze-avatar-gif {
+    /* Marker class for frozen avatar GIFs */
+  }
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -34,6 +66,17 @@
     user-select: none;
     font-family: var(--font-family);
     font-size: var(--font-size, 14px);
+    position: relative;
+  }
+
+  /* RTL Support */
+  [dir="rtl"] {
+    direction: rtl;
+    text-align: right;
+  }
+
+  [dir="rtl"] .tiptap p.is-editor-empty:first-child::before {
+    float: right;
   }
 
 
@@ -43,7 +86,7 @@
     transition: background-color 0.2s ease;
 
     &:active {
-      background-color: hsl(var(--muted) / 0.5);
+      background-color: hsl(var(--hover, var(--muted)) / 0.5);
     }
   }
 
@@ -63,10 +106,45 @@
     display: none; /* Safari and Chrome */
   }
 
+  /* Custom scrollbar styling for webkit browsers */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 5px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
   @media (hover: hover) and (pointer: fine) {
     .clickable:hover {
       background-color: hsl(var(--muted) / 0.5);
     }
+  }
+
+  .dark.palette-slate .clickable:hover,
+  .dark.palette-gray .clickable:hover,
+  .dark.palette-zinc .clickable:hover,
+  .dark.palette-neutral .clickable:hover,
+  .dark.palette-stone .clickable:hover {
+    background-color: hsl(var(--hover));
+  }
+
+  .dark.palette-slate .clickable:active,
+  .dark.palette-gray .clickable:active,
+  .dark.palette-zinc .clickable:active,
+  .dark.palette-neutral .clickable:active,
+  .dark.palette-stone .clickable:active {
+    background-color: hsl(var(--hover) / 0.85);
   }
 
   @keyframes shimmer {
@@ -82,6 +160,7 @@
     animation: shimmer 3s ease-in-out infinite;
   }
 
+  /* Default Light Theme (current colors - using neutral tones) */
   :root {
     --surface-background: 0 0% 98%;
     --background: 0 0% 100%;
@@ -92,7 +171,7 @@
     --popover-foreground: 240 10% 3.9%;
     --primary: 259 43% 56%;
     --primary-hover: 259 43% 65%;
-    --primary-foreground: 0 0% 98%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 240 4.8% 94%;
     --secondary-foreground: 240 5.9% 10%;
     --muted: 240 4.8% 94%;
@@ -101,8 +180,8 @@
     --accent-foreground: 240 5.9% 10%;
     --destructive: 0 93% 82%;
     --destructive-foreground: 240 10% 3.9%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
+    --border: 240 5.9% 94%;
+    --input: 240 5.9% 94%;
     --ring: 259 43% 56%;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -111,6 +190,107 @@
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
   }
+
+  /* Light Slate Palette */
+  .light.palette-slate {
+    --surface-background: 215 20.2% 96%;
+    --background: 215 20.2% 96%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --border: 214.3 31.8% 94%;
+    --input: 214.3 31.8% 94%;
+  }
+
+  /* Light Gray Palette */
+  .light.palette-gray {
+    --surface-background: 220 14.3% 96%;
+    --background: 220 14.3% 96%;
+    --foreground: 220 8.9% 5%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 8.9% 5%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 8.9% 5%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14.3% 95.9%;
+    --secondary-foreground: 220.9 39.3% 11%;
+    --muted: 220 14.3% 95.9%;
+    --muted-foreground: 220 8.9% 46.1%;
+    --accent: 220 14.3% 95.9%;
+    --accent-foreground: 220.9 39.3% 11%;
+    --border: 220 13% 94%;
+    --input: 220 13% 94%;
+  }
+
+  /* Light Zinc Palette */
+  .light.palette-zinc {
+    --surface-background: 240 4.8% 96%;
+    --background: 240 4.8% 96%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --border: 240 5.9% 93%;
+    --input: 240 5.9% 93%;
+  }
+
+  /* Light Neutral Palette */
+  .light.palette-neutral {
+    --surface-background: 0 0% 96%;
+    --background: 0 0% 96%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --border: 0 0% 93%;
+    --input: 0 0% 93%;
+  }
+
+  /* Light Stone Palette */
+  .light.palette-stone {
+    --surface-background: 60 9.1% 96%;
+    --background: 60 9.1% 96%;
+    --foreground: 20 14.3% 4.1%;
+    --card: 0 0% 100%;
+    --card-foreground: 20 14.3% 4.1%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 14.3% 4.1%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 60 4.8% 95.9%;
+    --secondary-foreground: 24 9.8% 10%;
+    --muted: 60 4.8% 95.9%;
+    --muted-foreground: 25 5.3% 44.7%;
+    --accent: 60 4.8% 95.9%;
+    --accent-foreground: 24 9.8% 10%;
+    --border: 20 5.9% 93%;
+    --input: 20 5.9% 93%;
+  }
+  /* Default Dark Theme (current colors - using neutral tones) */
   .dark {
     --surface-background: 240 10% 3.9%;
     --background: 0 0% 9%;
@@ -121,7 +301,7 @@
     --popover-foreground: 0 0% 98%;
     --primary: 259 43% 56%;
     --primary-hover: 259 43% 65%;
-    --primary-foreground: 240 5.9% 10%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 240 3.7% 15.9%;
     --secondary-foreground: 0 0% 98%;
     --muted: 240 3.7% 15.9%;
@@ -140,6 +320,106 @@
     --chart-5: 340 75% 55%;
   }
 
+  /* Dark Slate Palette */
+  .dark.palette-slate {
+    --surface-background: 222.2 47.4% 8%;
+    --background: 222.2 47.4% 8%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 47.4% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 47.4% 11%;
+    --popover-foreground: 210 40% 98%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --hover: 222.2 47.4% 13%;
+  }
+
+  /* Dark Gray Palette */
+  .dark.palette-gray {
+    --surface-background: 220.9 39.3% 8%;
+    --background: 220.9 39.3% 8%;
+    --foreground: 210 20% 98%;
+    --card: 220.9 39.3% 11%;
+    --card-foreground: 210 20% 98%;
+    --popover: 220.9 39.3% 11%;
+    --popover-foreground: 210 20% 98%;
+    --secondary: 215 27.9% 16.9%;
+    --secondary-foreground: 210 20% 98%;
+    --muted: 215 27.9% 16.9%;
+    --muted-foreground: 217.9 10.6% 64.9%;
+    --accent: 215 27.9% 16.9%;
+    --accent-foreground: 210 20% 98%;
+    --border: 215 27.9% 16.9%;
+    --input: 215 27.9% 16.9%;
+    --hover: 220.9 39.3% 13%;
+  }
+
+  /* Dark Zinc Palette */
+  .dark.palette-zinc {
+    --surface-background: 240 10% 3.9%;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 8%;
+    --popover-foreground: 0 0% 98%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --hover: 240 10% 10%;
+  }
+
+  /* Dark Neutral Palette */
+  .dark.palette-neutral {
+    --surface-background: 0 0% 3.9%;
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 98%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --hover: 0 0% 9%;
+  }
+
+  /* Dark Stone Palette */
+  .dark.palette-stone {
+    --surface-background: 24 9.8% 8%;
+    --background: 24 9.8% 8%;
+    --foreground: 60 9.1% 97.8%;
+    --card: 24 9.8% 11%;
+    --card-foreground: 60 9.1% 97.8%;
+    --popover: 24 9.8% 11%;
+    --popover-foreground: 60 9.1% 97.8%;
+    --secondary: 12 6.5% 15.1%;
+    --secondary-foreground: 60 9.1% 97.8%;
+    --muted: 12 6.5% 15.1%;
+    --muted-foreground: 24 5.4% 63.9%;
+    --accent: 12 6.5% 15.1%;
+    --accent-foreground: 60 9.1% 97.8%;
+    --border: 12 6.5% 15.1%;
+    --input: 12 6.5% 15.1%;
+    --hover: 24 9.8% 13%;
+  }
+
   .dark input[type='datetime-local']::-webkit-calendar-picker-indicator {
     filter: invert(1) brightness(1.5);
   }
@@ -151,6 +431,16 @@
     --card: 0 0% 0%;
     --popover: 0 0% 0%;
     --border: 0 0% 15%;
+    --hover: 0 0% 8%;
+  }
+
+  /* Page Theme: White (outline style) */
+  .light.page-theme-white {
+    --surface-background: 0 0% 100%;
+    --background: 0 0% 100%;
+    --card: 0 0% 100%;
+    --popover: 0 0% 100%;
+    --border: 240 5.9% 94%;
   }
 }
 

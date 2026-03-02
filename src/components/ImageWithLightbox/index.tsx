@@ -23,8 +23,8 @@ export default function ImageWithLightbox({
 }) {
   const id = useMemo(() => `image-with-lightbox-${randomString()}`, [])
   const { t } = useTranslation()
-  const { autoLoadMedia } = useContentPolicy()
-  const [display, setDisplay] = useState(autoLoadMedia)
+  const { shouldAutoLoadMedia } = useContentPolicy()
+  const [display, setDisplay] = useState(() => shouldAutoLoadMedia(image.pubkey))
   const [index, setIndex] = useState(-1)
   useEffect(() => {
     if (index >= 0) {
@@ -62,7 +62,7 @@ export default function ImageWithLightbox({
         key={0}
         className={className}
         classNames={{
-          wrapper: cn('rounded-lg border cursor-zoom-in', classNames.wrapper),
+          wrapper: cn('border cursor-zoom-in', classNames.wrapper),
           errorPlaceholder: 'aspect-square h-[30vh]'
         }}
         image={image}
@@ -73,7 +73,7 @@ export default function ImageWithLightbox({
           <div onClick={(e) => e.stopPropagation()}>
             <Lightbox
               index={index}
-              slides={[{ src: image.url }]}
+              slides={[{ src: image.url, alt: image.alt || '' }]}
               plugins={[Zoom]}
               open={index >= 0}
               close={() => setIndex(-1)}

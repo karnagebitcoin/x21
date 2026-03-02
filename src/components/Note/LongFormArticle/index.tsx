@@ -4,12 +4,15 @@ import { getLongFormArticleMetadataFromEvent } from '@/lib/event-metadata'
 import { toNote, toNoteList, toProfile } from '@/lib/link'
 import { ExternalLink } from 'lucide-react'
 import { Event, kinds } from 'nostr-tools'
-import { useMemo } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import NostrNode from './NostrNode'
 import { remarkNostr } from './remarkNostr'
 import { Components } from './types'
+import { useTextOnlyMode } from '@/providers/TextOnlyModeProvider'
+import { useMediaStyle } from '@/providers/MediaStyleProvider'
+import { MEDIA_STYLE } from '@/constants'
 
 export default function LongFormArticle({
   event,
@@ -19,7 +22,15 @@ export default function LongFormArticle({
   className?: string
 }) {
   const { push } = useSecondaryPage()
+  const { textOnlyMode } = useTextOnlyMode()
+  const { mediaStyle } = useMediaStyle()
+  const isFullWidth = mediaStyle === MEDIA_STYLE.FULL_WIDTH
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
   const metadata = useMemo(() => getLongFormArticleMetadataFromEvent(event), [event])
+
+  const handleLoadImage = useCallback((url: string) => {
+    setLoadedImages((prev) => new Set(prev).add(url))
+  }, [])
 
   const components = useMemo(
     () =>
@@ -61,20 +72,67 @@ export default function LongFormArticle({
             </a>
           )
         },
+        h1: (props) => <h1 {...props} className="break-words" />,
+        h2: (props) => <h2 {...props} className="break-words" />,
+        h3: (props) => <h3 {...props} className="break-words" />,
+        h4: (props) => <h4 {...props} className="break-words" />,
+        h5: (props) => <h5 {...props} className="break-words" />,
+        h6: (props) => <h6 {...props} className="break-words" />,
         p: (props) => <p {...props} className="break-words" />,
         div: (props) => <div {...props} className="break-words" />,
+        ul: (props) => <ul {...props} className="break-words" />,
+        ol: (props) => <ol {...props} className="break-words" />,
+        li: (props) => <li {...props} className="break-words" />,
+        blockquote: (props) => <blockquote {...props} className="break-words" />,
+        pre: (props) => <pre {...props} className="break-words overflow-x-auto" />,
         code: (props) => <code {...props} className="break-words whitespace-pre-wrap" />,
-        img: (props) => (
-          <ImageWithLightbox
-            image={{ url: props.src || '', pubkey: event.pubkey }}
-            className="max-h-[80vh] sm:max-h-[50vh] object-contain my-0"
-            classNames={{
-              wrapper: 'w-fit max-w-full'
-            }}
-          />
-        )
+        table: (props) => <table {...props} className="break-words" />,
+        thead: (props) => <thead {...props} className="break-words" />,
+        tbody: (props) => <tbody {...props} className="break-words" />,
+        tr: (props) => <tr {...props} className="break-words" />,
+        td: (props) => <td {...props} className="break-words" />,
+        th: (props) => <th {...props} className="break-words" />,
+        img: function ImageComponent(props) {
+          const imageUrl = props.src || ''
+          if (textOnlyMode) {
+            const isLoaded = loadedImages.has(imageUrl)
+            if (isLoaded) {
+              return (
+                <ImageWithLightbox
+                  image={{ url: imageUrl, pubkey: event.pubkey }}
+                  className={isFullWidth ? 'object-contain my-0' : 'max-h-[80vh] sm:max-h-[50vh] object-contain my-0'}
+                  classNames={{
+                    wrapper: isFullWidth ? 'w-full' : 'w-fit max-w-full'
+                  }}
+                />
+              )
+            }
+            return (
+              <span className="inline-block my-2">
+                [image: <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleLoadImage(imageUrl)
+                  }}
+                  className="text-primary hover:underline"
+                >
+                  load
+                </button>]
+              </span>
+            )
+          }
+          return (
+            <ImageWithLightbox
+              image={{ url: imageUrl, pubkey: event.pubkey }}
+              className={isFullWidth ? 'object-contain my-0' : 'max-h-[80vh] sm:max-h-[50vh] object-contain my-0'}
+              classNames={{
+                wrapper: isFullWidth ? 'w-full' : 'w-fit max-w-full'
+              }}
+            />
+          )
+        }
       }) as Components,
-    []
+    [event.pubkey, textOnlyMode, loadedImages, handleLoadImage, isFullWidth]
   )
 
   return (

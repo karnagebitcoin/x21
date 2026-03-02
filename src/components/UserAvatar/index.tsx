@@ -8,8 +8,11 @@ import { cn } from '@/lib/utils'
 import { SecondaryPageLink } from '@/PageManager'
 import { useMemo } from 'react'
 import ProfileCard from '../ProfileCard'
+import { useTextOnlyMode } from '@/providers/TextOnlyModeProvider'
+import { useDisableAvatarAnimations } from '@/providers/DisableAvatarAnimationsProvider'
 
 const UserAvatarSizeCnMap = {
+  xl: 'w-32 h-32',
   large: 'w-24 h-24',
   big: 'w-16 h-16',
   semiBig: 'w-12 h-12',
@@ -21,20 +24,51 @@ const UserAvatarSizeCnMap = {
   tiny: 'w-4 h-4'
 }
 
+// Helper to check if a URL is a GIF
+function isGifUrl(url: string): boolean {
+  try {
+    const urlObj = new URL(url)
+    return urlObj.pathname.toLowerCase().endsWith('.gif')
+  } catch {
+    return url.toLowerCase().includes('.gif')
+  }
+}
+
+// Helper to get a static version of an avatar
+function getStaticAvatar(avatarUrl: string, disableAnimations: boolean): string {
+  if (!disableAnimations || !avatarUrl || !isGifUrl(avatarUrl)) {
+    return avatarUrl
+  }
+
+  // For nostr.build, we can add ?aspect=1:1 or similar parameters
+  // For now, we'll use a simple approach: show the fallback avatar for GIFs
+  // This ensures no animation while still showing something
+  return ''  // Empty string will trigger AvatarFallback
+}
+
 export default function UserAvatar({
   userId,
   className,
-  size = 'normal'
+  size = 'normal',
+  noLink = false
 }: {
   userId: string
   className?: string
-  size?: 'large' | 'big' | 'semiBig' | 'normal' | 'medium' | 'compact' | 'small' | 'xSmall' | 'tiny'
+  size?: 'xl' | 'large' | 'big' | 'semiBig' | 'normal' | 'medium' | 'compact' | 'small' | 'xSmall' | 'tiny'
+  noLink?: boolean
 }) {
+  const { textOnlyMode } = useTextOnlyMode()
+  const { disableAvatarAnimations } = useDisableAvatarAnimations()
   const { profile } = useFetchProfile(userId)
   const defaultAvatar = useMemo(
     () => (profile?.pubkey ? generateImageByPubkey(profile.pubkey) : ''),
     [profile]
   )
+
+  // In text-only mode, don't render avatar at all
+  if (textOnlyMode) {
+    return null
+  }
 
   if (!profile) {
     return (
@@ -43,16 +77,35 @@ export default function UserAvatar({
   }
   const { avatar, pubkey } = profile
 
+  const effectiveAvatar = getStaticAvatar(avatar, disableAvatarAnimations)
+
+  const avatarElement = (
+    <Avatar className={cn('shrink-0', UserAvatarSizeCnMap[size], className)}>
+      <AvatarImage src={effectiveAvatar} className="object-cover object-center" />
+      <AvatarFallback>
+        <img src={defaultAvatar} alt={pubkey} />
+      </AvatarFallback>
+    </Avatar>
+  )
+
+  if (noLink) {
+    return (
+      <HoverCard>
+        <HoverCardTrigger>
+          {avatarElement}
+        </HoverCardTrigger>
+        <HoverCardContent className="w-72">
+          <ProfileCard pubkey={pubkey} />
+        </HoverCardContent>
+      </HoverCard>
+    )
+  }
+
   return (
     <HoverCard>
       <HoverCardTrigger>
         <SecondaryPageLink to={toProfile(pubkey)} onClick={(e) => e.stopPropagation()}>
-          <Avatar className={cn('shrink-0', UserAvatarSizeCnMap[size], className)}>
-            <AvatarImage src={avatar} className="object-cover object-center" />
-            <AvatarFallback>
-              <img src={defaultAvatar} alt={pubkey} />
-            </AvatarFallback>
-          </Avatar>
+          {avatarElement}
         </SecondaryPageLink>
       </HoverCardTrigger>
       <HoverCardContent className="w-72">
@@ -69,15 +122,22 @@ export function SimpleUserAvatar({
   onClick
 }: {
   userId: string
-  size?: 'large' | 'big' | 'normal' | 'medium' | 'compact' | 'small' | 'xSmall' | 'tiny'
+  size?: 'xl' | 'large' | 'big' | 'normal' | 'medium' | 'compact' | 'small' | 'xSmall' | 'tiny'
   className?: string
   onClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void
 }) {
+  const { textOnlyMode } = useTextOnlyMode()
+  const { disableAvatarAnimations } = useDisableAvatarAnimations()
   const { profile } = useFetchProfile(userId)
   const defaultAvatar = useMemo(
     () => (profile?.pubkey ? generateImageByPubkey(profile.pubkey) : ''),
     [profile]
   )
+
+  // In text-only mode, don't render avatar at all
+  if (textOnlyMode) {
+    return null
+  }
 
   if (!profile) {
     return (
@@ -86,9 +146,11 @@ export function SimpleUserAvatar({
   }
   const { avatar, pubkey } = profile
 
+  const effectiveAvatar = getStaticAvatar(avatar, disableAvatarAnimations)
+
   return (
     <Avatar className={cn('shrink-0', UserAvatarSizeCnMap[size], className)} onClick={onClick}>
-      <AvatarImage src={avatar} className="object-cover object-center" />
+      <AvatarImage src={effectiveAvatar} className="object-cover object-center" />
       <AvatarFallback>
         <img src={defaultAvatar} alt={pubkey} />
       </AvatarFallback>

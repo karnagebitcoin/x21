@@ -12,7 +12,9 @@ export default function ProfileCard({ pubkey }: { pubkey: string }) {
     <div className="w-full flex flex-col gap-2 not-prose">
       <div className="flex space-x-2 w-full items-start justify-between">
         <SimpleUserAvatar userId={pubkey} className="w-12 h-12" />
-        <FollowButton pubkey={pubkey} />
+        <div className="flex gap-1.5">
+          <FollowButton pubkey={pubkey} />
+        </div>
       </div>
       <div>
         <div className="text-lg font-semibold truncate">{username}</div>

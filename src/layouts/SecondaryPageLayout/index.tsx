@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSecondaryPage } from '@/PageManager'
 import { DeepBrowsingProvider } from '@/providers/DeepBrowsingProvider'
+import { ScrollVisibilityProvider } from '@/providers/ScrollVisibilityProvider'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
 import { ChevronLeft, X } from 'lucide-react'
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
@@ -66,11 +67,41 @@ const SecondaryPageLayout = forwardRef(
 
     if (isSmallScreen) {
       return (
-        <DeepBrowsingProvider active={currentIndex === index}>
-          <div
-            style={{
-              paddingBottom: 'calc(env(safe-area-inset-bottom) + 3rem)'
-            }}
+        <ScrollVisibilityProvider isSmallScreen={isSmallScreen}>
+          <DeepBrowsingProvider active={currentIndex === index}>
+            <div
+              style={{
+                paddingBottom: 'calc(env(safe-area-inset-bottom) + 3rem)'
+              }}
+            >
+              {!hideTitlebar && (
+                <SecondaryPageTitlebar
+                  title={title}
+                  controls={controls}
+                  hideBackButton={hideBackButton}
+                  hideBottomBorder={hideTitlebarBottomBorder}
+                  titlebar={titlebar}
+                  showCloseButton={showCloseButton}
+                  onClose={onClose}
+                />
+              )}
+              <main>
+                {children}
+              </main>
+            </div>
+            {displayScrollToTopButton && <ScrollToTopButton />}
+          </DeepBrowsingProvider>
+        </ScrollVisibilityProvider>
+      )
+    }
+
+    return (
+      <ScrollVisibilityProvider isSmallScreen={isSmallScreen}>
+        <DeepBrowsingProvider active={currentIndex === index} scrollAreaRef={scrollAreaRef}>
+          <ScrollArea
+            className="h-full overflow-auto"
+            scrollBarClassName="z-50 pt-12"
+            ref={scrollAreaRef}
           >
             {!hideTitlebar && (
               <SecondaryPageTitlebar
@@ -83,36 +114,14 @@ const SecondaryPageLayout = forwardRef(
                 onClose={onClose}
               />
             )}
-            {children}
-          </div>
-          {displayScrollToTopButton && <ScrollToTopButton />}
+            <main>
+              {children}
+            </main>
+            <div className="h-4" />
+          </ScrollArea>
+          {displayScrollToTopButton && <ScrollToTopButton scrollAreaRef={scrollAreaRef} />}
         </DeepBrowsingProvider>
-      )
-    }
-
-    return (
-      <DeepBrowsingProvider active={currentIndex === index} scrollAreaRef={scrollAreaRef}>
-        <ScrollArea
-          className="h-full overflow-auto"
-          scrollBarClassName="z-50 pt-12"
-          ref={scrollAreaRef}
-        >
-          {!hideTitlebar && (
-            <SecondaryPageTitlebar
-              title={title}
-              controls={controls}
-              hideBackButton={hideBackButton}
-              hideBottomBorder={hideTitlebarBottomBorder}
-              titlebar={titlebar}
-              showCloseButton={showCloseButton}
-              onClose={onClose}
-            />
-          )}
-          {children}
-          <div className="h-4" />
-        </ScrollArea>
-        {displayScrollToTopButton && <ScrollToTopButton scrollAreaRef={scrollAreaRef} />}
-      </DeepBrowsingProvider>
+      </ScrollVisibilityProvider>
     )
   }
 )
@@ -151,7 +160,7 @@ export function SecondaryPageTitlebar({
       hideBottomBorder={hideBottomBorder}
     >
       {hideBackButton ? (
-        <div className="flex gap-2 items-center pl-3 w-fit truncate text-lg font-semibold" style={{ fontSize: `calc(var(--font-size, 14px) * 1.286)` }}>
+        <div className="flex gap-2 items-center pl-3 w-fit truncate text-lg font-semibold" style={{ fontSize: `var(--title-font-size, 18px)` }}>
           {title}
         </div>
       ) : (
@@ -180,7 +189,7 @@ function BackButton({ children }: { children?: React.ReactNode }) {
       onClick={() => pop()}
     >
       <ChevronLeft />
-      <div className="truncate text-lg font-semibold" style={{ fontSize: `calc(var(--font-size, 14px) * 1.286)` }}>{children}</div>
+      <div className="truncate text-lg font-semibold" style={{ fontSize: `var(--title-font-size, 18px)` }}>{children}</div>
     </Button>
   )
 }

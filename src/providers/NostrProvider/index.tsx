@@ -78,6 +78,8 @@ type TNostrContext = {
   signEvent: (draftEvent: TDraftEvent) => Promise<VerifiedEvent>
   nip04Encrypt: (pubkey: string, plainText: string) => Promise<string>
   nip04Decrypt: (pubkey: string, cipherText: string) => Promise<string>
+  nip44Encrypt: (pubkey: string, plainText: string) => Promise<string>
+  nip44Decrypt: (pubkey: string, cipherText: string) => Promise<string>
   startLogin: () => void
   checkLogin: <T>(cb?: () => T) => Promise<T | void>
   updateRelayListEvent: (relayListEvent: Event) => Promise<void>
@@ -100,6 +102,10 @@ export const useNostr = () => {
     throw new Error('useNostr must be used within a NostrProvider')
   }
   return context
+}
+
+export const useOptionalNostr = () => {
+  return useContext(NostrContext)
 }
 
 export function NostrProvider({ children }: { children: React.ReactNode }) {
@@ -153,6 +159,27 @@ export function NostrProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('hashchange', handleHashChange)
     }
   }, [])
+
+  // Preload all account profiles to in-memory cache for instant account switching
+  useEffect(() => {
+    const preloadAccountProfiles = async () => {
+      const accountPubkeys = accounts.map(acc => acc.pubkey)
+      if (accountPubkeys.length === 0) return
+
+      // Load all account profiles from IndexedDB and add to in-memory cache
+      const profileEvents = await Promise.all(
+        accountPubkeys.map(pubkey => indexedDb.getReplaceableEvent(pubkey, kinds.Metadata))
+      )
+
+      profileEvents.forEach(event => {
+        if (event) {
+          client.addEventToCache(event)
+        }
+      })
+    }
+
+    preloadAccountProfiles()
+  }, [accounts])
 
   useEffect(() => {
     const init = async () => {
@@ -211,6 +238,8 @@ export function NostrProvider({ children }: { children: React.ReactNode }) {
       if (storedProfileEvent) {
         setProfileEvent(storedProfileEvent)
         setProfile(getProfileFromEvent(storedProfileEvent))
+        // Add to in-memory cache for instant access
+        client.addEventToCache(storedProfileEvent)
       }
       if (storedFollowListEvent) {
         setFollowListEvent(storedFollowListEvent)
@@ -242,6 +271,8 @@ export function NostrProvider({ children }: { children: React.ReactNode }) {
         await indexedDb.putReplaceableEvent(relayListEvent)
       }
       setRelayList(relayList)
+      // Update client service with user's preferred read relays for tiered fetching
+      client.setPreferredReadRelays(relayList.read)
 
       const events = await client.fetchEvents(relayList.write.concat(BIG_RELAY_URLS).slice(0, 4), [
         {
@@ -695,6 +726,14 @@ export function NostrProvider({ children }: { children: React.ReactNode }) {
     return signer?.nip04Decrypt(pubkey, cipherText) ?? ''
   }
 
+  const nip44Encrypt = async (pubkey: string, plainText: string) => {
+    return signer?.nip44Encrypt(pubkey, plainText) ?? ''
+  }
+
+  const nip44Decrypt = async (pubkey: string, cipherText: string) => {
+    return signer?.nip44Decrypt(pubkey, cipherText) ?? ''
+  }
+
   const checkLogin = async <T,>(cb?: () => T): Promise<T | void> => {
     if (signer) {
       return cb && cb()
@@ -704,7 +743,10 @@ export function NostrProvider({ children }: { children: React.ReactNode }) {
 
   const updateRelayListEvent = async (relayListEvent: Event) => {
     const newRelayList = await indexedDb.putReplaceableEvent(relayListEvent)
-    setRelayList(getRelayListFromEvent(newRelayList))
+    const relayList = getRelayListFromEvent(newRelayList)
+    setRelayList(relayList)
+    // Update client service with user's preferred read relays for tiered fetching
+    client.setPreferredReadRelays(relayList.read)
   }
 
   const updateProfileEvent = async (profileEvent: Event) => {
@@ -804,6 +846,8 @@ export function NostrProvider({ children }: { children: React.ReactNode }) {
         signHttpAuth,
         nip04Encrypt,
         nip04Decrypt,
+        nip44Encrypt,
+        nip44Decrypt,
         startLogin: () => setOpenLoginDialog(true),
         checkLogin,
         signEvent,

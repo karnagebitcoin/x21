@@ -8,6 +8,7 @@ import { kinds, NostrEvent } from 'nostr-tools'
 import { SubCloser } from 'nostr-tools/abstract-pool'
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { useContentPolicy } from './ContentPolicyProvider'
+import { useDistractionFreeMode } from './DistractionFreeModeProvider'
 import { useMuteList } from './MuteListProvider'
 import { useNostr } from './NostrProvider'
 import { useUserTrust } from './UserTrustProvider'
@@ -34,10 +35,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const active = useMemo(() => current === 'notifications', [current])
   const { pubkey, notificationsSeenAt, updateNotificationsSeenAt } = useNostr()
   const { hideUntrustedNotifications, isUserTrusted } = useUserTrust()
-  const { mutePubkeySet } = useMuteList()
+  const { mutePubkeySet, getMutedDomains } = useMuteList()
   const { hideContentMentioningMutedUsers, hideNotificationsFromMutedUsers } = useContentPolicy()
+  const { isDistractionFree } = useDistractionFreeMode()
   const [newNotifications, setNewNotifications] = useState<NostrEvent[]>([])
   const [readNotificationIdSet, setReadNotificationIdSet] = useState<Set<string>>(new Set())
+  const mutedDomains = getMutedDomains()
   const filteredNewNotifications = useMemo(() => {
     if (active || notificationsSeenAt < 0) {
       return []
@@ -54,7 +57,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           hideContentMentioningMutedUsers,
           hideNotificationsFromMutedUsers,
           hideUntrustedNotifications,
-          isUserTrusted
+          isUserTrusted,
+          mutedDomains,
+          getProfile: (pubkey: string) => client.getCachedProfile(pubkey)
         })
       ) {
         continue
@@ -70,6 +75,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     hideNotificationsFromMutedUsers,
     hideUntrustedNotifications,
     isUserTrusted,
+    mutedDomains,
     active
   ])
 
@@ -192,18 +198,18 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     const newNotificationCount = filteredNewNotifications.length
 
-    // Update title
-    if (newNotificationCount > 0) {
-      document.title = `(${newNotificationCount >= 10 ? '9+' : newNotificationCount}) Jumble`
+    // Update title - hide count if in distraction-free mode
+    if (newNotificationCount > 0 && !isDistractionFree) {
+      document.title = `(${newNotificationCount >= 10 ? '9+' : newNotificationCount}) x21`
     } else {
-      document.title = 'Jumble'
+      document.title = 'x21'
     }
 
-    // Update favicons
+    // Update favicons - hide notification badge if in distraction-free mode
     const favicons = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']")
     if (!favicons.length) return
 
-    if (newNotificationCount === 0) {
+    if (newNotificationCount === 0 || isDistractionFree) {
       favicons.forEach((favicon) => {
         favicon.href = '/favicon.ico'
       })
@@ -228,7 +234,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         })
       }
     }
-  }, [filteredNewNotifications])
+  }, [filteredNewNotifications, isDistractionFree])
 
   const getNotificationsSeenAt = () => {
     if (notificationsSeenAt >= 0) {

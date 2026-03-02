@@ -5,15 +5,20 @@ import { useTranslation } from 'react-i18next'
 
 export default function ChargeZapLimitInput() {
   const { t } = useTranslation()
-  const { chargeZapLimit, updateChargeZapLimit, chargeZapEnabled } = useZap()
+  const { chargeZapLimit, updateChargeZapLimit, chargeZapEnabled, isWalletConnected } = useZap()
 
   return (
     <div>
-      <Label htmlFor="charge-zap-limit">{t('Charge Zap Limit (sats)')}</Label>
-      <div className="text-sm text-muted-foreground mt-1 mb-2">
+      <Label
+        htmlFor="charge-zap-limit"
+        className={(!chargeZapEnabled || !isWalletConnected) ? "opacity-50" : ""}
+      >
+        {t('Charge Zap Limit (sats)')}
+      </Label>
+      <div className={`text-sm text-muted-foreground mt-1 mb-2 ${(!chargeZapEnabled || !isWalletConnected) ? 'opacity-50' : ''}`}>
         {t('Maximum amount that can be charged. No matter how long you hold, zap won\'t exceed this limit.')}
       </div>
-      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-3 mb-2">
+      <div className={`bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-3 mb-2 ${(!chargeZapEnabled || !isWalletConnected) ? 'opacity-50' : ''}`}>
         <div className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
           ⚠️ {t('Important: Set a reasonable limit')}
         </div>
@@ -32,7 +37,7 @@ export default function ChargeZapLimitInput() {
             updateChargeZapLimit(value)
           }
         }}
-        disabled={!chargeZapEnabled}
+        disabled={!chargeZapEnabled || !isWalletConnected}
       />
     </div>
   )

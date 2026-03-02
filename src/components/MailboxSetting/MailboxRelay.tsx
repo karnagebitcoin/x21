@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import RelayIcon from '../RelayIcon'
+import RelayHealthBadge from '../RelayHealthBadge'
 
 export default function MailboxRelay({
   mailboxRelay,
@@ -55,7 +56,8 @@ export default function MailboxRelay({
           <div className="truncate">{mailboxRelay.url}</div>
         </div>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
+        <RelayHealthBadge url={mailboxRelay.url} />
         <Select
           value={mailboxRelay.scope}
           onValueChange={(v: TMailboxRelayScope) => changeMailboxRelayScope(mailboxRelay.url, v)}

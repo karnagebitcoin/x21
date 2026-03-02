@@ -69,27 +69,56 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
 
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> & { hideOverlay?: boolean }
->(({ className, children, hideOverlay = false, ...props }, ref) => (
-  <DrawerPortal>
-    {!hideOverlay && <DrawerOverlay />}
-    <DrawerPrimitive.Content
-      ref={ref}
-      className={cn(
-        'fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] sm:border bg-background',
-        className
-      )}
-      style={{
-        paddingBottom: 'env(safe-area-inset-bottom)'
-      }}
-      onOpenAutoFocus={(e) => e.preventDefault()}
-      {...props}
-    >
-      <div className="mx-auto mt-4 pb-2 mb-2 h-2 w-[100px] rounded-full bg-muted" />
-      {children}
-    </DrawerPrimitive.Content>
-  </DrawerPortal>
-))
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> & {
+    hideOverlay?: boolean
+    fullHeight?: boolean
+  }
+>(({ className, children, hideOverlay = false, fullHeight = false, style, ...props }, ref) => {
+  const contentRef = React.useRef<HTMLDivElement>(null)
+
+  React.useImperativeHandle(ref, () => contentRef.current!)
+
+  const contentStyle = React.useMemo(() => {
+    const baseStyle = {
+      borderTopLeftRadius: 'var(--card-radius, 8px)',
+      borderTopRightRadius: 'var(--card-radius, 8px)',
+      ...style
+    }
+
+    if (fullHeight) {
+      return {
+        ...baseStyle,
+        height: '100dvh',
+        maxHeight: '100dvh',
+        borderTopLeftRadius: '0px',
+        borderTopRightRadius: '0px'
+      }
+    }
+
+    return baseStyle
+  }, [style, fullHeight])
+
+  const contentClassName = cn(
+    'fixed inset-x-0 bottom-0 z-50 flex flex-col sm:border bg-background',
+    fullHeight ? 'top-0 mt-0 rounded-none' : 'mt-24 h-auto rounded-t-[10px]',
+    className
+  )
+
+  return (
+    <DrawerPortal>
+      {!hideOverlay && <DrawerOverlay />}
+      <DrawerPrimitive.Content
+        ref={contentRef}
+        className={contentClassName}
+        style={contentStyle}
+        {...props}
+      >
+        {!fullHeight && <div className="mx-auto mt-4 pb-2 mb-2 h-2 w-[100px] rounded-full bg-muted" />}
+        {children}
+      </DrawerPrimitive.Content>
+    </DrawerPortal>
+  )
+})
 DrawerContent.displayName = 'DrawerContent'
 
 const DrawerHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

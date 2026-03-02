@@ -1,7 +1,8 @@
 import { Skeleton } from '@/components/ui/skeleton'
-import { isMentioningMutedUsers } from '@/lib/event'
+import { isMentioningMutedUsers, isFromMutedDomain } from '@/lib/event'
 import { useContentPolicy } from '@/providers/ContentPolicyProvider'
 import { useMuteList } from '@/providers/MuteListProvider'
+import { useFetchProfile } from '@/hooks'
 import { Event, kinds } from 'nostr-tools'
 import { useMemo } from 'react'
 import MainNoteCard from './MainNoteCard'
@@ -12,25 +13,64 @@ export default function NoteCard({
   className,
   filterMutedNotes = true,
   pinned = false,
-  hideSeparator = false
+  hideSeparator = false,
+  onTagsChange,
+  bookmarkId
 }: {
   event: Event
   className?: string
   filterMutedNotes?: boolean
   pinned?: boolean
   hideSeparator?: boolean
+  onTagsChange?: () => void
+  bookmarkId?: string
 }) {
-  const { mutePubkeySet } = useMuteList()
+  const { mutePubkeySet, getMutedWords, getMutedDomains } = useMuteList()
   const { hideContentMentioningMutedUsers } = useContentPolicy()
+  const mutedWords = useMemo(() => getMutedWords(), [getMutedWords])
+  const mutedDomains = useMemo(() => getMutedDomains(), [getMutedDomains])
+  const { profile, isFetching } = useFetchProfile(event?.pubkey)
+
+  // Safety check: ensure event is valid
+  if (!event || !event.pubkey) {
+    return null
+  }
+
   const shouldHide = useMemo(() => {
+    // If we have muted domains configured and profile is still loading, wait for profile to load
+    if (filterMutedNotes && mutedDomains.length > 0 && isFetching) {
+      return true
+    }
+
     if (filterMutedNotes && mutePubkeySet.has(event.pubkey)) {
       return true
     }
+
+    // Check if author is muted by NIP-05 domain
+    if (filterMutedNotes && profile && isFromMutedDomain(profile.nip05, mutedDomains)) {
+      return true
+    }
+
     if (hideContentMentioningMutedUsers && isMentioningMutedUsers(event, mutePubkeySet)) {
       return true
     }
+
+    // Check for muted words in content and username
+    if (filterMutedNotes && mutedWords.length > 0) {
+      const content = event.content.toLowerCase()
+      const username = profile?.username?.toLowerCase() || ''
+
+      if (mutedWords.some(word => {
+        const lowerWord = word.toLowerCase()
+        return content.includes(lowerWord) || username.includes(lowerWord)
+      })) {
+        return true
+      }
+    }
+
     return false
-  }, [event, filterMutedNotes, mutePubkeySet])
+  }, [event, filterMutedNotes, mutePubkeySet, mutedWords, hideContentMentioningMutedUsers, profile, mutedDomains, isFetching])
+
   if (shouldHide) return null
 
   if (event.kind === kinds.Repost) {
@@ -41,10 +81,12 @@ export default function NoteCard({
         filterMutedNotes={filterMutedNotes}
         pinned={pinned}
         hideSeparator={hideSeparator}
+        onTagsChange={onTagsChange}
+        bookmarkId={bookmarkId}
       />
     )
   }
-  return <MainNoteCard event={event} className={className} pinned={pinned} hideSeparator={hideSeparator} />
+  return <MainNoteCard event={event} className={className} pinned={pinned} hideSeparator={hideSeparator} onTagsChange={onTagsChange} bookmarkId={bookmarkId} filterMutedNotes={filterMutedNotes} />
 }
 
 export function NoteCardLoadingSkeleton() {

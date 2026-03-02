@@ -5,6 +5,8 @@ import {
   getRootATag,
   getRootETag,
   getRootEventHexId,
+  hasExcessiveHashtags,
+  hasExcessiveMentions,
   isMentioningMutedUsers,
   isReplaceableEvent,
   isReplyNoteEvent
@@ -16,6 +18,7 @@ import { useContentPolicy } from '@/providers/ContentPolicyProvider'
 import { useMuteList } from '@/providers/MuteListProvider'
 import { useReply } from '@/providers/ReplyProvider'
 import { useUserTrust } from '@/providers/UserTrustProvider'
+import { usePinnedReplies } from '@/providers/PinnedRepliesProvider'
 import client from '@/services/client.service'
 import { Filter, Event as NEvent, kinds } from 'nostr-tools'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -36,9 +39,10 @@ export default function ReplyNoteList({ index, event }: { index?: number; event:
   const { push, currentIndex } = useSecondaryPage()
   const { hideUntrustedInteractions, isUserTrusted } = useUserTrust()
   const { mutePubkeySet } = useMuteList()
-  const { hideContentMentioningMutedUsers } = useContentPolicy()
+  const { hideContentMentioningMutedUsers, maxHashtags, maxMentions } = useContentPolicy()
   const [rootInfo, setRootInfo] = useState<TRootInfo | undefined>(undefined)
   const { repliesMap, addReplies } = useReply()
+  const { getPinnedReplies } = usePinnedReplies()
   const replies = useMemo(() => {
     const replyIdSet = new Set<string>()
     const replyEvents: NEvent[] = []
@@ -52,6 +56,8 @@ export default function ReplyNoteList({ index, event }: { index?: number; event:
         if (replyIdSet.has(evt.id)) return
         if (mutePubkeySet.has(evt.pubkey)) return
         if (hideContentMentioningMutedUsers && isMentioningMutedUsers(evt, mutePubkeySet)) return
+        if (hasExcessiveHashtags(evt, maxHashtags)) return
+        if (hasExcessiveMentions(evt, maxMentions)) return
 
         replyIdSet.add(evt.id)
         replyEvents.push(evt)
@@ -59,7 +65,26 @@ export default function ReplyNoteList({ index, event }: { index?: number; event:
       parentEventKeys = events.map((evt) => evt.id)
     }
     return replyEvents.sort((a, b) => a.created_at - b.created_at)
-  }, [event.id, repliesMap])
+  }, [event.id, repliesMap, mutePubkeySet, hideContentMentioningMutedUsers, maxHashtags, maxMentions])
+
+  // Separate pinned and unpinned replies
+  const { pinnedReplies, unpinnedReplies } = useMemo(() => {
+    const threadId = event.id // Use the current event as the thread ID
+    const pinnedIds = new Set(getPinnedReplies(threadId))
+
+    const pinned: NEvent[] = []
+    const unpinned: NEvent[] = []
+
+    replies.forEach((reply) => {
+      if (pinnedIds.has(reply.id)) {
+        pinned.push(reply)
+      } else {
+        unpinned.push(reply)
+      }
+    })
+
+    return { pinnedReplies: pinned, unpinnedReplies: unpinned }
+  }, [replies, event.id, getPinnedReplies])
   const [timelineKey, setTimelineKey] = useState<string | undefined>(undefined)
   const [until, setUntil] = useState<number | undefined>(undefined)
   const [loading, setLoading] = useState<boolean>(false)
@@ -238,7 +263,7 @@ export default function ReplyNoteList({ index, event }: { index?: number; event:
     }
 
     const observerInstance = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && showCount < replies.length) {
+      if (entries[0].isIntersecting && showCount < unpinnedReplies.length) {
         setShowCount((prev) => prev + SHOW_COUNT)
       }
     }, options)
@@ -254,7 +279,7 @@ export default function ReplyNoteList({ index, event }: { index?: number; event:
         observerInstance.unobserve(currentBottomRef)
       }
     }
-  }, [replies, showCount])
+  }, [unpinnedReplies, showCount])
 
   const loadMore = useCallback(async () => {
     if (loading || !until || !timelineKey) return
@@ -294,10 +319,10 @@ export default function ReplyNoteList({ index, event }: { index?: number; event:
         </div>
       )}
       <div>
-        {replies.slice(0, showCount).map((reply) => {
+        {/* Render pinned replies first */}
+        {pinnedReplies.map((reply) => {
           if (hideUntrustedInteractions && !isUserTrusted(reply.pubkey)) {
             const repliesForThisReply = repliesMap.get(reply.id)
-            // If the reply is not trusted and there are no trusted replies for this reply, skip rendering
             if (
               !repliesForThisReply ||
               repliesForThisReply.events.every((evt) => !isUserTrusted(evt.pubkey))
@@ -327,6 +352,46 @@ export default function ReplyNoteList({ index, event }: { index?: number; event:
                   highlightReply(parentEventHexId)
                 }}
                 highlight={highlightReplyId === reply.id}
+                isPinned={true}
+              />
+            </div>
+          )
+        })}
+
+        {/* Render unpinned replies with pagination */}
+        {unpinnedReplies.slice(0, showCount).map((reply) => {
+          if (hideUntrustedInteractions && !isUserTrusted(reply.pubkey)) {
+            const repliesForThisReply = repliesMap.get(reply.id)
+            if (
+              !repliesForThisReply ||
+              repliesForThisReply.events.every((evt) => !isUserTrusted(evt.pubkey))
+            ) {
+              return null
+            }
+          }
+
+          const parentETag = getParentETag(reply)
+          const parentEventHexId = parentETag?.[1]
+          const parentEventId = parentETag ? generateBech32IdFromETag(parentETag) : undefined
+          return (
+            <div
+              ref={(el) => (replyRefs.current[reply.id] = el)}
+              key={reply.id}
+              className="scroll-mt-12"
+            >
+              <ReplyNote
+                event={reply}
+                parentEventId={event.id !== parentEventHexId ? parentEventId : undefined}
+                onClickParent={() => {
+                  if (!parentEventHexId) return
+                  if (replies.every((r) => r.id !== parentEventHexId)) {
+                    push(toNote(parentEventId ?? parentEventHexId))
+                    return
+                  }
+                  highlightReply(parentEventHexId)
+                }}
+                highlight={highlightReplyId === reply.id}
+                isPinned={false}
               />
             </div>
           )

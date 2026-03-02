@@ -137,7 +137,7 @@ function ZapDialogContent({
 }) {
   const { t, i18n } = useTranslation()
   const { pubkey } = useNostr()
-  const { defaultZapSats, defaultZapComment, zapSound } = useZap()
+  const { defaultZapSats, defaultZapComment, zapSound, isWalletConnected } = useZap()
   const [sats, setSats] = useState(defaultAmount ?? defaultZapSats)
   const [comment, setComment] = useState(defaultComment ?? defaultZapComment)
   const [zapping, setZapping] = useState(false)
@@ -181,8 +181,8 @@ function ZapDialogContent({
         throw new Error('You need to be logged in to zap')
       }
 
-      // Play zap sound IMMEDIATELY when zap button is pressed
-      if (zapSound !== ZAP_SOUNDS.NONE) {
+      // Play zap sound IMMEDIATELY when zap button is pressed (only if wallet is connected)
+      if (isWalletConnected && zapSound !== ZAP_SOUNDS.NONE) {
         let soundToPlay = zapSound
         // If random is selected, pick a random sound
         if (zapSound === ZAP_SOUNDS.RANDOM) {

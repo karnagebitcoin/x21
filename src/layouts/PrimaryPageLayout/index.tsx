@@ -3,6 +3,7 @@ import { Titlebar } from '@/components/Titlebar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TPrimaryPageName, usePrimaryPage } from '@/PageManager'
 import { DeepBrowsingProvider } from '@/providers/DeepBrowsingProvider'
+import { ScrollVisibilityProvider } from '@/providers/ScrollVisibilityProvider'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 
@@ -69,38 +70,58 @@ const PrimaryPageLayout = forwardRef(
 
     if (isSmallScreen) {
       return (
-        <DeepBrowsingProvider active={current === pageName && display}>
-          <div
-            ref={smallScreenScrollAreaRef}
-            style={{
-              paddingBottom: 'calc(env(safe-area-inset-bottom) + 3rem)'
-            }}
-          >
-            <PrimaryPageTitlebar hideBottomBorder={hideTitlebarBottomBorder}>
-              {titlebar}
-            </PrimaryPageTitlebar>
-            {children}
-          </div>
-          {displayScrollToTopButton && <ScrollToTopButton />}
-        </DeepBrowsingProvider>
+        <ScrollVisibilityProvider isSmallScreen={isSmallScreen}>
+          <DeepBrowsingProvider active={current === pageName && display}>
+            <a
+              href="#main-content"
+              className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:bg-primary focus:text-primary-foreground focus:px-4 focus:py-2 focus:rounded"
+            >
+              Skip to main content
+            </a>
+            <div
+              ref={smallScreenScrollAreaRef}
+              style={{
+                paddingBottom: 'calc(env(safe-area-inset-bottom) + 3rem)'
+              }}
+            >
+              <PrimaryPageTitlebar hideBottomBorder={hideTitlebarBottomBorder}>
+                {titlebar}
+              </PrimaryPageTitlebar>
+              <main id="main-content">
+                {children}
+              </main>
+            </div>
+            {displayScrollToTopButton && <ScrollToTopButton />}
+          </DeepBrowsingProvider>
+        </ScrollVisibilityProvider>
       )
     }
 
     return (
-      <DeepBrowsingProvider active={current === pageName && display} scrollAreaRef={scrollAreaRef}>
-        <ScrollArea
-          className="h-full overflow-auto"
-          scrollBarClassName="z-50 pt-12"
-          ref={scrollAreaRef}
-        >
-          <PrimaryPageTitlebar hideBottomBorder={hideTitlebarBottomBorder}>
-            {titlebar}
-          </PrimaryPageTitlebar>
-          {children}
-          <div className="h-4" />
-        </ScrollArea>
-        {displayScrollToTopButton && <ScrollToTopButton scrollAreaRef={scrollAreaRef} />}
-      </DeepBrowsingProvider>
+      <ScrollVisibilityProvider isSmallScreen={isSmallScreen}>
+        <DeepBrowsingProvider active={current === pageName && display} scrollAreaRef={scrollAreaRef}>
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:bg-primary focus:text-primary-foreground focus:px-4 focus:py-2 focus:rounded"
+          >
+            Skip to main content
+          </a>
+          <ScrollArea
+            className="h-full overflow-auto"
+            scrollBarClassName="z-50 pt-12"
+            ref={scrollAreaRef}
+          >
+            <PrimaryPageTitlebar hideBottomBorder={hideTitlebarBottomBorder}>
+              {titlebar}
+            </PrimaryPageTitlebar>
+            <main id="main-content">
+              {children}
+            </main>
+            <div className="h-4" />
+          </ScrollArea>
+          {displayScrollToTopButton && <ScrollToTopButton scrollAreaRef={scrollAreaRef} />}
+        </DeepBrowsingProvider>
+      </ScrollVisibilityProvider>
     )
   }
 )

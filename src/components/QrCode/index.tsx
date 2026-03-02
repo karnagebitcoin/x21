@@ -6,7 +6,7 @@ export default function QrCode({ value, size = 180 }: { value: string; size?: nu
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       const pixelRatio = window.devicePixelRatio || 2
 
       const qrCode = new QRCodeStyling({
@@ -18,13 +18,23 @@ export default function QrCode({ value, size = 180 }: { value: string; size?: nu
         height: size * pixelRatio,
         data: value,
         dotsOptions: {
+          color: '#000000',
+          type: 'extra-rounded'
+        },
+        backgroundOptions: {
+          color: '#ffffff'
+        },
+        cornersSquareOptions: {
+          color: '#000000',
           type: 'extra-rounded'
         },
         cornersDotOptions: {
+          color: '#000000',
           type: 'extra-rounded'
         },
-        cornersSquareOptions: {
-          type: 'extra-rounded'
+        imageOptions: {
+          crossOrigin: 'anonymous',
+          margin: 5
         }
       })
 
@@ -39,9 +49,10 @@ export default function QrCode({ value, size = 180 }: { value: string; size?: nu
           canvas.style.height = 'auto'
         }
       }
-    }, 0)
+    }, 100)
 
     return () => {
+      clearTimeout(timer)
       if (ref.current) ref.current.innerHTML = ''
     }
   }, [value, size])

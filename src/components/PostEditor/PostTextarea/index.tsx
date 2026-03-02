@@ -13,14 +13,23 @@ import Text from '@tiptap/extension-text'
 import { TextSelection } from '@tiptap/pm/state'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { Event } from 'nostr-tools'
-import { Dispatch, forwardRef, SetStateAction, useImperativeHandle, useState } from 'react'
+import { Dispatch, forwardRef, SetStateAction, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ClipboardAndDropHandler } from './ClipboardAndDropHandler'
 import Emoji from './Emoji'
 import emojiSuggestion from './Emoji/suggestion'
 import Mention from './Mention'
 import mentionSuggestion from './Mention/suggestion'
+import Gif from './Gif'
+import gifSuggestion from './Gif/suggestion'
+import AICommand from './AICommand'
+import aiCommandSuggestion from './AICommand/suggestion'
+import ImageCommand from './ImageCommand'
+import imageCommandSuggestion from './ImageCommand/suggestion'
+import WebCommand from './WebCommand'
+import webCommandSuggestion from './WebCommand/suggestion'
 import Preview from './Preview'
+import ImagePreview from '../ImagePreview'
 
 export type TPostTextareaHandle = {
   appendText: (text: string, addNewline?: boolean) => void
@@ -40,6 +49,10 @@ const PostTextarea = forwardRef<
     onUploadStart?: (file: File, cancel: () => void) => void
     onUploadProgress?: (file: File, progress: number) => void
     onUploadEnd?: (file: File) => void
+    onImageUploadSuccess?: (url: string) => void
+    images?: Array<{ url: string; alt?: string }>
+    onRemoveImage?: (index: number) => void
+    onUpdateImageAlt?: (index: number, alt: string) => void
   }
 >(
   (
@@ -52,7 +65,11 @@ const PostTextarea = forwardRef<
       className,
       onUploadStart,
       onUploadProgress,
-      onUploadEnd
+      onUploadEnd,
+      onImageUploadSuccess,
+      images = [],
+      onRemoveImage,
+      onUpdateImageAlt
     },
     ref
   ) => {
@@ -66,8 +83,7 @@ const PostTextarea = forwardRef<
         History,
         HardBreak,
         Placeholder.configure({
-          placeholder:
-            t('Write something...') + ' (' + t('Paste or drop media files to upload') + ')'
+          placeholder: t('Enter text, paste or upload media')
         }),
         Emoji.configure({
           suggestion: emojiSuggestion
@@ -75,12 +91,28 @@ const PostTextarea = forwardRef<
         Mention.configure({
           suggestion: mentionSuggestion
         }),
+        Gif.configure({
+          suggestion: gifSuggestion
+        }),
+        AICommand.configure({
+          suggestion: aiCommandSuggestion,
+          parentEvent
+        }),
+        ImageCommand.configure({
+          suggestion: imageCommandSuggestion,
+          parentEvent
+        }),
+        WebCommand.configure({
+          suggestion: webCommandSuggestion,
+          parentEvent
+        }),
         ClipboardAndDropHandler.configure({
           onUploadStart: (file, cancel) => {
             onUploadStart?.(file, cancel)
           },
           onUploadEnd: (file) => onUploadEnd?.(file),
-          onUploadProgress: (file, p) => onUploadProgress?.(file, p)
+          onUploadProgress: (file, p) => onUploadProgress?.(file, p),
+          onImageUploadSuccess: (url) => onImageUploadSuccess?.(url)
         })
       ],
       editorProps: {
@@ -88,7 +120,10 @@ const PostTextarea = forwardRef<
           class: cn(
             'border rounded-lg p-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
             className
-          )
+          ),
+          'aria-label': t('Enter text, paste or upload media'),
+          role: 'textbox',
+          'aria-multiline': 'true'
         },
         handleKeyDown: (_view, event) => {
           // Handle Ctrl+Enter or Cmd+Enter for submit
@@ -158,30 +193,45 @@ const PostTextarea = forwardRef<
       return null
     }
 
+    const previewContent = useMemo(() => {
+      // Combine text with image URLs for preview
+      let content = text.trim()
+      if (images.length > 0) {
+        const imageUrls = images.map((img) => img.url).join('\n')
+        content = content ? `${content}\n${imageUrls}` : imageUrls
+      }
+      return content
+    }, [text, images])
+
     return (
-      <Tabs
-        defaultValue="edit"
-        value={tabValue}
-        onValueChange={(v) => setTabValue(v)}
-        className="space-y-2"
-      >
-        <TabsList>
-          <TabsTrigger value="edit">{t('Edit')}</TabsTrigger>
-          <TabsTrigger value="preview">{t('Preview')}</TabsTrigger>
-        </TabsList>
-        <TabsContent value="edit">
-          <EditorContent className="tiptap" editor={editor} />
-        </TabsContent>
-        <TabsContent
-          value="preview"
-          onClick={() => {
-            setTabValue('edit')
-            editor.commands.focus()
-          }}
+      <div className="space-y-2">
+        <Tabs
+          defaultValue="edit"
+          value={tabValue}
+          onValueChange={(v) => setTabValue(v)}
         >
-          <Preview content={text} className={className} />
-        </TabsContent>
-      </Tabs>
+          <TabsList>
+            <TabsTrigger value="edit">{t('Edit')}</TabsTrigger>
+            <TabsTrigger value="preview">{t('Preview')}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="edit" className="mt-2">
+            <EditorContent className="tiptap" editor={editor} />
+          </TabsContent>
+          <TabsContent
+            value="preview"
+            className="mt-2"
+            onClick={() => {
+              setTabValue('edit')
+              editor.commands.focus()
+            }}
+          >
+            <Preview content={previewContent} images={images} className={className} />
+          </TabsContent>
+        </Tabs>
+        {tabValue === 'edit' && onRemoveImage && onUpdateImageAlt && (
+          <ImagePreview images={images} onRemove={onRemoveImage} onUpdateAlt={onUpdateImageAlt} />
+        )}
+      </div>
     )
   }
 )

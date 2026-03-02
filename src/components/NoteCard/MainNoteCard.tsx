@@ -1,6 +1,7 @@
 import { Separator } from '@/components/ui/separator'
 import { toNote } from '@/lib/link'
 import { cn } from '@/lib/utils'
+import { hasMedia } from '@/lib/event'
 import { useSecondaryPage } from '@/PageManager'
 import { Event } from 'nostr-tools'
 import Collapsible from '../Collapsible'
@@ -16,7 +17,10 @@ export default function MainNoteCard({
   embedded,
   originalNoteId,
   pinned = false,
-  hideSeparator = false
+  hideSeparator = false,
+  onTagsChange,
+  bookmarkId,
+  filterMutedNotes = true
 }: {
   event: Event
   className?: string
@@ -25,19 +29,31 @@ export default function MainNoteCard({
   originalNoteId?: string
   pinned?: boolean
   hideSeparator?: boolean
+  onTagsChange?: () => void
+  bookmarkId?: string
+  filterMutedNotes?: boolean
 }) {
   const { push } = useSecondaryPage()
 
   return (
-    <div
+    <article
       className={className}
       onClick={(e) => {
+        // Don't navigate if clicking on a button or interactive element
+        const target = e.target as HTMLElement
+        if (target.closest('button') || target.closest('a')) {
+          return
+        }
         e.stopPropagation()
         push(toNote(originalNoteId ?? event))
       }}
+      aria-label="Note"
     >
-      <div className={cn('clickable group', embedded ? 'p-2 sm:p-3 border rounded-lg' : 'py-3')}>
-        <Collapsible alwaysExpand={embedded}>
+      <div
+        className={cn('clickable group', embedded ? 'p-2 sm:p-3 border' : 'py-3')}
+        style={embedded ? { borderRadius: 'var(--card-radius, 8px)' } : undefined}
+      >
+        <Collapsible alwaysExpand={embedded} hasMedia={hasMedia(event)}>
           {pinned && <PinnedButton event={event} />}
           <RepostDescription className={embedded ? '' : 'px-4'} reposter={reposter} />
           <Note
@@ -45,11 +61,12 @@ export default function MainNoteCard({
             size={embedded ? 'small' : 'normal'}
             event={event}
             originalNoteId={originalNoteId}
+            filterMutedNotes={filterMutedNotes}
           />
         </Collapsible>
-        {!embedded && <NoteStats className="mt-3 px-4" event={event} />}
+        {!embedded && <NoteStats className="mt-3 px-4" event={event} onTagsChange={onTagsChange} bookmarkId={bookmarkId} />}
       </div>
       {!embedded && !hideSeparator && <Separator />}
-    </div>
+    </article>
   )
 }

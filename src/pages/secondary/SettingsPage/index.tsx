@@ -1,7 +1,10 @@
 import AboutInfoDialog from '@/components/AboutInfoDialog'
 import SecondaryPageLayout from '@/layouts/SecondaryPageLayout'
 import {
+  toAITools,
   toAppearanceSettings,
+  toBackupSettings,
+  toContentPrivacySettings,
   toGeneralSettings,
   toPostSettings,
   toRelaySettings,
@@ -13,8 +16,10 @@ import { cn } from '@/lib/utils'
 import { useSecondaryPage } from '@/PageManager'
 import { useNostr } from '@/providers/NostrProvider'
 import {
+  Bot,
   Check,
   ChevronRight,
+  Cloud,
   Copy,
   Info,
   KeyRound,
@@ -24,6 +29,7 @@ import {
   PencilLine,
   Server,
   Settings2,
+  Shield,
   Wallet
 } from 'lucide-react'
 import { forwardRef, HTMLProps, useState } from 'react'
@@ -39,58 +45,51 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
   return (
     <SecondaryPageLayout ref={ref} index={index} title={t('Settings')}>
       <SettingItem className="clickable" onClick={() => push(toGeneralSettings())}>
-        <div className="flex items-center gap-4">
-          <Settings2 />
-          <div>{t('General')}</div>
-        </div>
-        <ChevronRight />
+        <Settings2 />
+        {t('General')}
+      </SettingItem>
+      <SettingItem className="clickable" onClick={() => push(toContentPrivacySettings())}>
+        <Shield />
+        {t('Content & Privacy')}
       </SettingItem>
       <SettingItem className="clickable" onClick={() => push(toAppearanceSettings())}>
-        <div className="flex items-center gap-4">
-          <Palette />
-          <div>{t('Appearance')}</div>
-        </div>
-        <ChevronRight />
+        <Palette />
+        {t('Appearance')}
       </SettingItem>
       <SettingItem className="clickable" onClick={() => push(toWidgetsSettings())}>
-        <div className="flex items-center gap-4">
-          <LayoutGrid />
-          <div>{t('Widgets')}</div>
-        </div>
-        <ChevronRight />
+        <LayoutGrid />
+        {t('Widgets')}
       </SettingItem>
       <SettingItem className="clickable" onClick={() => push(toRelaySettings())}>
-        <div className="flex items-center gap-4">
-          <Server />
-          <div>{t('Relays')}</div>
-        </div>
-        <ChevronRight />
+        <Server />
+        {t('Relays')}
+      </SettingItem>
+      <SettingItem className="clickable" onClick={() => push(toBackupSettings())}>
+        <Cloud />
+        {t('Backup & Sync')}
       </SettingItem>
       {!!pubkey && (
+        <SettingItem className="clickable" onClick={() => push(toAITools())}>
+          <Bot />
+          {t('AI Tools')}
+        </SettingItem>
+      )}
+      {!!pubkey && (
         <SettingItem className="clickable" onClick={() => push(toTranslation())}>
-          <div className="flex items-center gap-4">
-            <Languages />
-            <div>{t('Translation')}</div>
-          </div>
-          <ChevronRight />
+          <Languages />
+          {t('Translation')}
         </SettingItem>
       )}
       {!!pubkey && (
         <SettingItem className="clickable" onClick={() => push(toWallet())}>
-          <div className="flex items-center gap-4">
-            <Wallet />
-            <div>{t('Wallet')}</div>
-          </div>
-          <ChevronRight />
+          <Wallet />
+          {t('Wallet')}
         </SettingItem>
       )}
       {!!pubkey && (
         <SettingItem className="clickable" onClick={() => push(toPostSettings())}>
-          <div className="flex items-center gap-4">
-            <PencilLine />
-            <div>{t('Post settings')}</div>
-          </div>
-          <ChevronRight />
+          <PencilLine />
+          {t('Post settings')}
         </SettingItem>
       )}
       {!!nsec && (
@@ -101,12 +100,10 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
             setCopiedNsec(true)
             setTimeout(() => setCopiedNsec(false), 2000)
           }}
+          rightIcon={copiedNsec ? <Check /> : <Copy />}
         >
-          <div className="flex items-center gap-4">
-            <KeyRound />
-            <div>{t('Copy private key')} (nsec)</div>
-          </div>
-          {copiedNsec ? <Check /> : <Copy />}
+          <KeyRound />
+          {t('Copy private key')} (nsec)
         </SettingItem>
       )}
       {!!ncryptsec && (
@@ -117,26 +114,26 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
             setCopiedNcryptsec(true)
             setTimeout(() => setCopiedNcryptsec(false), 2000)
           }}
+          rightIcon={copiedNcryptsec ? <Check /> : <Copy />}
         >
-          <div className="flex items-center gap-4">
-            <KeyRound />
-            <div>{t('Copy private key')} (ncryptsec)</div>
-          </div>
-          {copiedNcryptsec ? <Check /> : <Copy />}
+          <KeyRound />
+          {t('Copy private key')} (ncryptsec)
         </SettingItem>
       )}
       <AboutInfoDialog>
-        <SettingItem className="clickable">
-          <div className="flex items-center gap-4">
-            <Info />
-            <div>{t('About')}</div>
-          </div>
-          <div className="flex gap-2 items-center">
-            <div className="text-muted-foreground">
-              v{import.meta.env.APP_VERSION} ({import.meta.env.GIT_COMMIT})
+        <SettingItem
+          className="clickable"
+          rightIcon={
+            <div className="flex gap-2 items-center">
+              <div className="text-muted-foreground">
+                v{import.meta.env.APP_VERSION} ({import.meta.env.GIT_COMMIT})
+              </div>
+              <ChevronRight />
             </div>
-            <ChevronRight />
-          </div>
+          }
+        >
+          <Info />
+          {t('About')}
         </SettingItem>
       </AboutInfoDialog>
     </SecondaryPageLayout>
@@ -145,20 +142,33 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
 SettingsPage.displayName = 'SettingsPage'
 export default SettingsPage
 
-const SettingItem = forwardRef<HTMLDivElement, HTMLProps<HTMLDivElement>>(
-  ({ children, className, ...props }, ref) => {
-    return (
-      <div
-        className={cn(
-          'flex justify-between select-none items-center px-4 py-2 h-[52px] rounded-lg [&_svg]:size-4 [&_svg]:shrink-0',
-          className
-        )}
-        {...props}
-        ref={ref}
-      >
-        {children}
+const SettingItem = forwardRef<
+  HTMLDivElement,
+  HTMLProps<HTMLDivElement> & { rightIcon?: React.ReactNode }
+>(({ children, className, rightIcon, ...props }, ref) => {
+  const childArray = Array.isArray(children) ? children : [children]
+  const icon = childArray[0]
+  const label = childArray.slice(1)
+
+  return (
+    <div
+      className={cn(
+        'flex justify-between select-none items-center px-4 py-2 h-[52px] rounded-lg',
+        className
+      )}
+      {...props}
+      ref={ref}
+    >
+      <div className="flex items-center gap-4">
+        {/* Icon with circular background using foreground color */}
+        <div className="w-9 h-9 rounded-full bg-foreground/10 flex items-center justify-center [&_svg]:size-4 [&_svg]:shrink-0">
+          {icon}
+        </div>
+        {/* Label */}
+        <span>{label}</span>
       </div>
-    )
-  }
-)
+      {rightIcon || <ChevronRight className="size-4 shrink-0" />}
+    </div>
+  )
+})
 SettingItem.displayName = 'SettingItem'

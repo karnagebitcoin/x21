@@ -1,5 +1,7 @@
 export * from './useFetchEvent'
 export * from './useFetchFollowings'
+export * from './useFetchInviteInfo'
+export * from './useFetchLastActivity'
 export * from './useFetchNip05'
 export * from './useFetchProfile'
 export * from './useFetchRelayInfo'

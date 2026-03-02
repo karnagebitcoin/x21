@@ -21,9 +21,9 @@ const ThemeProviderContext = createContext<ThemeProviderState | undefined>(undef
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   const [themeSetting, setThemeSetting] = useState<TThemeSetting>(
-    (localStorage.getItem('themeSetting') as TThemeSetting | null) ?? 'system'
+    (localStorage.getItem('themeSetting') as TThemeSetting | null) ?? 'dark'
   )
-  const [theme, setTheme] = useState<TTheme>('light')
+  const [theme, setTheme] = useState<TTheme>('dark')
 
   useEffect(() => {
     const init = async () => {

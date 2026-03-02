@@ -9,10 +9,18 @@ import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 
 const setVh = () => {
-  document.documentElement.style.setProperty('--vh', `${window.innerHeight}px`)
+  // Use visualViewport if available for more accurate height on mobile
+  const height = window.visualViewport?.height || window.innerHeight
+  document.documentElement.style.setProperty('--vh', `${height}px`)
 }
+
+// Listen to both resize and visualViewport events for better mobile support
 window.addEventListener('resize', setVh)
 window.addEventListener('orientationchange', setVh)
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', setVh)
+  window.visualViewport.addEventListener('scroll', setVh)
+}
 setVh()
 
 createRoot(document.getElementById('root')!).render(

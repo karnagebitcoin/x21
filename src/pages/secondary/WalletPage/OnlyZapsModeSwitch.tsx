@@ -5,22 +5,26 @@ import { useTranslation } from 'react-i18next'
 
 export default function OnlyZapsModeSwitch() {
   const { t } = useTranslation()
-  const { onlyZapsMode, updateOnlyZapsMode } = useZap()
+  const { onlyZapsMode, updateOnlyZapsMode, isWalletConnected } = useZap()
 
   return (
     <div className="flex items-center justify-between">
       <div className="flex-1">
-        <Label htmlFor="only-zaps-mode" className="cursor-pointer">
+        <Label
+          htmlFor="only-zaps-mode"
+          className={isWalletConnected ? "cursor-pointer" : "cursor-not-allowed opacity-50"}
+        >
           {t('OnlyZaps mode')}
         </Label>
-        <div className="text-sm text-muted-foreground mt-1">
+        <div className={`text-sm text-muted-foreground mt-1 ${!isWalletConnected ? 'opacity-50' : ''}`}>
           {t('This will hide the reaction button on notes')}
         </div>
       </div>
       <Switch
         id="only-zaps-mode"
-        checked={onlyZapsMode}
+        checked={onlyZapsMode && isWalletConnected}
         onCheckedChange={updateOnlyZapsMode}
+        disabled={!isWalletConnected}
       />
     </div>
   )

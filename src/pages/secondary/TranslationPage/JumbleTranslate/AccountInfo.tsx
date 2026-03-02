@@ -1,7 +1,10 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { JUMBLE_API_BASE_URL } from '@/constants'
 import { useNostr } from '@/providers/NostrProvider'
+import { useTranslationService } from '@/providers/TranslationServiceProvider'
 import { Check, Copy, Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,8 +16,10 @@ export function AccountInfo() {
   const { t } = useTranslation()
   const { pubkey, startLogin } = useNostr()
   const { account } = useJumbleTranslateAccount()
+  const { config, updateConfig } = useTranslationService()
   const [showApiKey, setShowApiKey] = useState(false)
   const [copied, setCopied] = useState(false)
+  const autoTranslate = config.service === 'jumble' ? (config.auto_translate ?? false) : false
 
   if (!pubkey) {
     return (
@@ -69,6 +74,29 @@ export function AccountInfo() {
         </p>
       </div>
       <TopUp />
+
+      {/* Auto-translate toggle */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="auto-translate" className="text-base font-medium">
+            Auto-translate notes
+          </Label>
+          <Switch
+            id="auto-translate"
+            checked={autoTranslate}
+            onCheckedChange={(checked) => {
+              updateConfig({
+                service: 'jumble',
+                auto_translate: checked
+              })
+            }}
+          />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Automatically translate notes in foreign languages to English
+        </p>
+      </div>
+
       <div className="h-40" />
     </div>
   )

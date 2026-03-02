@@ -1,8 +1,10 @@
 import { ExtendedKind } from '@/constants'
 import { getPollMetadataFromEvent } from '@/lib/event-metadata'
 import libreTranslate from '@/services/libre-translate.service'
+import openrouterTranslate from '@/services/openrouter-translate.service'
 import storage from '@/services/local-storage.service'
 import translation from '@/services/translation.service'
+import indexedDb from '@/services/indexed-db.service'
 import { TTranslationAccount, TTranslationServiceConfig } from '@/types'
 import { Event, kinds } from 'nostr-tools'
 import { createContext, useContext, useEffect, useState } from 'react'
@@ -11,17 +13,20 @@ import { useNostr } from './NostrProvider'
 
 const translatedEventCache: Map<string, Event> = new Map()
 const translatedTextCache: Map<string, string> = new Map()
+let cacheInitialized = false
 
 type TTranslationServiceContext = {
   config: TTranslationServiceConfig
   translatedEventIdSet: Set<string>
   translateText: (text: string) => Promise<string>
   translateEvent: (event: Event) => Promise<Event | void>
+  autoTranslateEvent: (event: Event) => Promise<Event | void>
   getTranslatedEvent: (eventId: string) => Event | null
   showOriginalEvent: (eventId: string) => void
   getAccount: () => Promise<TTranslationAccount | void>
   regenerateApiKey: () => Promise<string | undefined>
   updateConfig: (newConfig: TTranslationServiceConfig) => void
+  shouldAutoTranslate: () => boolean
 }
 
 const TranslationServiceContext = createContext<TTranslationServiceContext | undefined>(undefined)
@@ -39,6 +44,34 @@ export function TranslationServiceProvider({ children }: { children: React.React
   const [config, setConfig] = useState<TTranslationServiceConfig>({ service: 'jumble' })
   const { pubkey, startLogin } = useNostr()
   const [translatedEventIdSet, setTranslatedEventIdSet] = useState<Set<string>>(new Set())
+
+  // Initialize cache from IndexedDB on mount
+  useEffect(() => {
+    if (!cacheInitialized) {
+      cacheInitialized = true
+      indexedDb.getAllTranslatedEvents().then((events) => {
+        events.forEach((event, key) => {
+          translatedEventCache.set(key, event)
+        })
+        // Update the translated event ID set
+        const eventIds = new Set<string>()
+        events.forEach((_, key) => {
+          const eventId = key.split('_')[1] // Extract eventId from "lang_eventId" format
+          if (eventId) {
+            eventIds.add(eventId)
+          }
+        })
+        setTranslatedEventIdSet(eventIds)
+      }).catch((error) => {
+        console.error('Failed to load translated events from IndexedDB:', error)
+      })
+
+      // Clean up old translations (older than 30 days)
+      indexedDb.clearOldTranslatedEvents().catch((error) => {
+        console.error('Failed to clear old translations:', error)
+      })
+    }
+  }, [])
 
   useEffect(() => {
     translation.changeCurrentPubkey(pubkey)
@@ -73,9 +106,16 @@ export function TranslationServiceProvider({ children }: { children: React.React
   const translate = async (text: string, target: string): Promise<string> => {
     if (config.service === 'jumble') {
       return await translation.translate(text, target)
-    } else {
+    } else if (config.service === 'libre_translate') {
       return await libreTranslate.translate(text, target, config.server, config.api_key)
+    } else if (config.service === 'openrouter') {
+      // Use API key from config first, fall back to AI tools config
+      const aiServiceConfig = storage.getAIServiceConfig(pubkey)
+      const apiKey = config.api_key || aiServiceConfig.apiKey
+      const model = config.model || aiServiceConfig.model || 'google/gemini-2.0-flash-001'
+      return await openrouterTranslate.translate(text, target, apiKey, model)
     }
+    throw new Error('Invalid translation service')
   }
 
   const translateText = async (text: string): Promise<string> => {
@@ -174,6 +214,12 @@ export function TranslationServiceProvider({ children }: { children: React.React
 
     translatedEventCache.set(cacheKey, translatedEvent)
     setTranslatedEventIdSet((prev) => new Set(prev.add(event.id)))
+
+    // Save to IndexedDB for persistence
+    indexedDb.putTranslatedEvent(event.id, target, translatedEvent).catch((error) => {
+      console.error('Failed to save translation to IndexedDB:', error)
+    })
+
     return translatedEvent
   }
 
@@ -183,6 +229,38 @@ export function TranslationServiceProvider({ children }: { children: React.React
       newSet.delete(eventId)
       return newSet
     })
+  }
+
+  const shouldAutoTranslate = () => {
+    if (config.service === 'jumble') {
+      return config.auto_translate ?? false
+    } else if (config.service === 'libre_translate') {
+      return config.auto_translate ?? false
+    } else if (config.service === 'openrouter') {
+      return config.auto_translate ?? false
+    }
+    return false
+  }
+
+  const autoTranslateEvent = async (event: Event): Promise<Event | void> => {
+    if (!shouldAutoTranslate()) {
+      return
+    }
+
+    // Check if already translated
+    const target = i18n.language
+    const cacheKey = target + '_' + event.id
+    if (translatedEventCache.has(cacheKey) || translatedEventIdSet.has(event.id)) {
+      return
+    }
+
+    // Silently translate in background
+    try {
+      await translateEvent(event)
+    } catch (error) {
+      // Silently fail for auto-translation
+      console.debug('Auto-translation failed:', error)
+    }
   }
 
   const updateConfig = (newConfig: TTranslationServiceConfig) => {
@@ -199,9 +277,11 @@ export function TranslationServiceProvider({ children }: { children: React.React
         regenerateApiKey,
         translateText,
         translateEvent,
+        autoTranslateEvent,
         getTranslatedEvent,
         showOriginalEvent,
-        updateConfig
+        updateConfig,
+        shouldAutoTranslate
       }}
     >
       {children}

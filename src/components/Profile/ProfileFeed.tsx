@@ -1,45 +1,78 @@
 import KindFilter from '@/components/KindFilter'
 import NoteList, { TNoteListRef } from '@/components/NoteList'
+import ArticleList, { TArticleListRef } from '@/components/ArticleList'
+import MediaGrid, { TMediaGridRef } from '@/components/MediaGrid'
 import Tabs from '@/components/Tabs'
 import { BIG_RELAY_URLS, MAX_PINNED_NOTES } from '@/constants'
 import { generateBech32IdFromETag } from '@/lib/tag'
 import { isTouchDevice } from '@/lib/utils'
 import { useKindFilter } from '@/providers/KindFilterProvider'
 import { useNostr } from '@/providers/NostrProvider'
+import { useReadsVisibility } from '@/providers/ReadsVisibilityProvider'
+import { useLowBandwidthMode } from '@/providers/LowBandwidthModeProvider'
 import client from '@/services/client.service'
 import storage from '@/services/local-storage.service'
 import { TFeedSubRequest, TNoteListMode } from '@/types'
-import { NostrEvent } from 'nostr-tools'
+import { NostrEvent, kinds } from 'nostr-tools'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshButton } from '../RefreshButton'
 
 export default function ProfileFeed({
   pubkey,
-  topSpace = 0
+  topSpace = 0,
+  isInDeckView = false
 }: {
   pubkey: string
   topSpace?: number
+  isInDeckView?: boolean
 }) {
   const { pubkey: myPubkey, pinListEvent: myPinListEvent } = useNostr()
   const { showKinds } = useKindFilter()
+  const { hideReadsInProfiles } = useReadsVisibility()
+  const { lowBandwidthMode } = useLowBandwidthMode()
   const [temporaryShowKinds, setTemporaryShowKinds] = useState(showKinds)
   const [listMode, setListMode] = useState<TNoteListMode>(() => storage.getNoteListMode())
   const [subRequests, setSubRequests] = useState<TFeedSubRequest[]>([])
   const [pinnedEventIds, setPinnedEventIds] = useState<string[]>([])
+  const [allEvents, setAllEvents] = useState<NostrEvent[]>([])
   const tabs = useMemo(() => {
     const _tabs = [
       { value: 'posts', label: 'Notes' },
       { value: 'postsAndReplies', label: 'Replies' }
     ]
 
+    // Don't show media tab in low bandwidth mode
+    if (!lowBandwidthMode) {
+      _tabs.push({ value: 'media', label: 'Media' })
+    }
+
+    _tabs.push({ value: 'highlights', label: 'Highlights' })
+
+    if (!hideReadsInProfiles) {
+      _tabs.push({ value: 'reads', label: 'Reads' })
+    }
+
     if (myPubkey && myPubkey !== pubkey) {
       _tabs.push({ value: 'you', label: 'YouTabName' })
     }
 
     return _tabs
-  }, [myPubkey, pubkey])
+  }, [myPubkey, pubkey, hideReadsInProfiles, lowBandwidthMode])
   const supportTouch = useMemo(() => isTouchDevice(), [])
   const noteListRef = useRef<TNoteListRef>(null)
+  const articleListRef = useRef<TArticleListRef>(null)
+  const mediaGridRef = useRef<TMediaGridRef>(null)
+
+  useEffect(() => {
+    // If user is on reads tab and it gets hidden, switch to posts
+    if (listMode === 'reads' && hideReadsInProfiles) {
+      setListMode('posts')
+    }
+    // If user is on media tab and it gets hidden (low bandwidth mode), switch to posts
+    if (listMode === 'media' && lowBandwidthMode) {
+      setListMode('posts')
+    }
+  }, [hideReadsInProfiles, listMode, lowBandwidthMode])
 
   useEffect(() => {
     const initPinnedEventIds = async () => {
@@ -75,6 +108,10 @@ export default function ProfileFeed({
 
   useEffect(() => {
     const init = async () => {
+      // Clear events when changing modes or pubkey
+      setAllEvents([])
+      mediaGridRef.current?.clearEvents()
+
       if (listMode === 'you') {
         if (!myPubkey) {
           setSubRequests([])
@@ -116,11 +153,13 @@ export default function ProfileFeed({
       ])
     }
     init()
-  }, [pubkey, listMode])
+  }, [pubkey, listMode, myPubkey])
 
   const handleListModeChange = (mode: TNoteListMode) => {
     setListMode(mode)
     noteListRef.current?.scrollToTop('smooth')
+    articleListRef.current?.scrollToTop('smooth')
+    mediaGridRef.current?.scrollToTop('smooth')
   }
 
   const handleShowKindsChange = (newShowKinds: number[]) => {
@@ -139,19 +178,50 @@ export default function ProfileFeed({
         threshold={Math.max(800, topSpace)}
         options={
           <>
-            {!supportTouch && <RefreshButton onClick={() => noteListRef.current?.refresh()} />}
-            <KindFilter showKinds={temporaryShowKinds} onShowKindsChange={handleShowKindsChange} />
+            {!supportTouch && listMode !== 'reads' && listMode !== 'highlights' && listMode !== 'media' && <RefreshButton onClick={() => noteListRef.current?.refresh()} />}
+            {!supportTouch && listMode === 'reads' && <RefreshButton onClick={() => articleListRef.current?.refresh()} />}
+            {!supportTouch && listMode === 'highlights' && <RefreshButton onClick={() => noteListRef.current?.refresh()} />}
+            {!supportTouch && listMode === 'media' && <RefreshButton onClick={() => mediaGridRef.current?.refresh()} />}
+            {listMode !== 'reads' && listMode !== 'highlights' && listMode !== 'media' && <KindFilter showKinds={temporaryShowKinds} onShowKindsChange={handleShowKindsChange} />}
           </>
         }
+        isInDeckView={isInDeckView}
       />
-      <NoteList
-        ref={noteListRef}
-        subRequests={subRequests}
-        showKinds={temporaryShowKinds}
-        hideReplies={listMode === 'posts'}
-        filterMutedNotes={false}
-        pinnedEventIds={listMode === 'you' ? [] : pinnedEventIds}
-      />
+      {listMode === 'reads' ? (
+        <ArticleList
+          ref={articleListRef}
+          subRequests={subRequests}
+        />
+      ) : listMode === 'highlights' ? (
+        <NoteList
+          ref={noteListRef}
+          subRequests={subRequests}
+          showKinds={[kinds.Highlights]}
+          hideReplies={false}
+          filterMutedNotes={false}
+          pinnedEventIds={[]}
+        />
+      ) : listMode === 'media' ? (
+        <MediaGrid
+          ref={mediaGridRef}
+          subRequests={subRequests}
+        />
+      ) : null}
+      {listMode !== 'reads' && listMode !== 'highlights' && listMode !== 'media' && (
+        <NoteList
+          ref={noteListRef}
+          subRequests={subRequests}
+          showKinds={temporaryShowKinds}
+          hideReplies={listMode === 'posts'}
+          filterMutedNotes={false}
+          pinnedEventIds={listMode === 'you' ? [] : pinnedEventIds}
+          onEventsChange={(events) => {
+            if (listMode === 'posts' || listMode === 'postsAndReplies' || listMode === 'you') {
+              mediaGridRef.current?.addEvents(events)
+            }
+          }}
+        />
+      )}
     </>
   )
 }

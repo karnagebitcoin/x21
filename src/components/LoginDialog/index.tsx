@@ -1,7 +1,8 @@
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Drawer, DrawerContent } from '@/components/ui/drawer'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
 import { Dispatch } from 'react'
+import { useTranslation } from 'react-i18next'
 import AccountManager from '../AccountManager'
 
 export default function LoginDialog({
@@ -11,6 +12,7 @@ export default function LoginDialog({
   open: boolean
   setOpen: Dispatch<boolean>
 }) {
+  const { t } = useTranslation()
   const { isSmallScreen } = useScreenSize()
 
   if (isSmallScreen) {
@@ -27,7 +29,8 @@ export default function LoginDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="w-[520px] max-h-[90vh] py-8 overflow-auto">
+      <DialogContent className="w-[440px] max-h-[90vh] py-8 overflow-auto">
+        <DialogTitle className="sr-only">{t('Account Login')}</DialogTitle>
         <AccountManager close={() => setOpen(false)} />
       </DialogContent>
     </Dialog>

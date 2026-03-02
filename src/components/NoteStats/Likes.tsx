@@ -153,10 +153,10 @@ export default function Likes({ event }: { event: Event }) {
                     animation: isCompleted === key ? 'shake 0.5s ease-in-out infinite' : undefined
                   }}
                 >
-                  <Emoji emoji={emoji} classNames={{ img: 'size-4' }} />
+                  <Emoji emoji={emoji} classNames={{ img: 'size-4', text: 'text-base' }} />
                 </div>
               )}
-              <div className="text-sm">{pubkeys.size}</div>
+              <div className="text-sm ml-1">{pubkeys.size}</div>
             </div>
           </div>
         ))}

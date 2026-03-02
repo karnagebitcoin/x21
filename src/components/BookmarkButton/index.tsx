@@ -1,6 +1,7 @@
 import { getReplaceableCoordinateFromEvent, isReplaceableEvent } from '@/lib/event'
 import { useBookmarks } from '@/providers/BookmarksProvider'
 import { useNostr } from '@/providers/NostrProvider'
+import { useScreenSize } from '@/providers/ScreenSizeProvider'
 import { BookmarkIcon, Loader } from 'lucide-react'
 import { Event } from 'nostr-tools'
 import { useMemo, useState } from 'react'
@@ -11,6 +12,7 @@ export default function BookmarkButton({ event }: { event: Event }) {
   const { t } = useTranslation()
   const { pubkey: accountPubkey, bookmarkListEvent, checkLogin } = useNostr()
   const { addBookmark, removeBookmark } = useBookmarks()
+  const { isSmallScreen } = useScreenSize()
   const [updating, setUpdating] = useState(false)
   const isBookmarked = useMemo(() => {
     const isReplaceable = isReplaceableEvent(event.kind)
@@ -55,19 +57,28 @@ export default function BookmarkButton({ event }: { event: Event }) {
     })
   }
 
+  // On mobile, always show the button. On desktop, only show on hover (unless bookmarked)
+  const visibilityClasses = isSmallScreen
+    ? 'opacity-100 pointer-events-auto'
+    : isBookmarked
+      ? 'opacity-100 pointer-events-auto'
+      : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+
   return (
     <button
       className={`flex items-center gap-1 ${
-        isBookmarked ? 'text-rose-400 opacity-100 pointer-events-auto' : 'text-muted-foreground opacity-0 pointer-events-none'
-      } enabled:hover:text-rose-400 px-3 h-full group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity`}
+        isBookmarked ? 'text-primary' : 'text-muted-foreground'
+      } ${visibilityClasses} enabled:hover:text-primary px-3 h-full transition-opacity`}
       onClick={isBookmarked ? handleRemoveBookmark : handleBookmark}
       disabled={updating}
       title={isBookmarked ? t('Remove bookmark') : t('Bookmark')}
+      aria-label={isBookmarked ? t('Remove bookmark') : t('Bookmark')}
+      aria-pressed={isBookmarked}
     >
       {updating ? (
-        <Loader className="animate-spin" />
+        <Loader className="animate-spin" aria-hidden="true" />
       ) : (
-        <BookmarkIcon className={isBookmarked ? 'fill-rose-400' : ''} />
+        <BookmarkIcon className={isBookmarked ? 'fill-primary' : ''} aria-hidden="true" />
       )}
     </button>
   )

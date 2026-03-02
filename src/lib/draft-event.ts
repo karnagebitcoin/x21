@@ -724,7 +724,7 @@ function buildResponseTag(value: string) {
 }
 
 function buildClientTag() {
-  return ['client', 'jumble']
+  return ['client', 'x21']
 }
 
 function buildNsfwTag() {
@@ -742,4 +742,103 @@ function trimTagEnd(tag: string[]) {
   }
 
   return tag.slice(0, endIndex + 1)
+}
+
+/**
+ * Create a kind 1063 (file metadata) draft event for a gallery image
+ */
+export function createGalleryImageDraftEvent(params: {
+  url: string
+  description?: string
+  link?: string
+  mimeType?: string
+  hash?: string
+  size?: number
+  dimensions?: string
+  alt?: string
+  blurhash?: string
+  thumb?: string
+}): TDraftEvent {
+  const tags: string[][] = [
+    ['url', params.url],
+    ['t', 'gallery'], // Tag to identify this as a gallery image
+    ['t', 'profile-gallery'] // Additional tag for filtering
+  ]
+
+  if (params.mimeType) {
+    tags.push(['m', params.mimeType])
+  }
+
+  if (params.hash) {
+    tags.push(['x', params.hash])
+  }
+
+  if (params.size !== undefined) {
+    tags.push(['size', params.size.toString()])
+  }
+
+  if (params.dimensions) {
+    tags.push(['dim', params.dimensions])
+  }
+
+  if (params.alt) {
+    tags.push(['alt', params.alt])
+  }
+
+  if (params.blurhash) {
+    tags.push(['blurhash', params.blurhash])
+  }
+
+  if (params.thumb) {
+    tags.push(['thumb', params.thumb])
+  }
+
+  if (params.link) {
+    tags.push(['r', params.link])
+  }
+
+  return setDraftEventCache({
+    kind: ExtendedKind.FILE_METADATA,
+    content: params.description || '',
+    tags
+  })
+}
+
+/**
+ * Create a kind 30001 (bookmark set) draft event for a gallery list
+ */
+export function createGalleryListDraftEvent(params: {
+  imageEventIds: string[]
+  dTag?: string
+  title?: string
+  previousEvent?: Event
+}): TDraftEvent {
+  const dTag = params.dTag || 'gallery'
+  const tags: string[][] = [['d', dTag]]
+
+  if (params.title) {
+    tags.push(['title', params.title])
+  }
+
+  // Add image event IDs
+  for (const eventId of params.imageEventIds) {
+    tags.push(['e', eventId])
+  }
+
+  // Preserve other tags from previous event if it exists
+  if (params.previousEvent) {
+    const preservedTags = params.previousEvent.tags.filter(
+      tag =>
+        !tagNameEquals('d')(tag) &&
+        !tagNameEquals('title')(tag) &&
+        !tagNameEquals('e')(tag)
+    )
+    tags.push(...preservedTags)
+  }
+
+  return setDraftEventCache({
+    kind: ExtendedKind.BOOKMARK_SET,
+    content: '',
+    tags
+  })
 }

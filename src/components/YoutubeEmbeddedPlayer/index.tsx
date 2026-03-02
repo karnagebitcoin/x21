@@ -1,5 +1,7 @@
 import { cn } from '@/lib/utils'
+import { MEDIA_STYLE } from '@/constants'
 import { useContentPolicy } from '@/providers/ContentPolicyProvider'
+import { useMediaStyle } from '@/providers/MediaStyleProvider'
 import { useUserPreferences } from '@/providers/UserPreferencesProvider'
 import mediaManager from '@/services/media-manager.service'
 import { YouTubePlayer } from '@/types/youtube'
@@ -9,17 +11,23 @@ import ExternalLink from '../ExternalLink'
 
 export default function YoutubeEmbeddedPlayer({
   url,
+  pubkey,
   className,
-  mustLoad = false
+  mustLoad = false,
+  isSingleMedia = true
 }: {
   url: string
+  pubkey?: string
   className?: string
   mustLoad?: boolean
+  isSingleMedia?: boolean
 }) {
   const { t } = useTranslation()
-  const { autoLoadMedia } = useContentPolicy()
+  const { shouldAutoLoadMedia } = useContentPolicy()
+  const { mediaStyle } = useMediaStyle()
+  const isFullWidth = mediaStyle === MEDIA_STYLE.FULL_WIDTH && isSingleMedia
   const { muteMedia, updateMuteMedia } = useUserPreferences()
-  const [display, setDisplay] = useState(autoLoadMedia)
+  const [display, setDisplay] = useState(() => shouldAutoLoadMedia(pubkey))
   const { videoId, isShort } = useMemo(() => parseYoutubeUrl(url), [url])
   const [initSuccess, setInitSuccess] = useState(false)
   const [error, setError] = useState(false)
@@ -29,12 +37,9 @@ export default function YoutubeEmbeddedPlayer({
   const muteStateRef = useRef(muteMedia)
 
   useEffect(() => {
-    if (autoLoadMedia) {
-      setDisplay(true)
-    } else {
-      setDisplay(false)
-    }
-  }, [autoLoadMedia])
+    const shouldLoad = shouldAutoLoadMedia(pubkey)
+    setDisplay(shouldLoad)
+  }, [shouldAutoLoadMedia, pubkey])
 
   useEffect(() => {
     if (!videoId || !containerRef.current || (!mustLoad && !display)) return
@@ -175,7 +180,11 @@ export default function YoutubeEmbeddedPlayer({
       ref={wrapperRef}
       className={cn(
         'rounded-lg border overflow-hidden',
-        isShort ? 'aspect-[9/16] max-h-[80vh] sm:max-h-[60vh]' : 'aspect-video max-h-[60vh]',
+        isFullWidth
+          ? 'aspect-video w-full'
+          : isShort
+            ? 'aspect-[9/16] max-h-[80vh] sm:max-h-[60vh]'
+            : 'aspect-video max-h-[60vh]',
         className
       )}
     >

@@ -1,0 +1,521 @@
+
+src/components/AccountManager/BunkerLogin.tsx:15:  const { t } = useTranslation()
+src/components/AccountManager/BunkerLogin.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/AccountManager/GenerateNewAccount.tsx:18:  const { t } = useTranslation()
+src/components/AccountManager/GenerateNewAccount.tsx:9:import { useTranslation } from 'react-i18next'
+src/components/AccountManager/index.tsx:47:  const { t, i18n } = useTranslation()
+src/components/AccountManager/index.tsx:8:import { useTranslation } from 'react-i18next'
+src/components/AccountManager/NostrConnectionLogin.tsx:11:import { useTranslation } from 'react-i18next'
+src/components/AccountManager/NostrConnectionLogin.tsx:21:  const { t } = useTranslation()
+src/components/AccountManager/NpubLogin.tsx:15:  const { t } = useTranslation()
+src/components/AccountManager/NpubLogin.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/AccountManager/PrivateKeyLogin.tsx:108:  const { t } = useTranslation()
+src/components/AccountManager/PrivateKeyLogin.tsx:33:  const { t } = useTranslation()
+src/components/AccountManager/PrivateKeyLogin.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/AccountManager/SignupOnboarding.tsx:146:  const { t } = useTranslation()
+src/components/AccountManager/SignupOnboarding.tsx:19:  const { t } = useTranslation()
+src/components/AccountManager/SignupOnboarding.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/AccountManager/SignupProfile.tsx:29:  const { t } = useTranslation()
+src/components/AccountManager/SignupProfile.tsx:9:import { useTranslation } from 'react-i18next'
+src/components/AIPromptWidget/index.tsx:22:  const { t } = useTranslation()
+src/components/AIPromptWidget/index.tsx:63:  const { t } = useTranslation()
+src/components/AIPromptWidget/index.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/AIPromptWidget/SidebarAIPromptWidget.tsx:14:  const { t } = useTranslation()
+src/components/AIPromptWidget/SidebarAIPromptWidget.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/AppWithListPreview/index.tsx:11:import { useTranslation } from 'react-i18next'
+src/components/AppWithListPreview/index.tsx:29:  const { t } = useTranslation()
+src/components/ArticleList/index.tsx:32:    const { t } = useTranslation()
+src/components/ArticleList/index.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/ArticleOptions/index.tsx:19:import { useTranslation } from 'react-i18next'
+src/components/ArticleOptions/index.tsx:28:  const { t } = useTranslation()
+src/components/ArticleSummaryDialog/index.tsx:13:import { useTranslation } from 'react-i18next'
+src/components/ArticleSummaryDialog/index.tsx:28:  const { t } = useTranslation()
+src/components/BackupSettings/index.tsx:23:  const { t } = useTranslation()
+src/components/BackupSettings/index.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/BitcoinTicker/BitcoinTickerWidget.tsx:10:  const { t } = useTranslation()
+src/components/BitcoinTicker/BitcoinTickerWidget.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/BookmarkButton/index.tsx:12:  const { t } = useTranslation()
+src/components/BookmarkButton/index.tsx:8:import { useTranslation } from 'react-i18next'
+src/components/BookmarkList/index.tsx:25:  const { t } = useTranslation()
+src/components/BookmarkList/index.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/BookmarkTagManager/index.tsx:15:import { useTranslation } from 'react-i18next'
+src/components/BookmarkTagManager/index.tsx:27:  const { t } = useTranslation()
+src/components/ClientSelect/index.tsx:13:import { useTranslation } from 'react-i18next'
+src/components/ClientSelect/index.tsx:84:  const { t } = useTranslation()
+src/components/ClientTag/index.tsx:4:import { useTranslation } from 'react-i18next'
+src/components/ClientTag/index.tsx:7:  const { t } = useTranslation()
+src/components/Collapsible/index.tsx:22:  const { t } = useTranslation()
+src/components/Collapsible/index.tsx:4:import { useTranslation } from 'react-i18next'
+src/components/Content/index.tsx:34:import { useTranslationService } from '@/providers/TranslationServiceProvider'
+src/components/Content/index.tsx:36:import { useTranslation } from 'react-i18next'
+src/components/Content/index.tsx:56:  const { autoTranslateEvent, shouldAutoTranslate } = useTranslationService()
+src/components/Content/index.tsx:57:  const { i18n } = useTranslation()
+src/components/ContentPreview/CommunityDefinitionPreview.tsx:14:  const { t } = useTranslation()
+src/components/ContentPreview/CommunityDefinitionPreview.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/ContentPreview/Content.tsx:11:import { useTranslation } from 'react-i18next'
+src/components/ContentPreview/Content.tsx:24:  const { t } = useTranslation()
+src/components/ContentPreview/GroupMetadataPreview.tsx:14:  const { t } = useTranslation()
+src/components/ContentPreview/GroupMetadataPreview.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/ContentPreview/HighlightPreview.tsx:16:  const { t } = useTranslation()
+src/components/ContentPreview/HighlightPreview.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/ContentPreview/index.tsx:27:  const { t } = useTranslation()
+src/components/ContentPreview/index.tsx:8:import { useTranslation } from 'react-i18next'
+src/components/ContentPreview/LiveEventPreview.tsx:14:  const { t } = useTranslation()
+src/components/ContentPreview/LiveEventPreview.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/ContentPreview/LongFormArticlePreview.tsx:14:  const { t } = useTranslation()
+src/components/ContentPreview/LongFormArticlePreview.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/ContentPreview/PictureNotePreview.tsx:12:  const { t } = useTranslation()
+src/components/ContentPreview/PictureNotePreview.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/ContentPreview/PollPreview.tsx:10:  const { t } = useTranslation()
+src/components/ContentPreview/PollPreview.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/ContentPreview/VideoNotePreview.tsx:12:  const { t } = useTranslation()
+src/components/ContentPreview/VideoNotePreview.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/CreateWalletGuideToast/index.tsx:10:  const { t } = useTranslation()
+src/components/CreateWalletGuideToast/index.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/DeckColumn/index.tsx:184:  const { t } = useTranslation()
+src/components/DeckColumn/index.tsx:201:  const { t } = useTranslation()
+src/components/DeckColumn/index.tsx:24:import { useTranslation } from 'react-i18next'
+src/components/DeckColumn/index.tsx:300:  const { t } = useTranslation()
+src/components/DeckColumn/index.tsx:317:  const { t } = useTranslation()
+src/components/DeckColumn/index.tsx:334:  const { t } = useTranslation()
+src/components/DeckColumn/index.tsx:384:  const { t } = useTranslation()
+src/components/DeckColumn/index.tsx:429:  const { t } = useTranslation()
+src/components/DeckColumn/index.tsx:458:  const { t } = useTranslation()
+src/components/Donation/index.tsx:11:  const { t } = useTranslation()
+src/components/Donation/index.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/Donation/PlatinumSponsors.tsx:1:import { useTranslation } from 'react-i18next'
+src/components/Donation/PlatinumSponsors.tsx:6:  const { t } = useTranslation()
+src/components/Donation/RecentSupporters.tsx:4:import { useTranslation } from 'react-i18next'
+src/components/Donation/RecentSupporters.tsx:9:  const { t } = useTranslation()
+src/components/Embedded/EmbeddedLNInvoice.tsx:12:  const { t } = useTranslation()
+src/components/Embedded/EmbeddedLNInvoice.tsx:8:import { useTranslation } from 'react-i18next'
+src/components/Embedded/EmbeddedNote.tsx:4:import { useTranslation } from 'react-i18next'
+src/components/Embedded/EmbeddedNote.tsx:49:  const { t } = useTranslation()
+src/components/EmojiPicker/index.tsx:15:import { useTranslation } from 'react-i18next'
+src/components/EmojiPicker/index.tsx:32:  const { t } = useTranslation()
+src/components/FavoriteRelaysSetting/AddNewRelay.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/FavoriteRelaysSetting/AddNewRelay.tsx:9:  const { t } = useTranslation()
+src/components/FavoriteRelaysSetting/AddNewRelaySet.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/FavoriteRelaysSetting/AddNewRelaySet.tsx:8:  const { t } = useTranslation()
+src/components/FavoriteRelaysSetting/FavoriteRelayList.tsx:18:import { useTranslation } from 'react-i18next'
+src/components/FavoriteRelaysSetting/FavoriteRelayList.tsx:22:  const { t } = useTranslation()
+src/components/FavoriteRelaysSetting/PullRelaySetsButton.tsx:30:import { useTranslation } from 'react-i18next'
+src/components/FavoriteRelaysSetting/PullRelaySetsButton.tsx:35:  const { t } = useTranslation()
+src/components/FavoriteRelaysSetting/PullRelaySetsButton.tsx:83:  const { t } = useTranslation()
+src/components/FavoriteRelaysSetting/RecommendedRelays.tsx:186:  const { t } = useTranslation()
+src/components/FavoriteRelaysSetting/RecommendedRelays.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/FavoriteRelaysSetting/RelaySet.tsx:142:  const { t } = useTranslation()
+src/components/FavoriteRelaysSetting/RelaySet.tsx:26:import { useTranslation } from 'react-i18next'
+src/components/FavoriteRelaysSetting/RelaySet.tsx:33:  const { t } = useTranslation()
+src/components/FavoriteRelaysSetting/RelaySetList.tsx:18:import { useTranslation } from 'react-i18next'
+src/components/FavoriteRelaysSetting/RelaySetList.tsx:23:  const { t } = useTranslation()
+src/components/FavoriteRelaysSetting/RelayUrl.tsx:11:  const { t } = useTranslation()
+src/components/FavoriteRelaysSetting/RelayUrl.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/FeedSwitcher/index.tsx:16:  const { t } = useTranslation()
+src/components/FeedSwitcher/index.tsx:9:import { useTranslation } from 'react-i18next'
+src/components/FollowButton/index.tsx:17:import { useTranslation } from 'react-i18next'
+src/components/FollowButton/index.tsx:21:  const { t } = useTranslation()
+src/components/FollowingFavoriteRelayList/index.tsx:13:  const { t } = useTranslation()
+src/components/FollowingFavoriteRelayList/index.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/FormattedTimestamp/index.tsx:2:import { useTranslation } from 'react-i18next'
+src/components/FormattedTimestamp/index.tsx:29:  const { t } = useTranslation()
+src/components/GifPicker/GifUploadDialog.tsx:20:import { useTranslation } from 'react-i18next'
+src/components/GifPicker/GifUploadDialog.tsx:35:  const { t } = useTranslation()
+src/components/GifPicker/index.tsx:30:  const { t } = useTranslation()
+src/components/GifPicker/index.tsx:326:  const { t } = useTranslation()
+src/components/GifPicker/index.tsx:9:import { useTranslation } from 'react-i18next'
+src/components/HideUntrustedContentButton/index.tsx:16:import { useTranslation } from 'react-i18next'
+src/components/HideUntrustedContentButton/index.tsx:25:  const { t } = useTranslation()
+src/components/HighlightsList/index.tsx:219:  const { t } = useTranslation()
+src/components/HighlightsList/index.tsx:25:  const { t } = useTranslation()
+src/components/HighlightsList/index.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/ImageGallery/index.tsx:10:import { useTranslation } from 'react-i18next'
+src/components/ImageGallery/index.tsx:39:  const { t } = useTranslation()
+src/components/ImageWithLightbox/index.tsx:25:  const { t } = useTranslation()
+src/components/ImageWithLightbox/index.tsx:8:import { useTranslation } from 'react-i18next'
+src/components/InvitedBy/index.tsx:16:  const { t } = useTranslation()
+src/components/InvitedBy/index.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/InviteWelcomeDialog/index.tsx:2:import { useTranslation } from 'react-i18next'
+src/components/InviteWelcomeDialog/index.tsx:34:  const { t } = useTranslation()
+src/components/InviteWelcomeFlow/index.tsx:2:import { useTranslation } from 'react-i18next'
+src/components/InviteWelcomeFlow/index.tsx:241:  const { t } = useTranslation()
+src/components/InviteWelcomeFlow/index.tsx:40:  const { t } = useTranslation()
+src/components/InviteWidget/index.tsx:12:  const { t } = useTranslation()
+src/components/InviteWidget/index.tsx:2:import { useTranslation } from 'react-i18next'
+src/components/KindFilter/index.tsx:14:import { useTranslation } from 'react-i18next'
+src/components/KindFilter/index.tsx:38:  const { t } = useTranslation()
+src/components/ListPreviewDialog/index.tsx:20:import { useTranslation } from 'react-i18next'
+src/components/ListPreviewDialog/index.tsx:49:  const { t } = useTranslation()
+src/components/ListZapButton/index.tsx:13:import { useTranslation } from 'react-i18next'
+src/components/ListZapButton/index.tsx:30:  const { t } = useTranslation()
+src/components/LogoutDialog/index.tsx:22:import { useTranslation } from 'react-i18next'
+src/components/LogoutDialog/index.tsx:31:  const { t } = useTranslation()
+src/components/MailboxSetting/FollowsRelayRecommendations.tsx:105:  const { t } = useTranslation()
+src/components/MailboxSetting/FollowsRelayRecommendations.tsx:11:import { useTranslation } from 'react-i18next'
+src/components/MailboxSetting/FollowsRelayRecommendations.tsx:19:  const { t } = useTranslation()
+src/components/MailboxSetting/index.tsx:31:  const { t } = useTranslation()
+src/components/MailboxSetting/index.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/MailboxSetting/MailboxRelay.tsx:12:import { useTranslation } from 'react-i18next'
+src/components/MailboxSetting/MailboxRelay.tsx:27:  const { t } = useTranslation()
+src/components/MailboxSetting/NewMailboxRelayInput.tsx:11:  const { t } = useTranslation()
+src/components/MailboxSetting/NewMailboxRelayInput.tsx:4:import { useTranslation } from 'react-i18next'
+src/components/MailboxSetting/RelayCountWarning.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/MailboxSetting/RelayCountWarning.tsx:7:  const { t } = useTranslation()
+src/components/MediaGrid/index.tsx:33:    const { t } = useTranslation()
+src/components/MediaGrid/index.tsx:4:import { useTranslation } from 'react-i18next'
+src/components/MediaPlayer/index.tsx:23:  const { t } = useTranslation()
+src/components/MediaPlayer/index.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/MenuItemsSettings/index.tsx:33:  const { t } = useTranslation()
+src/components/MenuItemsSettings/index.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/MuteButton/index.tsx:10:  const { t } = useTranslation()
+src/components/MuteButton/index.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/NewNotesButton/index.tsx:10:import { useTranslation } from 'react-i18next'
+src/components/NewNotesButton/index.tsx:19:  const { t } = useTranslation()
+src/components/Note/Highlight.tsx:10:import { useTranslation } from 'react-i18next'
+src/components/Note/Highlight.tsx:37:  const { t } = useTranslation()
+src/components/Note/IValue.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/Note/IValue.tsx:9:  const { t } = useTranslation()
+src/components/Note/MusicTrack.tsx:18:import { useTranslation } from 'react-i18next'
+src/components/Note/MusicTrack.tsx:31:  const { t } = useTranslation()
+src/components/Note/MutedNote.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/Note/MutedNote.tsx:6:  const { t } = useTranslation()
+src/components/Note/NsfwNote.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/Note/NsfwNote.tsx:6:  const { t } = useTranslation()
+src/components/Note/Poll.tsx:15:import { useTranslation } from 'react-i18next'
+src/components/Note/Poll.tsx:19:  const { t } = useTranslation()
+src/components/Note/UnknownNote.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/Note/UnknownNote.tsx:7:  const { t } = useTranslation()
+src/components/NoteCard/PinnedButton.tsx:10:  const { t } = useTranslation()
+src/components/NoteCard/PinnedButton.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/NoteCard/RepostDescription.tsx:13:  const { t } = useTranslation()
+src/components/NoteCard/RepostDescription.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/NoteCard/RepostNoteCard.tsx:10:import { useTranslation } from 'react-i18next'
+src/components/NoteCard/RepostNoteCard.tsx:31:  const { t } = useTranslation()
+src/components/NoteInteractions/Tabs.tsx:15:  const { t } = useTranslation()
+src/components/NoteInteractions/Tabs.tsx:2:import { useTranslation } from 'react-i18next'
+src/components/NoteList/index.tsx:34:import { useTranslation } from 'react-i18next'
+src/components/NoteList/index.tsx:72:    const { t } = useTranslation()
+src/components/NoteOptions/ReportDialog.tsx:24:import { useTranslation } from 'react-i18next'
+src/components/NoteOptions/ReportDialog.tsx:82:  const { t } = useTranslation()
+src/components/NoteOptions/useMenuActions.tsx:31:import { useTranslation } from 'react-i18next'
+src/components/NoteOptions/useMenuActions.tsx:70:  const { t } = useTranslation()
+src/components/NoteStats/ChargeZapButton.tsx:14:import { useTranslation } from 'react-i18next'
+src/components/NoteStats/ChargeZapButton.tsx:65:  const { t } = useTranslation()
+src/components/NoteStats/LikeButton.tsx:23:import { useTranslation } from 'react-i18next'
+src/components/NoteStats/LikeButton.tsx:47:  const { t } = useTranslation()
+src/components/NoteStats/ReplyButton.tsx:11:import { useTranslation } from 'react-i18next'
+src/components/NoteStats/ReplyButton.tsx:16:  const { t } = useTranslation()
+src/components/NoteStats/RepostButton.tsx:20:import { useTranslation } from 'react-i18next'
+src/components/NoteStats/RepostButton.tsx:25:  const { t } = useTranslation()
+src/components/NoteStats/SeenOnButton.tsx:19:import { useTranslation } from 'react-i18next'
+src/components/NoteStats/SeenOnButton.tsx:23:  const { t } = useTranslation()
+src/components/NoteStats/ZapButton.tsx:13:import { useTranslation } from 'react-i18next'
+src/components/NoteStats/ZapButton.tsx:18:  const { t } = useTranslation()
+src/components/NotFound/index.tsx:1:import { useTranslation } from 'react-i18next'
+src/components/NotFound/index.tsx:4:  const { t } = useTranslation()
+src/components/NotificationList/index.tsx:21:import { useTranslation } from 'react-i18next'
+src/components/NotificationList/index.tsx:33:  const { t } = useTranslation()
+src/components/NotificationList/NotificationItem/MentionNotification.tsx:11:import { useTranslation } from 'react-i18next'
+src/components/NotificationList/NotificationItem/MentionNotification.tsx:21:  const { t } = useTranslation()
+src/components/NotificationList/NotificationItem/Notification.tsx:16:import { useTranslation } from 'react-i18next'
+src/components/NotificationList/NotificationItem/Notification.tsx:39:  const { t } = useTranslation()
+src/components/NotificationList/NotificationItem/PollResponseNotification.tsx:16:  const { t } = useTranslation()
+src/components/NotificationList/NotificationItem/PollResponseNotification.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/NotificationList/NotificationItem/ReactionNotification.tsx:18:  const { t } = useTranslation()
+src/components/NotificationList/NotificationItem/ReactionNotification.tsx:8:import { useTranslation } from 'react-i18next'
+src/components/NotificationList/NotificationItem/RepostNotification.tsx:15:  const { t } = useTranslation()
+src/components/NotificationList/NotificationItem/RepostNotification.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/NotificationList/NotificationItem/ZapNotification.tsx:17:  const { t } = useTranslation()
+src/components/NotificationList/NotificationItem/ZapNotification.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/OthersRelayList/index.tsx:13:  const { t } = useTranslation()
+src/components/OthersRelayList/index.tsx:31:  const { t } = useTranslation()
+src/components/OthersRelayList/index.tsx:8:import { useTranslation } from 'react-i18next'
+src/components/ParentNotePreview/index.tsx:17:  const { t } = useTranslation()
+src/components/ParentNotePreview/index.tsx:4:import { useTranslation } from 'react-i18next'
+src/components/PinButton/index.tsx:18:  const { t } = useTranslation()
+src/components/PinButton/index.tsx:8:import { useTranslation } from 'react-i18next'
+src/components/PinnedNoteWidget/index.tsx:16:  const { t } = useTranslation()
+src/components/PinnedNoteWidget/index.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/PostEditor/ComposerHelpDialog/index.tsx:10:  const { t } = useTranslation()
+src/components/PostEditor/ComposerHelpDialog/index.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/PostEditor/ImagePreview.tsx:16:import { useTranslation } from 'react-i18next'
+src/components/PostEditor/ImagePreview.tsx:49:  const { t } = useTranslation()
+src/components/PostEditor/Mentions.tsx:24:  const { t } = useTranslation()
+src/components/PostEditor/Mentions.tsx:9:import { useTranslation } from 'react-i18next'
+src/components/PostEditor/PollEditor.tsx:10:import { useTranslation } from 'react-i18next'
+src/components/PostEditor/PollEditor.tsx:22:  const { t } = useTranslation()
+src/components/PostEditor/PostContent.tsx:19:import { useTranslation } from 'react-i18next'
+src/components/PostEditor/PostContent.tsx:46:  const { t } = useTranslation()
+src/components/PostEditor/PostOptions.tsx:27:  const { t } = useTranslation()
+src/components/PostEditor/PostOptions.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/PostEditor/PostRelaySelector.tsx:20:import { useTranslation } from 'react-i18next'
+src/components/PostEditor/PostRelaySelector.tsx:48:  const { t } = useTranslation()
+src/components/PostEditor/PostTextarea/AICommand/AICommandList.tsx:21:  const { t } = useTranslation()
+src/components/PostEditor/PostTextarea/AICommand/AICommandList.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/PostEditor/PostTextarea/Gif/GifList.tsx:20:  const { t } = useTranslation()
+src/components/PostEditor/PostTextarea/Gif/GifList.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/PostEditor/PostTextarea/ImageCommand/ImageCommandList.tsx:19:  const { t } = useTranslation()
+src/components/PostEditor/PostTextarea/ImageCommand/ImageCommandList.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/PostEditor/PostTextarea/index.tsx:17:import { useTranslation } from 'react-i18next'
+src/components/PostEditor/PostTextarea/index.tsx:76:    const { t } = useTranslation()
+src/components/PostEditor/PostTextarea/WebCommand/WebCommandList.tsx:26:  const { t } = useTranslation()
+src/components/PostEditor/PostTextarea/WebCommand/WebCommandList.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/PostEditor/Title.tsx:17:  const { t } = useTranslation()
+src/components/PostEditor/Title.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/PrivateNote/index.tsx:10:import { useTranslation } from 'react-i18next'
+src/components/PrivateNote/index.tsx:17:  const { t } = useTranslation()
+src/components/PrivateNoteDialog/index.tsx:14:import { useTranslation } from 'react-i18next'
+src/components/PrivateNoteDialog/index.tsx:31:  const { t } = useTranslation()
+src/components/Profile/FollowedBy.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/Profile/FollowedBy.tsx:9:  const { t } = useTranslation()
+src/components/Profile/Followings.tsx:10:  const { t } = useTranslation()
+src/components/Profile/Followings.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/Profile/index.tsx:28:import { useTranslation } from 'react-i18next'
+src/components/Profile/index.tsx:39:  const { t } = useTranslation()
+src/components/Profile/Relays.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/Profile/Relays.tsx:9:  const { t } = useTranslation()
+src/components/ProfileAbout/index.tsx:11:import { useTranslation } from 'react-i18next'
+src/components/ProfileAbout/index.tsx:21:  const { t, i18n } = useTranslation()
+src/components/ProfileAbout/index.tsx:22:  const { translateText } = useTranslationService()
+src/components/ProfileAbout/index.tsx:9:import { useTranslationService } from '@/providers/TranslationServiceProvider'
+src/components/ProfileGalleryManager/index.tsx:17:import { useTranslation } from 'react-i18next'
+src/components/ProfileGalleryManager/index.tsx:29:  const { t } = useTranslation()
+src/components/ProfileOptions/index.tsx:23:import { useTranslation } from 'react-i18next'
+src/components/ProfileOptions/index.tsx:27:  const { t } = useTranslation()
+src/components/QuoteList/index.tsx:16:  const { t } = useTranslation()
+src/components/QuoteList/index.tsx:9:import { useTranslation } from 'react-i18next'
+src/components/ReactionList/index.tsx:18:  const { t } = useTranslation()
+src/components/ReactionList/index.tsx:8:import { useTranslation } from 'react-i18next'
+src/components/Relay/index.tsx:12:  const { t } = useTranslation()
+src/components/Relay/index.tsx:8:import { useTranslation } from 'react-i18next'
+src/components/RelayHealthBadge/index.tsx:44:  const { t } = useTranslation()
+src/components/RelayHealthBadge/index.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/RelayInfo/index.tsx:11:import { useTranslation } from 'react-i18next'
+src/components/RelayInfo/index.tsx:163:  const { t } = useTranslation()
+src/components/RelayInfo/index.tsx:22:  const { t } = useTranslation()
+src/components/RelayInfo/RelayReviewsPreview.tsx:155:  const { t } = useTranslation()
+src/components/RelayInfo/RelayReviewsPreview.tsx:22:import { useTranslation } from 'react-i18next'
+src/components/RelayInfo/RelayReviewsPreview.tsx:28:  const { t } = useTranslation()
+src/components/RelayInfo/ReviewEditor.tsx:18:  const { t } = useTranslation()
+src/components/RelayInfo/ReviewEditor.tsx:8:import { useTranslation } from 'react-i18next'
+src/components/RelayList/index.tsx:10:  const { t } = useTranslation()
+src/components/RelayList/index.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/RelaySetCard/index.tsx:17:  const { t } = useTranslation()
+src/components/RelaySetCard/index.tsx:4:import { useTranslation } from 'react-i18next'
+src/components/RelaySimpleInfo/index.tsx:25:  const { t } = useTranslation()
+src/components/RelaySimpleInfo/index.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/ReplyNote/index.tsx:12:import { useTranslation } from 'react-i18next'
+src/components/ReplyNote/index.tsx:40:  const { t } = useTranslation()
+src/components/ReplyNoteList/index.tsx:25:import { useTranslation } from 'react-i18next'
+src/components/ReplyNoteList/index.tsx:38:  const { t } = useTranslation()
+src/components/RepostList/index.tsx:18:  const { t } = useTranslation()
+src/components/RepostList/index.tsx:9:import { useTranslation } from 'react-i18next'
+src/components/SaveRelayDropdownMenu/index.tsx:109:  const { t } = useTranslation()
+src/components/SaveRelayDropdownMenu/index.tsx:184:  const { t } = useTranslation()
+src/components/SaveRelayDropdownMenu/index.tsx:25:import { useTranslation } from 'react-i18next'
+src/components/SaveRelayDropdownMenu/index.tsx:35:  const { t } = useTranslation()
+src/components/SearchBar/index.tsx:24:import { useTranslation } from 'react-i18next'
+src/components/SearchBar/index.tsx:46:  const { t } = useTranslation()
+src/components/ShareListDialog/index.tsx:18:import { useTranslation } from 'react-i18next'
+src/components/ShareListDialog/index.tsx:44:  const { t } = useTranslation()
+src/components/ShowTranslatedButton/index.tsx:1:import { useTranslationService } from '@/providers/TranslationServiceProvider'
+src/components/ShowTranslatedButton/index.tsx:17:  const { translateEvent, getTranslatedEvent } = useTranslationService()
+src/components/Sidebar/AccountButton.tsx:19:import { useTranslation } from 'react-i18next'
+src/components/Sidebar/AccountButton.tsx:64:  const { t } = useTranslation()
+src/components/Sidebar/ExploreButton.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/Sidebar/ExploreButton.tsx:7:  const { t } = useTranslation()
+src/components/Sidebar/HomeButton.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/Sidebar/HomeButton.tsx:7:  const { t } = useTranslation()
+src/components/Sidebar/ListsButton.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/Sidebar/ListsButton.tsx:7:  const { t } = useTranslation()
+src/components/Sidebar/NotificationButton.tsx:10:  const { t } = useTranslation()
+src/components/Sidebar/NotificationButton.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/Sidebar/PostButton.tsx:13:  const { t } = useTranslation()
+src/components/Sidebar/PostButton.tsx:9:import { useTranslation } from 'react-i18next'
+src/components/Sidebar/ProfileButton.tsx:4:import { useTranslation } from 'react-i18next'
+src/components/Sidebar/ProfileButton.tsx:8:  const { t } = useTranslation()
+src/components/Sidebar/ReadsButton.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/Sidebar/ReadsButton.tsx:7:  const { t } = useTranslation()
+src/components/Sidebar/SearchButton.tsx:3:import { useTranslation } from 'react-i18next'
+src/components/Sidebar/SearchButton.tsx:7:  const { t } = useTranslation()
+src/components/Sidebar/SettingsButton.tsx:4:import { useTranslation } from 'react-i18next'
+src/components/Sidebar/SettingsButton.tsx:8:  const { t } = useTranslation()
+src/components/Sidebar/SidebarItem.tsx:12:  const { t } = useTranslation()
+src/components/Sidebar/SidebarItem.tsx:6:import { useTranslation } from 'react-i18next'
+src/components/Tabs/index.tsx:28:  const { t } = useTranslation()
+src/components/Tabs/index.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/ThemeToggle/index.tsx:4:import { useTranslation } from 'react-i18next'
+src/components/ThemeToggle/index.tsx:7:  const { t } = useTranslation()
+src/components/Titlebar/SlowConnectionToggle.tsx:4:import { useTranslation } from 'react-i18next'
+src/components/Titlebar/SlowConnectionToggle.tsx:7:  const { t } = useTranslation()
+src/components/TooManyRelaysAlertDialog/index.tsx:24:import { useTranslation } from 'react-i18next'
+src/components/TooManyRelaysAlertDialog/index.tsx:27:  const { t } = useTranslation()
+src/components/TranslateButton/index.tsx:10:import { useTranslation } from 'react-i18next'
+src/components/TranslateButton/index.tsx:20:  const { i18n } = useTranslation()
+src/components/TranslateButton/index.tsx:22:  const { translateEvent, showOriginalEvent } = useTranslationService()
+src/components/TranslateButton/index.tsx:6:import { useTranslationService } from '@/providers/TranslationServiceProvider'
+src/components/TranslationIndicator/index.tsx:1:import { useTranslationService } from '@/providers/TranslationServiceProvider'
+src/components/TranslationIndicator/index.tsx:5:import { useTranslation } from 'react-i18next'
+src/components/TranslationIndicator/index.tsx:65:  const { t } = useTranslation()
+src/components/TranslationIndicator/index.tsx:66:  const { showOriginalEvent, translatedEventIdSet } = useTranslationService()
+src/components/TrendingNotes/index.tsx:13:  const { t } = useTranslation()
+src/components/TrendingNotes/index.tsx:8:import { useTranslation } from 'react-i18next'
+src/components/TrendingNotes/TrendingNotesWidget.tsx:21:  const { t } = useTranslation()
+src/components/TrendingNotes/TrendingNotesWidget.tsx:7:import { useTranslation } from 'react-i18next'
+src/components/YoutubeEmbeddedPlayer/index.tsx:25:  const { t } = useTranslation()
+src/components/YoutubeEmbeddedPlayer/index.tsx:9:import { useTranslation } from 'react-i18next'
+src/components/ZapDialog/index.tsx:138:  const { t, i18n } = useTranslation()
+src/components/ZapDialog/index.tsx:27:import { useTranslation } from 'react-i18next'
+src/components/ZapDialog/index.tsx:47:  const { t } = useTranslation()
+src/components/ZapList/index.tsx:19:  const { t } = useTranslation()
+src/components/ZapList/index.tsx:9:import { useTranslation } from 'react-i18next'
+src/hooks/useTranslatedEvent.tsx:1:import { useTranslationService } from '@/providers/TranslationServiceProvider'
+src/hooks/useTranslatedEvent.tsx:6:  const { translatedEventIdSet, getTranslatedEvent } = useTranslationService()
+src/layouts/SecondaryPageLayout/index.tsx:11:import { useTranslation } from 'react-i18next'
+src/layouts/SecondaryPageLayout/index.tsx:180:  const { t } = useTranslation()
+src/layouts/SecondaryPageLayout/index.tsx:198:  const { t } = useTranslation()
+src/pages/primary/ExplorePage/index.tsx:11:import { useTranslation } from 'react-i18next'
+src/pages/primary/ExplorePage/index.tsx:41:  const { t } = useTranslation()
+src/pages/primary/ListsPage/index.tsx:2:import { useTranslation } from 'react-i18next'
+src/pages/primary/ListsPage/index.tsx:54:  const { t } = useTranslation()
+src/pages/primary/ListsPage/index.tsx:999:  const { t } = useTranslation()
+src/pages/primary/MePage/index.tsx:168:  const { t } = useTranslation()
+src/pages/primary/MePage/index.tsx:30:import { useTranslation } from 'react-i18next'
+src/pages/primary/MePage/index.tsx:33:  const { t } = useTranslation()
+src/pages/primary/NoteListPage/FeedButton.tsx:12:import { useTranslation } from 'react-i18next'
+src/pages/primary/NoteListPage/FeedButton.tsx:54:    const { t } = useTranslation()
+src/pages/primary/NoteListPage/index.tsx:27:import { useTranslation } from 'react-i18next'
+src/pages/primary/NoteListPage/index.tsx:36:  const { t } = useTranslation()
+src/pages/primary/NoteListPage/OneNotePerPersonFeed.tsx:23:  const { t } = useTranslation()
+src/pages/primary/NoteListPage/OneNotePerPersonFeed.tsx:9:import { useTranslation } from 'react-i18next'
+src/pages/primary/NotificationListPage/index.tsx:10:import { useTranslation } from 'react-i18next'
+src/pages/primary/NotificationListPage/index.tsx:39:  const { t } = useTranslation()
+src/pages/primary/ProfilePage/index.tsx:29:  const { t } = useTranslation()
+src/pages/primary/ProfilePage/index.tsx:9:import { useTranslation } from 'react-i18next'
+src/pages/primary/ReadsPage/index.tsx:103:  const { t } = useTranslation()
+src/pages/primary/ReadsPage/index.tsx:2:import { useTranslation } from 'react-i18next'
+src/pages/primary/ReadsPage/index.tsx:21:  const { t } = useTranslation()
+src/pages/secondary/AIToolsPage/index.tsx:17:import { useTranslation } from 'react-i18next'
+src/pages/secondary/AIToolsPage/index.tsx:22:  const { t } = useTranslation()
+src/pages/secondary/AppearanceSettingsPage/index.tsx:46:import { useTranslation } from 'react-i18next'
+src/pages/secondary/AppearanceSettingsPage/index.tsx:81:  const { t } = useTranslation()
+src/pages/secondary/ArticlePage/index.tsx:13:import { useTranslation } from 'react-i18next'
+src/pages/secondary/ArticlePage/index.tsx:26:  const { t } = useTranslation()
+src/pages/secondary/BackupSettingsPage/index.tsx:4:import { useTranslation } from 'react-i18next'
+src/pages/secondary/BackupSettingsPage/index.tsx:7:  const { t } = useTranslation()
+src/pages/secondary/ContentPrivacySettingsPage/index.tsx:20:import { useTranslation } from 'react-i18next'
+src/pages/secondary/ContentPrivacySettingsPage/index.tsx:23:  const { t } = useTranslation()
+src/pages/secondary/ContentPrivacySettingsPage/index.tsx:334:  const { t } = useTranslation()
+src/pages/secondary/ContentPrivacySettingsPage/index.tsx:394:  const { t } = useTranslation()
+src/pages/secondary/ContentPrivacySettingsPage/index.tsx:461:  const { t } = useTranslation()
+src/pages/secondary/FollowingListPage/index.tsx:10:import { useTranslation } from 'react-i18next'
+src/pages/secondary/FollowingListPage/index.tsx:14:  const { t } = useTranslation()
+src/pages/secondary/GeneralSettingsPage/index.tsx:19:import { useTranslation } from 'react-i18next'
+src/pages/secondary/GeneralSettingsPage/index.tsx:22:  const { t, i18n } = useTranslation()
+src/pages/secondary/HomePage/index.tsx:14:import { useTranslation } from 'react-i18next'
+src/pages/secondary/HomePage/index.tsx:24:  const { t } = useTranslation()
+src/pages/secondary/ListEditorPage/index.tsx:11:import { useTranslation } from 'react-i18next'
+src/pages/secondary/ListEditorPage/index.tsx:28:    const { t } = useTranslation()
+src/pages/secondary/ListPage/index.tsx:11:import { useTranslation } from 'react-i18next'
+src/pages/secondary/ListPage/index.tsx:31:  const { t } = useTranslation()
+src/pages/secondary/ListsIndexPage/index.tsx:25:  const { t } = useTranslation()
+src/pages/secondary/ListsIndexPage/index.tsx:9:import { useTranslation } from 'react-i18next'
+src/pages/secondary/MuteListPage/index.tsx:134:  const { t } = useTranslation()
+src/pages/secondary/MuteListPage/index.tsx:14:import { useTranslation } from 'react-i18next'
+src/pages/secondary/MuteListPage/index.tsx:18:  const { t } = useTranslation()
+src/pages/secondary/NoteListPage/index.tsx:25:import { useTranslation } from 'react-i18next'
+src/pages/secondary/NoteListPage/index.tsx:29:  const { t } = useTranslation()
+src/pages/secondary/NotePage/index.tsx:20:import { useTranslation } from 'react-i18next'
+src/pages/secondary/NotePage/index.tsx:24:  const { t } = useTranslation()
+src/pages/secondary/NotePage/NotFound.tsx:2:import { useTranslation } from 'react-i18next'
+src/pages/secondary/NotePage/NotFound.tsx:5:  const { t } = useTranslation()
+src/pages/secondary/OthersRelaySettingsPage/index.tsx:5:import { useTranslation } from 'react-i18next'
+src/pages/secondary/OthersRelaySettingsPage/index.tsx:8:  const { t } = useTranslation()
+src/pages/secondary/PostSettingsPage/AlwaysShowFullMediaSetting.tsx:3:import { useTranslation } from 'react-i18next'
+src/pages/secondary/PostSettingsPage/AlwaysShowFullMediaSetting.tsx:6:  const { t } = useTranslation()
+src/pages/secondary/PostSettingsPage/BlossomServerListSetting.tsx:15:import { useTranslation } from 'react-i18next'
+src/pages/secondary/PostSettingsPage/BlossomServerListSetting.tsx:18:  const { t } = useTranslation()
+src/pages/secondary/PostSettingsPage/CollapseLongNotesSetting.tsx:3:import { useTranslation } from 'react-i18next'
+src/pages/secondary/PostSettingsPage/CollapseLongNotesSetting.tsx:6:  const { t } = useTranslation()
+src/pages/secondary/PostSettingsPage/CustomEmojisSetting.tsx:3:import { useTranslation } from 'react-i18next'
+src/pages/secondary/PostSettingsPage/CustomEmojisSetting.tsx:7:  const { t } = useTranslation()
+src/pages/secondary/PostSettingsPage/DefaultReactionEmojisSetting.tsx:15:  const { t } = useTranslation()
+src/pages/secondary/PostSettingsPage/DefaultReactionEmojisSetting.tsx:9:import { useTranslation } from 'react-i18next'
+src/pages/secondary/PostSettingsPage/index.tsx:13:  const { t } = useTranslation()
+src/pages/secondary/PostSettingsPage/index.tsx:3:import { useTranslation } from 'react-i18next'
+src/pages/secondary/PostSettingsPage/MediaUploadServiceSetting.tsx:13:import { useTranslation } from 'react-i18next'
+src/pages/secondary/PostSettingsPage/MediaUploadServiceSetting.tsx:19:  const { t } = useTranslation()
+src/pages/secondary/PostSettingsPage/NoteExpirationSetting.tsx:10:import { useTranslation } from 'react-i18next'
+src/pages/secondary/PostSettingsPage/NoteExpirationSetting.tsx:13:  const { t } = useTranslation()
+src/pages/secondary/ProfileEditorPage/index.tsx:22:import { useTranslation } from 'react-i18next'
+src/pages/secondary/ProfileEditorPage/index.tsx:25:  const { t } = useTranslation()
+src/pages/secondary/ProfileListPage/index.tsx:10:  const { t } = useTranslation()
+src/pages/secondary/ProfileListPage/index.tsx:7:import { useTranslation } from 'react-i18next'
+src/pages/secondary/RelayReviewsPage/index.tsx:10:  const { t } = useTranslation()
+src/pages/secondary/RelayReviewsPage/index.tsx:6:import { useTranslation } from 'react-i18next'
+src/pages/secondary/RelaySettingsPage/index.tsx:6:import { useTranslation } from 'react-i18next'
+src/pages/secondary/RelaySettingsPage/index.tsx:9:  const { t } = useTranslation()
+src/pages/secondary/RizfulPage/index.tsx:11:import { useTranslation } from 'react-i18next'
+src/pages/secondary/RizfulPage/index.tsx:20:  const { t } = useTranslation()
+src/pages/secondary/SettingsPage/index.tsx:36:import { useTranslation } from 'react-i18next'
+src/pages/secondary/SettingsPage/index.tsx:39:  const { t } = useTranslation()
+src/pages/secondary/TranslationPage/index.tsx:11:import { useTranslationService } from '@/providers/TranslationServiceProvider'
+src/pages/secondary/TranslationPage/index.tsx:14:import { useTranslation } from 'react-i18next'
+src/pages/secondary/TranslationPage/index.tsx:20:  const { t, i18n } = useTranslation()
+src/pages/secondary/TranslationPage/index.tsx:21:  const { config, updateConfig } = useTranslationService()
+src/pages/secondary/TranslationPage/JumbleTranslate/AccountInfo.tsx:10:import { useTranslation } from 'react-i18next'
+src/pages/secondary/TranslationPage/JumbleTranslate/AccountInfo.tsx:16:  const { t } = useTranslation()
+src/pages/secondary/TranslationPage/JumbleTranslate/AccountInfo.tsx:19:  const { config, updateConfig } = useTranslationService()
+src/pages/secondary/TranslationPage/JumbleTranslate/AccountInfo.tsx:7:import { useTranslationService } from '@/providers/TranslationServiceProvider'
+src/pages/secondary/TranslationPage/JumbleTranslate/JumbleTranslateAccountProvider.tsx:2:import { useTranslationService } from '@/providers/TranslationServiceProvider'
+src/pages/secondary/TranslationPage/JumbleTranslate/JumbleTranslateAccountProvider.tsx:29:  const { getAccount: _getAccount, regenerateApiKey: _regenerateApiKey } = useTranslationService()
+src/pages/secondary/TranslationPage/JumbleTranslate/RegenerateApiKeyButton.tsx:13:import { useTranslation } from 'react-i18next'
+src/pages/secondary/TranslationPage/JumbleTranslate/RegenerateApiKeyButton.tsx:17:  const { t } = useTranslation()
+src/pages/secondary/TranslationPage/JumbleTranslate/TopUp.tsx:11:import { useTranslation } from 'react-i18next'
+src/pages/secondary/TranslationPage/JumbleTranslate/TopUp.tsx:14:  const { t } = useTranslation()
+src/pages/secondary/TranslationPage/LibreTranslate/index.tsx:10:  const { config, updateConfig } = useTranslationService()
+src/pages/secondary/TranslationPage/LibreTranslate/index.tsx:4:import { useTranslationService } from '@/providers/TranslationServiceProvider'
+src/pages/secondary/TranslationPage/LibreTranslate/index.tsx:6:import { useTranslation } from 'react-i18next'
+src/pages/secondary/TranslationPage/LibreTranslate/index.tsx:9:  const { t } = useTranslation()
+src/pages/secondary/TranslationPage/OpenRouter/index.tsx:13:import { useTranslationService } from '@/providers/TranslationServiceProvider'
+src/pages/secondary/TranslationPage/OpenRouter/index.tsx:15:import { useTranslation } from 'react-i18next'
+src/pages/secondary/TranslationPage/OpenRouter/index.tsx:58:  const { t } = useTranslation()
+src/pages/secondary/TranslationPage/OpenRouter/index.tsx:59:  const { config, updateConfig } = useTranslationService()
+src/pages/secondary/WalletPage/ChargeZapLimitInput.tsx:4:import { useTranslation } from 'react-i18next'
+src/pages/secondary/WalletPage/ChargeZapLimitInput.tsx:7:  const { t } = useTranslation()
+src/pages/secondary/WalletPage/ChargeZapSwitch.tsx:4:import { useTranslation } from 'react-i18next'
+src/pages/secondary/WalletPage/ChargeZapSwitch.tsx:7:  const { t } = useTranslation()
+src/pages/secondary/WalletPage/DefaultZapAmountInput.tsx:5:import { useTranslation } from 'react-i18next'
+src/pages/secondary/WalletPage/DefaultZapAmountInput.tsx:8:  const { t } = useTranslation()
+src/pages/secondary/WalletPage/DefaultZapCommentInput.tsx:5:import { useTranslation } from 'react-i18next'
+src/pages/secondary/WalletPage/DefaultZapCommentInput.tsx:8:  const { t } = useTranslation()
+src/pages/secondary/WalletPage/index.tsx:30:import { useTranslation } from 'react-i18next'
+src/pages/secondary/WalletPage/index.tsx:42:  const { t } = useTranslation()
+src/pages/secondary/WalletPage/LightningAddressInput.tsx:13:  const { t } = useTranslation()
+src/pages/secondary/WalletPage/LightningAddressInput.tsx:9:import { useTranslation } from 'react-i18next'
+src/pages/secondary/WalletPage/OnlyZapsModeSwitch.tsx:4:import { useTranslation } from 'react-i18next'
+src/pages/secondary/WalletPage/OnlyZapsModeSwitch.tsx:7:  const { t } = useTranslation()
+src/pages/secondary/WalletPage/QuickZapSwitch.tsx:4:import { useTranslation } from 'react-i18next'
+src/pages/secondary/WalletPage/QuickZapSwitch.tsx:7:  const { t } = useTranslation()
+src/pages/secondary/WalletPage/ZapOnReactionsSwitch.tsx:4:import { useTranslation } from 'react-i18next'
+src/pages/secondary/WalletPage/ZapOnReactionsSwitch.tsx:7:  const { t } = useTranslation()
+src/pages/secondary/WalletPage/ZapSoundSelect.tsx:11:import { useTranslation } from 'react-i18next'
+src/pages/secondary/WalletPage/ZapSoundSelect.tsx:14:  const { t } = useTranslation()
+src/pages/secondary/WidgetsSettingsPage/index.tsx:265:  const { t } = useTranslation()
+src/pages/secondary/WidgetsSettingsPage/index.tsx:64:  const { t } = useTranslation()
+src/pages/secondary/WidgetsSettingsPage/index.tsx:9:import { useTranslation } from 'react-i18next'
+src/providers/FollowListProvider.tsx:26:  const { t } = useTranslation()
+src/providers/FollowListProvider.tsx:5:import { useTranslation } from 'react-i18next'
+src/providers/MuteListProvider.tsx:51:  const { t } = useTranslation()
+src/providers/MuteListProvider.tsx:9:import { useTranslation } from 'react-i18next'
+src/providers/NostrProvider/index.tsx:108:  const { t } = useTranslation()
+src/providers/NostrProvider/index.tsx:38:import { useTranslation } from 'react-i18next'
+src/providers/PinListProvider.tsx:28:  const { t } = useTranslation()
+src/providers/PinListProvider.tsx:7:import { useTranslation } from 'react-i18next'
+src/providers/RTLProvider.tsx:16:  const { i18n } = useTranslation()
+src/providers/RTLProvider.tsx:2:import { useTranslation } from 'react-i18next'
+src/providers/TranslationServiceProvider.tsx:11:import { useTranslation } from 'react-i18next'
+src/providers/TranslationServiceProvider.tsx:34:export const useTranslationService = () => {
+src/providers/TranslationServiceProvider.tsx:37:    throw new Error('useTranslation must be used within a TranslationProvider')
+src/providers/TranslationServiceProvider.tsx:43:  const { i18n } = useTranslation()
+

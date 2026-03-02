@@ -7,7 +7,7 @@ import { useCustomFeeds } from '@/providers/CustomFeedsProvider'
 import { useFavoriteRelays } from '@/providers/FavoriteRelaysProvider'
 import { useFeed } from '@/providers/FeedProvider'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
-import { BookmarkIcon, ChevronDown, Hash, Search, Server, UsersRound } from 'lucide-react'
+import { BookmarkIcon, Box, ChevronDown, Hash, Highlighter, Search, UserRound, UsersRound } from 'lucide-react'
 import { forwardRef, HTMLAttributes, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -72,6 +72,12 @@ const FeedSwitcherTrigger = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEle
       if (feedInfo.feedType === 'bookmarks') {
         return t('Bookmarks')
       }
+      if (feedInfo.feedType === 'highlights') {
+        return t('Highlights')
+      }
+      if (feedInfo.feedType === 'one-per-person') {
+        return t('Latest Note')
+      }
       if (feedInfo.feedType === 'custom') {
         return activeCustomFeed?.name ?? t('Custom Feed')
       }
@@ -92,23 +98,29 @@ const FeedSwitcherTrigger = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEle
       if (feedInfo.feedType === 'bookmarks') {
         return <BookmarkIcon />
       }
+      if (feedInfo.feedType === 'highlights') {
+        return <Highlighter />
+      }
+      if (feedInfo.feedType === 'one-per-person') {
+        return <UserRound />
+      }
       if (feedInfo.feedType === 'custom') {
         if (activeCustomFeed?.searchParams.type === 'hashtag') {
           return <Hash />
         }
         return <Search />
       }
-      return <Server />
+      return <Box />
     }, [feedInfo, activeCustomFeed])
 
     return (
       <div
-        className={cn('flex items-center gap-2 clickable px-3 h-full rounded-lg', className)}
+        className={cn('flex items-center gap-2 clickable px-3 h-full rounded-lg [&_svg]:text-muted-foreground', className)}
         ref={ref}
         {...props}
       >
         {icon}
-        <div className="text-lg font-semibold truncate" style={{ fontSize: `calc(var(--font-size, 14px) * 1.286)` }}>{title}</div>
+        <div className="text-lg font-semibold truncate" style={{ fontSize: `var(--title-font-size, 18px)` }}>{title}</div>
         <ChevronDown />
       </div>
     )

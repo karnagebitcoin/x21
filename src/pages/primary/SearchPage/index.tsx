@@ -3,11 +3,14 @@ import SearchResult from '@/components/SearchResult'
 import PinButton from '@/components/PinButton'
 import PrimaryPageLayout, { TPrimaryPageLayoutRef } from '@/layouts/PrimaryPageLayout'
 import { usePrimaryPage } from '@/PageManager'
+import { useScreenSize } from '@/providers/ScreenSizeProvider'
+
 import { TSearchParams } from '@/types'
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 
 const SearchPage = forwardRef((_, ref) => {
   const { current, display } = usePrimaryPage()
+  const { isSmallScreen } = useScreenSize()
   const [input, setInput] = useState('')
   const [searchParams, setSearchParams] = useState<TSearchParams | null>(null)
   const isActive = useMemo(() => current === 'search' && display, [current, display])

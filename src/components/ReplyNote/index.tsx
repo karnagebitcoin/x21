@@ -1,14 +1,17 @@
 import { useSecondaryPage } from '@/PageManager'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { isMentioningMutedUsers } from '@/lib/event'
+import { isMentioningMutedUsers, hasMedia } from '@/lib/event'
 import { toNote } from '@/lib/link'
 import { useContentPolicy } from '@/providers/ContentPolicyProvider'
 import { useMuteList } from '@/providers/MuteListProvider'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
+import { useTextOnlyMode } from '@/providers/TextOnlyModeProvider'
 import { Event } from 'nostr-tools'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Pin } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import ClientTag from '../ClientTag'
 import Collapsible from '../Collapsible'
 import Content from '../Content'
@@ -25,18 +28,21 @@ export default function ReplyNote({
   event,
   parentEventId,
   onClickParent = () => {},
-  highlight = false
+  highlight = false,
+  isPinned = false
 }: {
   event: Event
   parentEventId?: string
   onClickParent?: () => void
   highlight?: boolean
+  isPinned?: boolean
 }) {
   const { t } = useTranslation()
   const { isSmallScreen } = useScreenSize()
   const { push } = useSecondaryPage()
   const { mutePubkeySet } = useMuteList()
   const { hideContentMentioningMutedUsers } = useContentPolicy()
+  const { textOnlyMode } = useTextOnlyMode()
   const [showMuted, setShowMuted] = useState(false)
   const show = useMemo(() => {
     if (showMuted) {
@@ -53,10 +59,16 @@ export default function ReplyNote({
 
   return (
     <div
-      className={`pb-3 border-b transition-colors duration-500 clickable ${highlight ? 'bg-primary/50' : ''}`}
+      className={`pb-3 border-b transition-colors duration-500 clickable ${highlight ? 'bg-primary/50' : ''} ${isPinned ? 'bg-primary/10' : ''}`}
       onClick={() => push(toNote(event))}
     >
-      <Collapsible>
+      <Collapsible hasMedia={hasMedia(event)}>
+        {isPinned && (
+          <div className="flex items-center gap-1.5 px-4 pt-2 text-xs text-primary font-medium">
+            <Pin className="size-3.5" />
+            <span>{t('Pinned')}</span>
+          </div>
+        )}
         <div className="flex space-x-2 items-start px-4 pt-3">
           <UserAvatar userId={event.pubkey} size="medium" className="shrink-0 mt-0.5" />
           <div className="w-full overflow-hidden">
@@ -111,7 +123,7 @@ export default function ReplyNote({
           </div>
         </div>
       </Collapsible>
-      {show && <NoteStats className="ml-14 pl-1 mr-4 mt-2" event={event} displayTopZapsAndLikes />}
+      {show && <NoteStats className={cn(textOnlyMode ? "ml-4" : "ml-14 pl-1", "mr-4 mt-2")} event={event} displayTopZapsAndLikes />}
     </div>
   )
 }

@@ -1,158 +1,218 @@
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { Button } from '@/components/ui/button'
-import { MEDIA_AUTO_LOAD_POLICY } from '@/constants'
+import Tabs from '@/components/Tabs'
+import { DISTRACTION_FREE_MODE } from '@/constants'
 import { LocalizedLanguageNames, TLanguage } from '@/i18n'
 import SecondaryPageLayout from '@/layouts/SecondaryPageLayout'
-import { cn, isSupportCheckConnectionType } from '@/lib/utils'
-import { useContentPolicy } from '@/providers/ContentPolicyProvider'
-import { useUserTrust } from '@/providers/UserTrustProvider'
-import localStorageService from '@/services/local-storage.service'
-import { TMediaAutoLoadPolicy } from '@/types'
+import { cn } from '@/lib/utils'
+import { useDistractionFreeMode } from '@/providers/DistractionFreeModeProvider'
+import { useReadsVisibility } from '@/providers/ReadsVisibilityProvider'
+import { useRTL } from '@/providers/RTLProvider'
+import { usePaymentsEnabled } from '@/providers/PaymentsEnabledProvider'
+import { useTextOnlyMode } from '@/providers/TextOnlyModeProvider'
+import { useLowBandwidthMode } from '@/providers/LowBandwidthModeProvider'
+import { useDisableAvatarAnimations } from '@/providers/DisableAvatarAnimationsProvider'
 import { SelectValue } from '@radix-ui/react-select'
-import { ExternalLink, RotateCcw } from 'lucide-react'
+import { Check, BellOff, BellRing } from 'lucide-react'
 import { forwardRef, HTMLProps, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 const GeneralSettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
   const { t, i18n } = useTranslation()
+  const [activeTab, setActiveTab] = useState('interface')
   const [language, setLanguage] = useState<TLanguage>(i18n.language as TLanguage)
+  const { distractionFreeMode, setDistractionFreeMode } = useDistractionFreeMode()
   const {
-    autoplay,
-    setAutoplay,
-    defaultShowNsfw,
-    setDefaultShowNsfw,
-    hideContentMentioningMutedUsers,
-    setHideContentMentioningMutedUsers,
-    alwaysHideMutedNotes,
-    setAlwaysHideMutedNotes,
-    hideNotificationsFromMutedUsers,
-    setHideNotificationsFromMutedUsers,
-    mediaAutoLoadPolicy,
-    setMediaAutoLoadPolicy
-  } = useContentPolicy()
-  const { hideUntrustedNotes, updateHideUntrustedNotes } = useUserTrust()
+    hideReadsInProfiles,
+    setHideReadsInProfiles
+  } = useReadsVisibility()
+  const { isRTL, toggleRTL, showRTLToggle } = useRTL()
+  const { paymentsEnabled, setPaymentsEnabled } = usePaymentsEnabled()
+  const { textOnlyMode, setTextOnlyMode } = useTextOnlyMode()
+  const { lowBandwidthMode, setLowBandwidthMode } = useLowBandwidthMode()
+  const { disableAvatarAnimations, setDisableAvatarAnimations } = useDisableAvatarAnimations()
 
   const handleLanguageChange = (value: TLanguage) => {
     i18n.changeLanguage(value)
     setLanguage(value)
   }
 
+  const tabDefinitions = [
+    { value: 'interface', label: t('Interface') },
+    { value: 'display', label: t('Display') }
+  ]
+
+  // Style object for option cards to use card radius
+  const optionCardStyle = { borderRadius: 'var(--card-radius, 8px)' }
+
   return (
     <SecondaryPageLayout ref={ref} index={index} title={t('General')}>
-      <div className="space-y-4 mt-3">
-        <SettingItem>
-          <Label htmlFor="languages" className="text-base font-normal">
-            {t('Languages')}
-          </Label>
-          <Select defaultValue="en" value={language} onValueChange={handleLanguageChange}>
-            <SelectTrigger id="languages" className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(LocalizedLanguageNames).map(([key, value]) => (
-                <SelectItem key={key} value={key}>
-                  {value}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </SettingItem>
-        <SettingItem>
-          <Label htmlFor="media-auto-load-policy" className="text-base font-normal">
-            {t('Auto-load media')}
-          </Label>
-          <Select
-            defaultValue="wifi-only"
-            value={mediaAutoLoadPolicy}
-            onValueChange={(value: TMediaAutoLoadPolicy) =>
-              setMediaAutoLoadPolicy(value as TMediaAutoLoadPolicy)
-            }
-          >
-            <SelectTrigger id="media-auto-load-policy" className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={MEDIA_AUTO_LOAD_POLICY.ALWAYS}>{t('Always')}</SelectItem>
-              {isSupportCheckConnectionType() && (
-                <SelectItem value={MEDIA_AUTO_LOAD_POLICY.WIFI_ONLY}>{t('Wi-Fi only')}</SelectItem>
-              )}
-              <SelectItem value={MEDIA_AUTO_LOAD_POLICY.NEVER}>{t('Never')}</SelectItem>
-            </SelectContent>
-          </Select>
-        </SettingItem>
-        <SettingItem>
-          <Label htmlFor="autoplay" className="text-base font-normal">
-            <div>{t('Autoplay')}</div>
-            <div className="text-muted-foreground">{t('Enable video autoplay on this device')}</div>
-          </Label>
-          <Switch id="autoplay" checked={autoplay} onCheckedChange={setAutoplay} />
-        </SettingItem>
-        <SettingItem>
-          <Label htmlFor="hide-untrusted-notes" className="text-base font-normal">
-            {t('Hide untrusted notes')}
-          </Label>
-          <Switch
-            id="hide-untrusted-notes"
-            checked={hideUntrustedNotes}
-            onCheckedChange={updateHideUntrustedNotes}
-          />
-        </SettingItem>
-        <SettingItem>
-          <Label htmlFor="hide-content-mentioning-muted-users" className="text-base font-normal">
-            {t('Hide content mentioning muted users')}
-          </Label>
-          <Switch
-            id="hide-content-mentioning-muted-users"
-            checked={hideContentMentioningMutedUsers}
-            onCheckedChange={setHideContentMentioningMutedUsers}
-          />
-        </SettingItem>
-        <SettingItem>
-          <Label htmlFor="always-hide-muted-notes" className="text-base font-normal">
-            <div>{t('Always hide muted notes')}</div>
-            <div className="text-muted-foreground">{t('Completely hide notes from muted users, even in reposts')}</div>
-          </Label>
-          <Switch
-            id="always-hide-muted-notes"
-            checked={alwaysHideMutedNotes}
-            onCheckedChange={setAlwaysHideMutedNotes}
-          />
-        </SettingItem>
-        <SettingItem>
-          <Label htmlFor="hide-notifications-from-muted-users" className="text-base font-normal">
-            Hide notifications from muted users
-          </Label>
-          <Switch
-            id="hide-notifications-from-muted-users"
-            checked={hideNotificationsFromMutedUsers}
-            onCheckedChange={setHideNotificationsFromMutedUsers}
-          />
-        </SettingItem>
-        <SettingItem>
-          <Label htmlFor="show-nsfw" className="text-base font-normal">
-            {t('Show NSFW content by default')}
-          </Label>
-          <Switch id="show-nsfw" checked={defaultShowNsfw} onCheckedChange={setDefaultShowNsfw} />
-        </SettingItem>
-        <SettingItem>
-          <div>
-            <a
-              className="flex items-center gap-1 cursor-pointer hover:underline"
-              href="https://emojito.meme/browse"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {t('Custom emoji management')}
-              <ExternalLink />
-            </a>
-            <div className="text-muted-foreground">
-              {t('After changing emojis, you may need to refresh the page')}
-            </div>
+      <div className="mt-3">
+        <Tabs
+          tabs={tabDefinitions}
+          value={activeTab}
+          onTabChange={setActiveTab}
+          threshold={0}
+        />
+
+        {/* INTERFACE TAB */}
+        {activeTab === 'interface' && (
+          <div className="space-y-4 mt-4">
+            <SettingItem>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="payments-enabled" className="text-base font-normal">
+                  {t('Enable Payments')}
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {t('Enable bitcoin lightning payments to zap content and notes.')}
+                </p>
+              </div>
+              <Switch
+                id="payments-enabled"
+                checked={paymentsEnabled}
+                onCheckedChange={setPaymentsEnabled}
+              />
+            </SettingItem>
+            <SettingItem>
+              <Label htmlFor="languages" className="text-base font-normal">
+                {t('Languages')}
+              </Label>
+              <Select defaultValue="en" value={language} onValueChange={handleLanguageChange}>
+                <SelectTrigger id="languages" className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(LocalizedLanguageNames).map(([key, value]) => (
+                    <SelectItem key={key} value={key}>
+                      {value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SettingItem>
+            {showRTLToggle && (
+              <SettingItem>
+                <Label htmlFor="rtl-mode" className="text-base font-normal">
+                  {t('Right-to-left layout')}
+                </Label>
+                <Switch
+                  id="rtl-mode"
+                  checked={isRTL}
+                  onCheckedChange={toggleRTL}
+                />
+              </SettingItem>
+            )}
+            <SettingItem>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="text-only-mode" className="text-base font-normal">
+                  {t('Text Only Mode')}
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {t('Strip media from notes and profiles to reduce bandwidth usage. Images and videos will be replaced with clickable load links.')}
+                </p>
+              </div>
+              <Switch
+                id="text-only-mode"
+                checked={textOnlyMode}
+                onCheckedChange={setTextOnlyMode}
+              />
+            </SettingItem>
+            <SettingItem>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="slow-connection-mode" className="text-base font-normal">
+                  {t('Slow Connection Mode')}
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {t('Connect to only relay.damus.io, hide reactions and zaps. Optimized for slow connections.')}
+                </p>
+              </div>
+              <Switch
+                id="slow-connection-mode"
+                checked={lowBandwidthMode}
+                onCheckedChange={setLowBandwidthMode}
+              />
+            </SettingItem>
+            <SettingItem>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="disable-avatar-animations" className="text-base font-normal">
+                  {t('Disable Avatar Animations')}
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {t('Stop animated GIFs in profile avatars. Only affects avatars, not GIFs in notes.')}
+                </p>
+              </div>
+              <Switch
+                id="disable-avatar-animations"
+                checked={disableAvatarAnimations}
+                onCheckedChange={setDisableAvatarAnimations}
+              />
+            </SettingItem>
+            <SettingItem className="flex-col items-start gap-3">
+              <Label className="text-base font-normal">
+                {t('Distraction-Free Mode')}
+              </Label>
+              <div className="grid grid-cols-2 gap-3 w-full">
+                <button
+                  onClick={() => setDistractionFreeMode(DISTRACTION_FREE_MODE.DRAIN_MY_TIME)}
+                  style={optionCardStyle}
+                  className={cn(
+                    'relative flex flex-col items-center gap-2 p-3 border-2 transition-all hover:scale-105',
+                    distractionFreeMode === DISTRACTION_FREE_MODE.DRAIN_MY_TIME
+                      ? 'border-primary'
+                      : 'border-border hover:border-muted-foreground/30'
+                  )}
+                >
+                  <div className="flex items-center justify-center w-8 h-8">
+                    <BellRing className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-medium">{t('Drain my time')}</span>
+                  {distractionFreeMode === DISTRACTION_FREE_MODE.DRAIN_MY_TIME && (
+                    <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5">
+                      <Check className="w-3 h-3" />
+                    </div>
+                  )}
+                </button>
+                <button
+                  onClick={() => setDistractionFreeMode(DISTRACTION_FREE_MODE.FOCUS_MODE)}
+                  style={optionCardStyle}
+                  className={cn(
+                    'relative flex flex-col items-center gap-2 p-3 border-2 transition-all hover:scale-105',
+                    distractionFreeMode === DISTRACTION_FREE_MODE.FOCUS_MODE
+                      ? 'border-primary'
+                      : 'border-border hover:border-muted-foreground/30'
+                  )}
+                >
+                  <div className="flex items-center justify-center w-8 h-8">
+                    <BellOff className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs font-medium">{t('Focus mode')}</span>
+                  {distractionFreeMode === DISTRACTION_FREE_MODE.FOCUS_MODE && (
+                    <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5">
+                      <Check className="w-3 h-3" />
+                    </div>
+                  )}
+                </button>
+              </div>
+            </SettingItem>
           </div>
-        </SettingItem>
+        )}
+
+        {/* DISPLAY TAB */}
+        {activeTab === 'display' && (
+          <div className="space-y-4 mt-4">
+            <SettingItem>
+              <Label htmlFor="hide-reads-in-profiles" className="text-base font-normal">
+                {t('Hide reads in profiles')}
+              </Label>
+              <Switch
+                id="hide-reads-in-profiles"
+                checked={hideReadsInProfiles}
+                onCheckedChange={setHideReadsInProfiles}
+              />
+            </SettingItem>
+          </div>
+        )}
       </div>
     </SecondaryPageLayout>
   )

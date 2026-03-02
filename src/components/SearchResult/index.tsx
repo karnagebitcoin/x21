@@ -6,12 +6,18 @@ import { ProfileListBySearch } from '../ProfileListBySearch'
 import Relay from '../Relay'
 import TrendingNotes from '../TrendingNotes'
 
-export default function SearchResult({ searchParams }: { searchParams: TSearchParams | null }) {
+export default function SearchResult({
+  searchParams,
+  isInDeckView = false
+}: {
+  searchParams: TSearchParams | null
+  isInDeckView?: boolean
+}) {
   if (!searchParams) {
     return <TrendingNotes />
   }
   if (searchParams.type === 'profile') {
-    return <Profile id={searchParams.search} />
+    return <Profile id={searchParams.search} isInDeckView={isInDeckView} />
   }
   if (searchParams.type === 'profiles') {
     return <ProfileListBySearch search={searchParams.search} />
@@ -21,6 +27,7 @@ export default function SearchResult({ searchParams }: { searchParams: TSearchPa
       <NormalFeed
         subRequests={[{ urls: SEARCHABLE_RELAY_URLS, filter: { search: searchParams.search } }]}
         showRelayCloseReason
+        isInDeckView={isInDeckView}
       />
     )
   }
@@ -29,8 +36,9 @@ export default function SearchResult({ searchParams }: { searchParams: TSearchPa
       <NormalFeed
         subRequests={[{ urls: BIG_RELAY_URLS, filter: { '#t': [searchParams.search] } }]}
         showRelayCloseReason
+        isInDeckView={isInDeckView}
       />
     )
   }
-  return <Relay url={searchParams.search} />
+  return <Relay url={searchParams.search} isInDeckView={isInDeckView} />
 }

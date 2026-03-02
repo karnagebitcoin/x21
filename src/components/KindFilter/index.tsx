@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ExtendedKind } from '@/constants'
 import { cn } from '@/lib/utils'
 import { useKindFilter } from '@/providers/KindFilterProvider'
+import { useMediaOnly } from '@/providers/MediaOnlyProvider'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
 import { ListFilter } from 'lucide-react'
 import { kinds } from 'nostr-tools'
@@ -16,7 +17,6 @@ const KIND_FILTER_OPTIONS = [
   { kindGroup: [kinds.ShortTextNote, ExtendedKind.COMMENT], label: 'Posts' },
   { kindGroup: [kinds.Repost], label: 'Reposts' },
   { kindGroup: [kinds.LongFormArticle], label: 'Articles' },
-  { kindGroup: [kinds.Highlights], label: 'Highlights' },
   { kindGroup: [ExtendedKind.POLL], label: 'Polls' },
   { kindGroup: [ExtendedKind.VOICE, ExtendedKind.VOICE_COMMENT], label: 'Voice Posts' },
   { kindGroup: [ExtendedKind.PICTURE], label: 'Photo Posts' },
@@ -26,31 +26,39 @@ const ALL_KINDS = KIND_FILTER_OPTIONS.flatMap(({ kindGroup }) => kindGroup)
 
 export default function KindFilter({
   showKinds,
-  onShowKindsChange
+  onShowKindsChange,
+  mediaOnly,
+  onMediaOnlyChange
 }: {
   showKinds: number[]
   onShowKindsChange: (kinds: number[]) => void
+  mediaOnly: boolean
+  onMediaOnlyChange: (mediaOnly: boolean) => void
 }) {
   const { t } = useTranslation()
   const { isSmallScreen } = useScreenSize()
   const { showKinds: savedShowKinds } = useKindFilter()
+  const { mediaOnly: savedMediaOnly } = useMediaOnly()
   const [open, setOpen] = useState(false)
   const { updateShowKinds } = useKindFilter()
+  const { updateMediaOnly } = useMediaOnly()
   const [temporaryShowKinds, setTemporaryShowKinds] = useState(showKinds)
+  const [temporaryMediaOnly, setTemporaryMediaOnly] = useState(mediaOnly)
   const [isPersistent, setIsPersistent] = useState(false)
   const isDifferentFromSaved = useMemo(
-    () => !isSameKindFilter(showKinds, savedShowKinds),
-    [showKinds, savedShowKinds]
+    () => !isSameKindFilter(showKinds, savedShowKinds) || mediaOnly !== savedMediaOnly,
+    [showKinds, savedShowKinds, mediaOnly, savedMediaOnly]
   )
   const isTemporaryDifferentFromSaved = useMemo(
-    () => !isSameKindFilter(temporaryShowKinds, savedShowKinds),
-    [temporaryShowKinds, savedShowKinds]
+    () => !isSameKindFilter(temporaryShowKinds, savedShowKinds) || temporaryMediaOnly !== savedMediaOnly,
+    [temporaryShowKinds, savedShowKinds, temporaryMediaOnly, savedMediaOnly]
   )
 
   useEffect(() => {
     setTemporaryShowKinds(showKinds)
+    setTemporaryMediaOnly(mediaOnly)
     setIsPersistent(false)
-  }, [open])
+  }, [open, showKinds, mediaOnly])
 
   const handleApply = () => {
     if (temporaryShowKinds.length === 0) {
@@ -63,8 +71,13 @@ export default function KindFilter({
       onShowKindsChange(newShowKinds)
     }
 
+    if (temporaryMediaOnly !== mediaOnly) {
+      onMediaOnlyChange(temporaryMediaOnly)
+    }
+
     if (isPersistent) {
       updateShowKinds(newShowKinds)
+      updateMediaOnly(temporaryMediaOnly)
     }
 
     setIsPersistent(false)
@@ -122,6 +135,15 @@ export default function KindFilter({
         })}
       </div>
 
+      <Label className="flex items-center gap-2 cursor-pointer mt-4 p-3 rounded-lg border bg-muted/30">
+        <Checkbox
+          id="media-only-filter"
+          checked={temporaryMediaOnly}
+          onCheckedChange={(checked) => setTemporaryMediaOnly(!!checked)}
+        />
+        <span className="text-sm font-medium">{t('Show only Posts with media')}</span>
+      </Label>
+
       <div className="grid grid-cols-3 gap-2 mt-4">
         <Button
           variant="secondary"
@@ -141,7 +163,10 @@ export default function KindFilter({
         </Button>
         <Button
           variant="secondary"
-          onClick={() => setTemporaryShowKinds(savedShowKinds)}
+          onClick={() => {
+            setTemporaryShowKinds(savedShowKinds)
+            setTemporaryMediaOnly(savedMediaOnly)
+          }}
           disabled={!isTemporaryDifferentFromSaved}
         >
           {t('Reset')}

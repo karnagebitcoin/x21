@@ -77,14 +77,14 @@ export default function AccountList({
 
 function SignerTypeBadge({ signerType }: { signerType: TSignerType }) {
   if (signerType === 'nip-07') {
-    return <Badge className=" bg-green-400 hover:bg-green-400/80">NIP-07</Badge>
+    return <Badge className="rounded-full bg-blue-500 hover:bg-blue-500/80 text-white border-0">Extension</Badge>
   } else if (signerType === 'bunker') {
-    return <Badge className=" bg-blue-400 hover:bg-blue-400/80">Bunker</Badge>
+    return <Badge className="rounded-full bg-purple-500 hover:bg-purple-500/80 text-white border-0">Bunker</Badge>
   } else if (signerType === 'ncryptsec') {
-    return <Badge>NCRYPTSEC</Badge>
+    return <Badge className="rounded-full">NCRYPTSEC</Badge>
   } else if (signerType === 'nsec') {
-    return <Badge className=" bg-orange-400 hover:bg-orange-400/80">NSEC</Badge>
+    return <Badge className="rounded-full bg-orange-500 hover:bg-orange-500/80 text-white border-0">NSEC</Badge>
   } else if (signerType === 'npub') {
-    return <Badge className=" bg-yellow-400 hover:bg-yellow-400/80">NPUB</Badge>
+    return <Badge className="rounded-full bg-yellow-500 hover:bg-yellow-500/80 text-white border-0">NPUB</Badge>
   }
 }

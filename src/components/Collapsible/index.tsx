@@ -2,6 +2,8 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useCollapseLongNotes } from '@/providers/CollapseLongNotesProvider'
+import { useAlwaysShowFullMedia } from '@/providers/AlwaysShowFullMediaProvider'
 
 export default function Collapsible({
   alwaysExpand = false,
@@ -9,19 +11,29 @@ export default function Collapsible({
   className,
   threshold = 1000,
   collapsedHeight = 600,
+  hasMedia = false,
   ...props
 }: {
   alwaysExpand?: boolean
   threshold?: number
   collapsedHeight?: number
+  hasMedia?: boolean
 } & React.HTMLProps<HTMLDivElement>) {
   const { t } = useTranslation()
+  const { collapseLongNotes } = useCollapseLongNotes()
+  const { alwaysShowFullMedia } = useAlwaysShowFullMedia()
   const containerRef = useRef<HTMLDivElement>(null)
   const [expanded, setExpanded] = useState(false)
   const [shouldCollapse, setShouldCollapse] = useState(false)
 
   useEffect(() => {
-    if (alwaysExpand || shouldCollapse) return
+    // Don't collapse if:
+    // - alwaysExpand is true
+    // - user disabled collapsing long notes
+    // - content has media and user enabled always show full media
+    const shouldNotCollapse = alwaysExpand || !collapseLongNotes || (hasMedia && alwaysShowFullMedia)
+
+    if (shouldNotCollapse || shouldCollapse) return
 
     const contentEl = containerRef.current
     if (!contentEl) return
@@ -44,7 +56,7 @@ export default function Collapsible({
     return () => {
       observer.disconnect()
     }
-  }, [alwaysExpand, shouldCollapse])
+  }, [alwaysExpand, shouldCollapse, collapseLongNotes, hasMedia, alwaysShowFullMedia, threshold])
 
   return (
     <div

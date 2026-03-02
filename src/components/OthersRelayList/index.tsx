@@ -7,6 +7,7 @@ import { TMailboxRelay } from '@/types'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import RelaySimpleInfo from '../RelaySimpleInfo'
+import RelayHealthBadge from '../RelayHealthBadge'
 
 export default function OthersRelayList({ userId }: { userId: string }) {
   const { t } = useTranslation()
@@ -33,15 +34,20 @@ function RelayItem({ relay }: { relay: TMailboxRelay }) {
   const { url, scope } = relay
 
   return (
-    <div className="p-4 rounded-lg border clickable space-y-1" onClick={() => push(toRelay(url))}>
+    <div className="p-4 rounded-lg border clickable space-y-2" onClick={() => push(toRelay(url))}>
       <RelaySimpleInfo relayInfo={relayInfo} showPinButton />
-      <div className="flex gap-2">
-        {['both', 'read'].includes(scope) && (
-          <Badge className="bg-blue-400 hover:bg-blue-400/80">{t('Read')}</Badge>
-        )}
-        {['both', 'write'].includes(scope) && (
-          <Badge className="bg-green-400 hover:bg-green-400/80">{t('Write')}</Badge>
-        )}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          {['both', 'read'].includes(scope) && (
+            <Badge className="bg-blue-400 hover:bg-blue-400/80">{t('Read')}</Badge>
+          )}
+          {['both', 'write'].includes(scope) && (
+            <Badge className="bg-green-400 hover:bg-green-400/80">{t('Write')}</Badge>
+          )}
+        </div>
+        <div onClick={(e) => e.stopPropagation()}>
+          <RelayHealthBadge url={url} />
+        </div>
       </div>
     </div>
   )

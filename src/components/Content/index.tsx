@@ -11,11 +11,11 @@ import {
 } from '@/lib/content-parser'
 import { getImetaInfosFromEvent } from '@/lib/event'
 import { getEmojiInfosFromEmojiTags, getImetaInfoFromImetaTag } from '@/lib/tag'
-import { cn } from '@/lib/utils'
+import { cn, detectLanguage } from '@/lib/utils'
 import mediaUpload from '@/services/media-upload.service'
 import { TImetaInfo } from '@/types'
 import { Event } from 'nostr-tools'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   EmbeddedHashtag,
   EmbeddedLNInvoice,
@@ -29,6 +29,13 @@ import ImageGallery from '../ImageGallery'
 import MediaPlayer from '../MediaPlayer'
 import WebPreview from '../WebPreview'
 import YoutubeEmbeddedPlayer from '../YoutubeEmbeddedPlayer'
+import TranslationIndicator from '../TranslationIndicator'
+import ShowTranslatedButton from '../ShowTranslatedButton'
+import { useTranslationService } from '@/providers/TranslationServiceProvider'
+import { useTextOnlyMode } from '@/providers/TextOnlyModeProvider'
+import { useTranslation } from 'react-i18next'
+import { ExtendedKind } from '@/constants'
+import { kinds } from 'nostr-tools'
 
 export default function Content({
   event,
@@ -43,8 +50,49 @@ export default function Content({
   mustLoadMedia?: boolean
   compactMedia?: boolean
 }) {
+  const { textOnlyMode } = useTextOnlyMode()
+  const [loadedMedia, setLoadedMedia] = useState<Set<string>>(new Set())
   const translatedEvent = useTranslatedEvent(event?.id)
-  const { nodes, allImages, lastNormalUrl, emojiInfos } = useMemo(() => {
+  const { autoTranslateEvent, shouldAutoTranslate } = useTranslationService()
+  const { i18n } = useTranslation()
+
+  const handleLoadMedia = (url: string) => {
+    setLoadedMedia((prev) => new Set(prev).add(url))
+  }
+
+  // Auto-translate effect
+  useEffect(() => {
+    if (!event || !shouldAutoTranslate()) {
+      return
+    }
+
+    // Check if content needs translation
+    const supported = [
+      kinds.ShortTextNote,
+      kinds.Highlights,
+      ExtendedKind.COMMENT,
+      ExtendedKind.PICTURE,
+      ExtendedKind.POLL,
+      ExtendedKind.RELAY_REVIEW
+    ].includes(event.kind)
+
+    if (!supported) {
+      return
+    }
+
+    const detected = detectLanguage(event.content)
+    if (!detected) return
+
+    // Don't translate if already in target language
+    if (detected !== 'und' && i18n.language.startsWith(detected)) {
+      return
+    }
+
+    // Trigger auto-translation
+    autoTranslateEvent(event)
+  }, [event, shouldAutoTranslate, autoTranslateEvent, i18n.language])
+
+  const { nodes, allImages, lastNormalUrl, emojiInfos, totalMediaCount } = useMemo(() => {
     const _content = translatedEvent?.content ?? event?.content ?? content
     if (!_content) return {}
 
@@ -89,7 +137,17 @@ export default function Content({
     const lastNormalUrl =
       typeof lastNormalUrlNode?.data === 'string' ? lastNormalUrlNode.data : undefined
 
-    return { nodes, allImages, emojiInfos, lastNormalUrl }
+    // Count total media items (images, videos, youtube)
+    const totalMediaCount = nodes.reduce((count, node) => {
+      if (node.type === 'image') return count + 1
+      if (node.type === 'images') {
+        return count + (Array.isArray(node.data) ? node.data.length : 1)
+      }
+      if (node.type === 'media' || node.type === 'youtube') return count + 1
+      return count
+    }, 0)
+
+    return { nodes, allImages, emojiInfos, lastNormalUrl, totalMediaCount }
   }, [event, translatedEvent, content])
 
   if (!nodes || nodes.length === 0) {
@@ -99,6 +157,8 @@ export default function Content({
   let imageIndex = 0
   return (
     <div className={cn('text-wrap break-words whitespace-pre-wrap', className)}>
+      {event && translatedEvent && <TranslationIndicator event={event} className="mb-2" />}
+      {event && !translatedEvent && <ShowTranslatedButton event={event} className="mb-2" />}
       {nodes.map((node, index) => {
         if (node.type === 'text') {
           return node.data
@@ -107,6 +167,41 @@ export default function Content({
           const start = imageIndex
           const end = imageIndex + (Array.isArray(node.data) ? node.data.length : 1)
           imageIndex = end
+
+          if (textOnlyMode) {
+            const urls = Array.isArray(node.data) ? node.data : [node.data]
+            return urls.map((url, i) => {
+              const isLoaded = loadedMedia.has(url)
+              if (isLoaded) {
+                const imageIndex = allImages.findIndex(img => img.url === url)
+                if (imageIndex >= 0) {
+                  return (
+                    <ImageGallery
+                      className="mt-2"
+                      key={`${index}-${i}`}
+                      images={[allImages[imageIndex]]}
+                      start={0}
+                      end={1}
+                      mustLoad={true}
+                      compactMedia={compactMedia}
+                      isSingleMedia={totalMediaCount <= 2}
+                    />
+                  )
+                }
+              }
+              return (
+                <span key={`${index}-${i}`} className="inline-block mt-1">
+                  [image: <button
+                    onClick={() => handleLoadMedia(url)}
+                    className="text-primary hover:underline"
+                  >
+                    load
+                  </button>]
+                </span>
+              )
+            })
+          }
+
           return (
             <ImageGallery
               className="mt-2"
@@ -116,12 +211,31 @@ export default function Content({
               end={end}
               mustLoad={mustLoadMedia}
               compactMedia={compactMedia}
+              isSingleMedia={totalMediaCount <= 2}
             />
           )
         }
         if (node.type === 'media') {
+          if (textOnlyMode) {
+            const isLoaded = loadedMedia.has(node.data)
+            if (isLoaded) {
+              return (
+                <MediaPlayer className="mt-2" key={index} src={node.data} pubkey={event?.pubkey} mustLoad={true} compactMedia={compactMedia} isSingleMedia={totalMediaCount <= 2} />
+              )
+            }
+            return (
+              <span key={index} className="inline-block mt-1">
+                [video: <button
+                  onClick={() => handleLoadMedia(node.data)}
+                  className="text-primary hover:underline"
+                >
+                  load
+                </button>]
+              </span>
+            )
+          }
           return (
-            <MediaPlayer className="mt-2" key={index} src={node.data} mustLoad={mustLoadMedia} compactMedia={compactMedia} />
+            <MediaPlayer className="mt-2" key={index} src={node.data} pubkey={event?.pubkey} mustLoad={mustLoadMedia} compactMedia={compactMedia} isSingleMedia={totalMediaCount <= 2} />
           )
         }
         if (node.type === 'url') {
@@ -150,18 +264,45 @@ export default function Content({
           return <Emoji classNames={{ img: 'mb-1' }} emoji={emoji} key={index} />
         }
         if (node.type === 'youtube') {
+          if (textOnlyMode) {
+            const isLoaded = loadedMedia.has(node.data)
+            if (isLoaded) {
+              return (
+                <YoutubeEmbeddedPlayer
+                  key={index}
+                  url={node.data}
+                  pubkey={event?.pubkey}
+                  className="mt-2"
+                  mustLoad={true}
+                  isSingleMedia={totalMediaCount <= 2}
+                />
+              )
+            }
+            return (
+              <span key={index} className="inline-block mt-1">
+                [video: <button
+                  onClick={() => handleLoadMedia(node.data)}
+                  className="text-primary hover:underline"
+                >
+                  load
+                </button>]
+              </span>
+            )
+          }
           return (
             <YoutubeEmbeddedPlayer
               key={index}
               url={node.data}
+              pubkey={event?.pubkey}
               className="mt-2"
               mustLoad={mustLoadMedia}
+              isSingleMedia={totalMediaCount <= 2}
             />
           )
         }
         return null
       })}
-      {lastNormalUrl && <WebPreview className="mt-2" url={lastNormalUrl} />}
+      {!textOnlyMode && lastNormalUrl && <WebPreview className="mt-2" url={lastNormalUrl} pubkey={event?.pubkey} />}
     </div>
   )
 }

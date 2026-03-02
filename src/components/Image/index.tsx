@@ -8,12 +8,14 @@ import { ImageOff } from 'lucide-react'
 import { HTMLAttributes, useEffect, useMemo, useRef, useState } from 'react'
 
 export default function Image({
-  image: { url, blurHash, pubkey, dim },
+  image: { url, blurHash, pubkey, dim, alt: imageAlt },
   alt,
   className = '',
   classNames = {},
   hideIfError = false,
   errorPlaceholder = <ImageOff />,
+  style,
+  loading = 'lazy',
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   classNames?: {
@@ -24,6 +26,8 @@ export default function Image({
   alt?: string
   hideIfError?: boolean
   errorPlaceholder?: React.ReactNode
+  /** Loading strategy - use 'eager' for LCP images, 'lazy' for below-fold images */
+  loading?: 'lazy' | 'eager'
 }) {
   const [isLoading, setIsLoading] = useState(true)
   const [displaySkeleton, setDisplaySkeleton] = useState(true)
@@ -42,13 +46,20 @@ export default function Image({
   if (hideIfError && hasError) return null
 
   const handleError = async () => {
+    // If it's a data URL, we can't recover from the error
+    if (imageUrl.startsWith('data:')) {
+      setIsLoading(false)
+      setHasError(true)
+      return
+    }
+
     let oldImageUrl: URL | undefined
     let hash: string | null = null
     try {
       oldImageUrl = new URL(imageUrl)
       hash = getHashFromURL(oldImageUrl)
     } catch (error) {
-      console.error('Invalid image URL:', error)
+      // Invalid URL, can't retry
     }
     if (!pubkey || !hash || !oldImageUrl) {
       setIsLoading(false)
@@ -87,24 +98,30 @@ export default function Image({
     setTimeout(() => setDisplaySkeleton(false), 600)
   }
 
+  // Extract borderRadius from style prop if provided, otherwise use media-radius
+  const borderRadius = style?.borderRadius ?? 'var(--media-radius, 12px)'
+  const skeletonStyle = { borderRadius }
+
   return (
-    <div className={cn('relative overflow-hidden', classNames.wrapper)} {...props}>
+    <div className={cn('relative overflow-hidden', classNames.wrapper)} style={style} {...props}>
       {displaySkeleton && (
         <div className="absolute inset-0 z-10">
           {blurHash ? (
             <BlurHashCanvas
               blurHash={blurHash}
               className={cn(
-                'absolute inset-0 transition-opacity duration-500 rounded-lg',
+                'absolute inset-0 transition-opacity duration-500',
                 isLoading ? 'opacity-100' : 'opacity-0'
               )}
+              style={skeletonStyle}
             />
           ) : (
             <Skeleton
               className={cn(
-                'absolute inset-0 transition-opacity duration-500 rounded-lg',
+                'absolute inset-0 transition-opacity duration-500',
                 isLoading ? 'opacity-100' : 'opacity-0'
               )}
+              style={skeletonStyle}
             />
           )}
         </div>
@@ -112,18 +129,18 @@ export default function Image({
       {!hasError && (
         <img
           src={imageUrl}
-          alt={alt}
+          alt={alt || imageAlt || ''}
           decoding="async"
-          loading="lazy"
+          loading={loading}
           onLoad={handleLoad}
           onError={handleError}
           className={cn(
-            'object-cover rounded-lg w-full h-full transition-opacity duration-500',
+            'object-cover w-full h-full transition-opacity duration-500',
             className
           )}
+          style={{ borderRadius }}
           width={dim?.width}
           height={dim?.height}
-          {...props}
         />
       )}
       {hasError && (
@@ -143,7 +160,15 @@ export default function Image({
 
 const blurHashWidth = 32
 const blurHashHeight = 32
-function BlurHashCanvas({ blurHash, className = '' }: { blurHash: string; className?: string }) {
+function BlurHashCanvas({
+  blurHash,
+  className = '',
+  style
+}: {
+  blurHash: string
+  className?: string
+  style?: React.CSSProperties
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   const pixels = useMemo(() => {
@@ -175,10 +200,11 @@ function BlurHashCanvas({ blurHash, className = '' }: { blurHash: string; classN
       ref={canvasRef}
       width={blurHashWidth}
       height={blurHashHeight}
-      className={cn('w-full h-full object-cover rounded-lg', className)}
+      className={cn('w-full h-full object-cover', className)}
       style={{
         imageRendering: 'auto',
-        filter: 'blur(0.5px)'
+        filter: 'blur(0.5px)',
+        ...style
       }}
     />
   )

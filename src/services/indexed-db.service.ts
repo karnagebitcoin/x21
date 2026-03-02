@@ -24,7 +24,9 @@ const StoreNames = {
   RELAY_SETS: 'relaySets',
   FOLLOWING_FAVORITE_RELAYS: 'followingFavoriteRelays',
   RELAY_INFOS: 'relayInfos',
-  RELAY_INFO_EVENTS: 'relayInfoEvents' // deprecated
+  RELAY_INFO_EVENTS: 'relayInfoEvents', // deprecated
+  GIF_CACHE: 'gifCache',
+  TRANSLATED_EVENTS: 'translatedEvents'
 }
 
 class IndexedDbService {
@@ -43,7 +45,7 @@ class IndexedDbService {
   init(): Promise<void> {
     if (!this.initPromise) {
       this.initPromise = new Promise((resolve, reject) => {
-        const request = window.indexedDB.open('jumble', 9)
+        const request = window.indexedDB.open('jumble', 11)
 
         request.onerror = (event) => {
           reject(event)
@@ -97,6 +99,14 @@ class IndexedDbService {
           }
           if (!db.objectStoreNames.contains(StoreNames.PIN_LIST_EVENTS)) {
             db.createObjectStore(StoreNames.PIN_LIST_EVENTS, { keyPath: 'key' })
+          }
+          if (!db.objectStoreNames.contains(StoreNames.GIF_CACHE)) {
+            const gifStore = db.createObjectStore(StoreNames.GIF_CACHE, { keyPath: 'eventId' })
+            gifStore.createIndex('createdAt', 'createdAt', { unique: false })
+          }
+          if (!db.objectStoreNames.contains(StoreNames.TRANSLATED_EVENTS)) {
+            const translatedStore = db.createObjectStore(StoreNames.TRANSLATED_EVENTS, { keyPath: 'key' })
+            translatedStore.createIndex('addedAt', 'addedAt', { unique: false })
           }
           if (db.objectStoreNames.contains(StoreNames.RELAY_INFO_EVENTS)) {
             db.deleteObjectStore(StoreNames.RELAY_INFO_EVENTS)
@@ -211,6 +221,33 @@ class IndexedDbService {
       request.onsuccess = () => {
         transaction.commit()
         resolve((request.result as TValue<Event>)?.value)
+      }
+
+      request.onerror = (event) => {
+        transaction.commit()
+        reject(event)
+      }
+    })
+  }
+
+  async deleteReplaceableEvent(pubkey: string, kind: number, d?: string): Promise<void> {
+    const storeName = this.getStoreNameByKind(kind)
+    if (!storeName) {
+      return Promise.reject('store name not found')
+    }
+    await this.initPromise
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        return reject('database not initialized')
+      }
+      const transaction = this.db.transaction(storeName, 'readwrite')
+      const store = transaction.objectStore(storeName)
+      const key = this.getReplaceableEventKey(pubkey, d)
+      const request = store.delete(key)
+
+      request.onsuccess = () => {
+        transaction.commit()
+        resolve()
       }
 
       request.onerror = (event) => {
@@ -478,6 +515,128 @@ class IndexedDbService {
     }
   }
 
+  // GIF cache methods
+  async putGif(gif: any): Promise<void> {
+    await this.initPromise
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        return reject('database not initialized')
+      }
+      const transaction = this.db.transaction(StoreNames.GIF_CACHE, 'readwrite')
+      const store = transaction.objectStore(StoreNames.GIF_CACHE)
+
+      const putRequest = store.put(gif)
+      putRequest.onsuccess = () => {
+        transaction.commit()
+        resolve()
+      }
+
+      putRequest.onerror = (event) => {
+        transaction.commit()
+        reject(event)
+      }
+    })
+  }
+
+  async putManyGifs(gifs: any[]): Promise<void> {
+    if (gifs.length === 0) return
+    await this.initPromise
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        return reject('database not initialized')
+      }
+      const transaction = this.db.transaction(StoreNames.GIF_CACHE, 'readwrite')
+      const store = transaction.objectStore(StoreNames.GIF_CACHE)
+
+      let completed = 0
+      let hasError = false
+
+      gifs.forEach((gif) => {
+        const putRequest = store.put(gif)
+        putRequest.onsuccess = () => {
+          completed++
+          if (completed === gifs.length) {
+            transaction.commit()
+            resolve()
+          }
+        }
+        putRequest.onerror = () => {
+          if (!hasError) {
+            hasError = true
+            transaction.abort()
+            reject('Error putting GIF')
+          }
+        }
+      })
+    })
+  }
+
+  async getAllGifs(): Promise<any[]> {
+    await this.initPromise
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        return reject('database not initialized')
+      }
+      const transaction = this.db.transaction(StoreNames.GIF_CACHE, 'readonly')
+      const store = transaction.objectStore(StoreNames.GIF_CACHE)
+      const request = store.getAll()
+
+      request.onsuccess = () => {
+        transaction.commit()
+        resolve(request.result || [])
+      }
+
+      request.onerror = (event) => {
+        transaction.commit()
+        reject(event)
+      }
+    })
+  }
+
+  async getGifCount(): Promise<number> {
+    await this.initPromise
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        return reject('database not initialized')
+      }
+      const transaction = this.db.transaction(StoreNames.GIF_CACHE, 'readonly')
+      const store = transaction.objectStore(StoreNames.GIF_CACHE)
+      const request = store.count()
+
+      request.onsuccess = () => {
+        transaction.commit()
+        resolve(request.result)
+      }
+
+      request.onerror = (event) => {
+        transaction.commit()
+        reject(event)
+      }
+    })
+  }
+
+  async clearGifCache(): Promise<void> {
+    await this.initPromise
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        return reject('database not initialized')
+      }
+      const transaction = this.db.transaction(StoreNames.GIF_CACHE, 'readwrite')
+      const store = transaction.objectStore(StoreNames.GIF_CACHE)
+      const request = store.clear()
+
+      request.onsuccess = () => {
+        transaction.commit()
+        resolve()
+      }
+
+      request.onerror = (event) => {
+        transaction.commit()
+        reject(event)
+      }
+    })
+  }
+
   private async cleanUp() {
     await this.initPromise
     if (!this.db) {
@@ -535,6 +694,98 @@ class IndexedDbService {
         })
       })
     )
+  }
+
+  async putTranslatedEvent(eventId: string, targetLanguage: string, translatedEvent: Event) {
+    await this.init()
+    if (!this.db) return
+
+    const key = `${targetLanguage}_${eventId}`
+    const value: TValue<Event> = {
+      key,
+      value: translatedEvent,
+      addedAt: Date.now()
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      const transaction = this.db!.transaction([StoreNames.TRANSLATED_EVENTS], 'readwrite')
+      const store = transaction.objectStore(StoreNames.TRANSLATED_EVENTS)
+      const request = store.put(value)
+
+      request.onsuccess = () => resolve()
+      request.onerror = (event) => reject(event)
+    })
+  }
+
+  async getTranslatedEvent(eventId: string, targetLanguage: string): Promise<Event | null> {
+    await this.init()
+    if (!this.db) return null
+
+    const key = `${targetLanguage}_${eventId}`
+
+    return new Promise<Event | null>((resolve, reject) => {
+      const transaction = this.db!.transaction([StoreNames.TRANSLATED_EVENTS], 'readonly')
+      const store = transaction.objectStore(StoreNames.TRANSLATED_EVENTS)
+      const request = store.get(key)
+
+      request.onsuccess = () => {
+        const result: TValue<Event> | undefined = request.result
+        resolve(result?.value ?? null)
+      }
+      request.onerror = (event) => reject(event)
+    })
+  }
+
+  async getAllTranslatedEvents(): Promise<Map<string, Event>> {
+    await this.init()
+    if (!this.db) return new Map()
+
+    return new Promise<Map<string, Event>>((resolve, reject) => {
+      const transaction = this.db!.transaction([StoreNames.TRANSLATED_EVENTS], 'readonly')
+      const store = transaction.objectStore(StoreNames.TRANSLATED_EVENTS)
+      const request = store.getAll()
+
+      request.onsuccess = () => {
+        const results: TValue<Event>[] = request.result
+        const map = new Map<string, Event>()
+        results.forEach((item) => {
+          if (item.value) {
+            map.set(item.key, item.value)
+          }
+        })
+        resolve(map)
+      }
+      request.onerror = (event) => reject(event)
+    })
+  }
+
+  async clearOldTranslatedEvents(maxAgeMs: number = 30 * 24 * 60 * 60 * 1000) {
+    await this.init()
+    if (!this.db) return
+
+    const expirationTimestamp = Date.now() - maxAgeMs
+
+    return new Promise<void>((resolve, reject) => {
+      const transaction = this.db!.transaction([StoreNames.TRANSLATED_EVENTS], 'readwrite')
+      const store = transaction.objectStore(StoreNames.TRANSLATED_EVENTS)
+      const index = store.index('addedAt')
+      const range = IDBKeyRange.upperBound(expirationTimestamp)
+      const request = index.openCursor(range)
+
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result
+        if (cursor) {
+          cursor.delete()
+          cursor.continue()
+        } else {
+          resolve()
+        }
+      }
+
+      request.onerror = (event) => {
+        reject(event)
+      }
+    })
   }
 }
 

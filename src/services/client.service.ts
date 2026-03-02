@@ -39,6 +39,10 @@ class ClientService extends EventTarget {
   pubkey?: string
   private pool: SimplePool
 
+  // User's preferred relays for tiered fetching (read relays first, then favorites)
+  private _preferredReadRelays: string[] = []
+  private _favoriteRelays: string[] = []
+
   private timelines: Record<
     string,
     | {
@@ -57,9 +61,11 @@ class ClientService extends EventTarget {
   )
   private fetchEventFromBigRelaysDataloader = new DataLoader<string, NEvent | undefined>(
     this.fetchEventsFromBigRelays.bind(this),
-    { cache: false, batchScheduleFn: (callback) => setTimeout(callback, 50) }
+    { cache: false, batchScheduleFn: (callback) => setTimeout(callback, 10) }
   )
   private trendingNotesCache: NEvent[] | null = null
+  private trendingNotesCacheTime: number = 0
+  private readonly TRENDING_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
   private userIndex = new FlexSearch.Index({
     tokenize: 'forward'
@@ -80,7 +86,61 @@ class ClientService extends EventTarget {
   }
 
   async init() {
-    await indexedDb.iterateProfileEvents((profileEvent) => this.addUsernameToIndex(profileEvent))
+    // Pre-warm memory cache and search index from IndexedDB stored profiles
+    await indexedDb.iterateProfileEvents((profileEvent) => {
+      // Add to search index
+      this.addUsernameToIndex(profileEvent)
+
+      // Pre-warm memory cache for faster profile lookups
+      const coordinate = getReplaceableCoordinate(kinds.Metadata, profileEvent.pubkey)
+      const existing = this.replaceableEventCacheMap.get(coordinate)
+      if (!existing || existing.created_at < profileEvent.created_at) {
+        this.replaceableEventCacheMap.set(coordinate, profileEvent)
+      }
+
+      // Also prime the dataloader cache
+      this.replaceableEventFromBigRelaysDataloader.prime(
+        { pubkey: profileEvent.pubkey, kind: kinds.Metadata },
+        Promise.resolve(profileEvent)
+      )
+    })
+  }
+
+  /**
+   * Set the user's preferred read relays (from NIP-65 mailbox settings).
+   * These are used as the first tier when fetching metadata.
+   */
+  setPreferredReadRelays(relays: string[]) {
+    this._preferredReadRelays = relays
+  }
+
+  /**
+   * Set the user's favorite relays (discovery/algo relays).
+   * These are used as the second tier when fetching metadata.
+   */
+  setFavoriteRelays(relays: string[]) {
+    this._favoriteRelays = relays
+  }
+
+  /**
+   * Get the tiered relay URLs for metadata fetching.
+   * Order: user's read relays → favorite relays → big relays (primary) → big relays (secondary)
+   */
+  private getMetadataRelayTiers(): { tier1: string[]; tier2: string[]; tier3: string[] } {
+    // Tier 1: User's read relays (most preferred)
+    const tier1 = this._preferredReadRelays.slice(0, 4)
+
+    // Tier 2: Favorite relays (excluding those already in tier 1)
+    const tier1Set = new Set(tier1)
+    const tier2 = this._favoriteRelays
+      .filter(url => !tier1Set.has(url))
+      .slice(0, 4)
+
+    // Tier 3: Big relays as final fallback (excluding those already used)
+    const usedSet = new Set([...tier1, ...tier2])
+    const tier3 = BIG_RELAY_URLS.filter(url => !usedSet.has(url))
+
+    return { tier1, tier2, tier3 }
   }
 
   async determineTargetRelays(
@@ -297,12 +357,16 @@ class ClientService extends EventTarget {
               eventIdSet = new Set(events.map((evt) => evt.id))
 
               if (eosedCount >= threshold) {
+                // Prefetch profiles for aggregated events before rendering
+                this.prefetchProfilesForEvents(events)
                 onEvents(events, eosedCount >= requestCount)
               }
             },
             onNew: (evt) => {
               if (newEventIdSet.has(evt.id)) return
               newEventIdSet.add(evt.id)
+              // Prefetch profile for new event in aggregated timeline
+              this.prefetchProfilesForEvents([evt])
               onNew(evt)
             },
             onClose
@@ -347,7 +411,12 @@ class ClientService extends EventTarget {
         events.push(evt)
       })
     })
-    return events.sort((a, b) => b.created_at - a.created_at).slice(0, limit)
+    const sortedEvents = events.sort((a, b) => b.created_at - a.created_at).slice(0, limit)
+
+    // Prefetch profiles for aggregated events from multiple timelines
+    this.prefetchProfilesForEvents(sortedEvents)
+
+    return sortedEvents
   }
 
   subscribe(
@@ -485,6 +554,69 @@ class ClientService extends EventTarget {
     }
   }
 
+  /**
+   * Prefetch profiles for all pubkeys in the given events.
+   * This ensures profile data is loaded in parallel with notes,
+   * reducing the visual lag when rendering note cards.
+   *
+   * Optimizations:
+   * 1. Check in-memory cache first
+   * 2. Check IndexedDB cache before hitting relays
+   * 3. Only fetch from relays for profiles not in any cache
+   */
+  private async prefetchProfilesForEvents(events: NEvent[]) {
+    if (!events.length) return
+
+    // Extract unique pubkeys from events
+    const uniquePubkeys = new Set<string>()
+    events.forEach((evt) => {
+      uniquePubkeys.add(evt.pubkey)
+      // Also prefetch mentioned users (p tags) for better UX
+      evt.tags.forEach(([tagName, tagValue]) => {
+        if (tagName === 'p' && tagValue && /^[0-9a-f]{64}$/.test(tagValue)) {
+          uniquePubkeys.add(tagValue)
+        }
+      })
+    })
+
+    // Filter out pubkeys already in memory cache
+    const pubkeysToFetch: string[] = []
+    const coordinate = (pubkey: string) => getReplaceableCoordinate(kinds.Metadata, pubkey)
+
+    for (const pubkey of uniquePubkeys) {
+      if (!this.replaceableEventCacheMap.has(coordinate(pubkey))) {
+        pubkeysToFetch.push(pubkey)
+      }
+    }
+
+    if (pubkeysToFetch.length === 0) return
+
+    // Check IndexedDB for cached profiles and warm memory cache
+    const cachedEvents = await indexedDb.getManyReplaceableEvents(pubkeysToFetch, kinds.Metadata)
+    const stillNeedFetch: string[] = []
+
+    pubkeysToFetch.forEach((pubkey, i) => {
+      const cachedEvent = cachedEvents[i]
+      if (cachedEvent) {
+        // Warm the memory cache from IndexedDB
+        this.replaceableEventCacheMap.set(coordinate(pubkey), cachedEvent)
+        // Also prime the dataloader cache
+        this.replaceableEventFromBigRelaysDataloader.prime(
+          { pubkey, kind: kinds.Metadata },
+          Promise.resolve(cachedEvent)
+        )
+      } else if (cachedEvent === undefined) {
+        // undefined means not in cache, null means explicitly not found
+        stillNeedFetch.push(pubkey)
+      }
+    })
+
+    // Only fetch from relays for profiles not in any cache
+    stillNeedFetch.forEach((pubkey) => {
+      this.replaceableEventFromBigRelaysDataloader.load({ pubkey, kind: kinds.Metadata })
+    })
+  }
+
   private async _subscribeTimeline(
     urls: string[],
     filter: TSubRequestFilter, // filter with limit,
@@ -515,6 +647,8 @@ class ClientService extends EventTarget {
         await this.eventDataLoader.loadMany(timeline.refs.slice(0, filter.limit).map(([id]) => id))
       ).filter((evt) => !!evt && !(evt instanceof Error)) as NEvent[]
       if (cachedEvents.length) {
+        // Prefetch profiles for cached events
+        this.prefetchProfilesForEvents(cachedEvents)
         onEvents([...cachedEvents], false)
         since = cachedEvents[0].created_at + 1
       }
@@ -534,6 +668,8 @@ class ClientService extends EventTarget {
         }
         // new event
         if (evt.created_at > eosedAt) {
+          // Prefetch profile for new event
+          that.prefetchProfilesForEvents([evt])
           onNew(evt)
         }
 
@@ -566,11 +702,16 @@ class ClientService extends EventTarget {
         }
         // (algo feeds) no need to sort and cache
         if (!needSort) {
+          // Prefetch profiles for algo feeds
+          that.prefetchProfilesForEvents(events)
           return onEvents([...events], !!eosedAt)
         }
         if (!eosed) {
           events = events.sort((a, b) => b.created_at - a.created_at).slice(0, filter.limit)
-          return onEvents([...events.concat(cachedEvents).slice(0, filter.limit)], false)
+          // Prefetch profiles before rendering
+          const eventsToShow = [...events.concat(cachedEvents).slice(0, filter.limit)]
+          that.prefetchProfilesForEvents(eventsToShow)
+          return onEvents(eventsToShow, false)
         }
 
         events = events.sort((a, b) => b.created_at - a.created_at).slice(0, filter.limit)
@@ -582,6 +723,8 @@ class ClientService extends EventTarget {
             filter,
             urls
           }
+          // Prefetch profiles before rendering
+          that.prefetchProfilesForEvents(events)
           return onEvents([...events], true)
         }
 
@@ -594,11 +737,16 @@ class ClientService extends EventTarget {
         if (events.length >= filter.limit) {
           // if new refs are more than limit, means old refs are too old, replace them
           timeline.refs = newRefs
+          // Prefetch profiles before rendering
+          that.prefetchProfilesForEvents(events)
           onEvents([...events], true)
         } else {
           // merge new refs with old refs
           timeline.refs = newRefs.concat(timeline.refs)
-          onEvents([...events.concat(cachedEvents).slice(0, filter.limit)], true)
+          const eventsToShow = [...events.concat(cachedEvents).slice(0, filter.limit)]
+          // Prefetch profiles before rendering
+          that.prefetchProfilesForEvents(eventsToShow)
+          onEvents(eventsToShow, true)
         }
       },
       onclose: onClose
@@ -629,6 +777,8 @@ class ClientService extends EventTarget {
           ).filter((evt) => !!evt && !(evt instanceof Error)) as NEvent[])
         : []
     if (cachedEvents.length >= limit) {
+      // Prefetch profiles for cached events
+      this.prefetchProfilesForEvents(cachedEvents)
       return cachedEvents
     }
 
@@ -647,7 +797,11 @@ class ClientService extends EventTarget {
         .filter((evt) => evt.created_at < lastRefCreatedAt)
         .map((evt) => [evt.id, evt.created_at] as TTimelineRef)
     )
-    return [...cachedEvents, ...events]
+
+    const allEvents = [...cachedEvents, ...events]
+    // Prefetch profiles for all events being returned
+    this.prefetchProfilesForEvents(allEvents)
+    return allEvents
   }
 
   /** =========== Event =========== */
@@ -716,6 +870,10 @@ class ClientService extends EventTarget {
         this.addEventToCache(evt)
       })
     }
+
+    // Prefetch profiles for fetched events
+    this.prefetchProfilesForEvents(events)
+
     return events
   }
 
@@ -751,35 +909,32 @@ class ClientService extends EventTarget {
   }
 
   async fetchTrendingNotes() {
-    if (this.trendingNotesCache) {
+    const now = Date.now()
+
+    // Check if cache is valid (exists and not expired)
+    if (this.trendingNotesCache && now - this.trendingNotesCacheTime < this.TRENDING_CACHE_DURATION) {
       return this.trendingNotesCache
     }
 
     try {
-      const response = await fetch('https://api.nostr.band/v0/trending/notes')
-      const data = await response.json()
-      const events: NEvent[] = []
-      for (const note of data.notes ?? []) {
-        if (validateEvent(note.event)) {
-          events.push(note.event)
-          this.addEventToCache(note.event)
-          if (note.relays?.length) {
-            note.relays.map((r: string) => {
-              try {
-                const relay = new Relay(r)
-                this.trackEventSeenOn(note.event.id, relay)
-              } catch {
-                return null
-              }
-            })
-          }
-        }
-      }
-      this.trendingNotesCache = events
+      // Fetch trending notes from wss://trending.relays.land
+      const events = await this.query(['wss://trending.relays.land'], {
+        kinds: [1], // text notes
+        limit: 100
+      })
+
+      events.forEach((event) => {
+        this.addEventToCache(event)
+      })
+
+      // Sort by created_at descending (most recent first)
+      this.trendingNotesCache = events.sort((a, b) => b.created_at - a.created_at)
+      this.trendingNotesCacheTime = now
       return this.trendingNotesCache
     } catch (error) {
       console.error('fetchTrendingNotes error', error)
-      return []
+      // Return cached data if available, even if expired, as fallback
+      return this.trendingNotesCache || []
     }
   }
 
@@ -840,11 +995,14 @@ class ClientService extends EventTarget {
     let event: NEvent | undefined
     if (filter.ids?.length) {
       event = await this.fetchEventById(relays, filter.ids[0])
+    } else {
+      // For addressable events (naddr), try big relays first
+      event = await this.tryHarderToFetchEvent(relays.length ? relays : BIG_RELAY_URLS, filter)
     }
 
     if (!event && author) {
       const relayList = await this.fetchRelayList(author)
-      event = await this.tryHarderToFetchEvent(relayList.write.slice(0, 5), filter)
+      event = await this.tryHarderToFetchEvent(relayList.write.slice(0, 5), filter, true)
     }
 
     if (event && event.id !== id) {
@@ -1081,6 +1239,15 @@ class ClientService extends EventTarget {
     await this.updateReplaceableEventFromBigRelaysCache(event)
   }
 
+  getCachedProfile(pubkey: string): TProfile | null {
+    const coordinate = getReplaceableCoordinate(kinds.Metadata, pubkey)
+    const profileEvent = this.replaceableEventCacheMap.get(coordinate)
+    if (profileEvent) {
+      return getProfileFromEvent(profileEvent)
+    }
+    return null
+  }
+
   /** =========== Relay list =========== */
 
   async fetchRelayListEvent(pubkey: string) {
@@ -1123,7 +1290,7 @@ class ClientService extends EventTarget {
     NEvent | null,
     string
   >(this.replaceableEventFromBigRelaysBatchLoadFn.bind(this), {
-    batchScheduleFn: (callback) => setTimeout(callback, 50),
+    batchScheduleFn: (callback) => setTimeout(callback, 50), // Increased from 10ms to batch more requests
     maxBatchSize: 500,
     cacheKeyFn: ({ pubkey, kind }) => `${pubkey}:${kind}`
   })
@@ -1140,19 +1307,54 @@ class ClientService extends EventTarget {
     })
 
     const eventsMap = new Map<string, NEvent>()
+    const { tier1, tier2, tier3 } = this.getMetadataRelayTiers()
+
+    // Tiered relay fetching: read relays → favorites → big relays
     await Promise.allSettled(
       Array.from(groups.entries()).map(async ([kind, pubkeys]) => {
-        const events = await this.query(BIG_RELAY_URLS, {
-          authors: pubkeys,
-          kinds: [kind]
-        })
+        let remainingPubkeys = [...pubkeys]
 
-        for (const event of events) {
-          const key = `${event.pubkey}:${event.kind}`
-          const existing = eventsMap.get(key)
-          if (!existing || existing.created_at < event.created_at) {
-            eventsMap.set(key, event)
+        // Helper to process events from a tier
+        const processEvents = (events: NEvent[]) => {
+          const foundPubkeys = new Set<string>()
+          for (const event of events) {
+            const key = `${event.pubkey}:${event.kind}`
+            const existing = eventsMap.get(key)
+            if (!existing || existing.created_at < event.created_at) {
+              eventsMap.set(key, event)
+              foundPubkeys.add(event.pubkey)
+            }
           }
+          return foundPubkeys
+        }
+
+        // Tier 1: User's read relays (highest priority)
+        if (tier1.length > 0 && remainingPubkeys.length > 0) {
+          const tier1Events = await this.query(tier1, {
+            authors: remainingPubkeys,
+            kinds: [kind]
+          })
+          const foundInTier1 = processEvents(tier1Events)
+          remainingPubkeys = remainingPubkeys.filter((p) => !foundInTier1.has(p))
+        }
+
+        // Tier 2: Favorite relays
+        if (tier2.length > 0 && remainingPubkeys.length > 0) {
+          const tier2Events = await this.query(tier2, {
+            authors: remainingPubkeys,
+            kinds: [kind]
+          })
+          const foundInTier2 = processEvents(tier2Events)
+          remainingPubkeys = remainingPubkeys.filter((p) => !foundInTier2.has(p))
+        }
+
+        // Tier 3: Big relays as final fallback
+        if (tier3.length > 0 && remainingPubkeys.length > 0) {
+          const tier3Events = await this.query(tier3, {
+            authors: remainingPubkeys,
+            kinds: [kind]
+          })
+          processEvents(tier3Events)
         }
       })
     )
@@ -1309,6 +1511,11 @@ class ClientService extends EventTarget {
     return await this.fetchReplaceableEvent(pubkey, kinds.Mutelist)
   }
 
+  async clearMuteListCache(pubkey: string) {
+    this.replaceableEventDataLoader.clear({ pubkey, kind: kinds.Mutelist })
+    await indexedDb.deleteReplaceableEvent(pubkey, kinds.Mutelist)
+  }
+
   async fetchBookmarkListEvent(pubkey: string) {
     return this.fetchReplaceableEvent(pubkey, kinds.BookmarkList)
   }
@@ -1324,6 +1531,18 @@ class ClientService extends EventTarget {
 
   async fetchPinListEvent(pubkey: string) {
     return this.fetchReplaceableEvent(pubkey, kinds.Pinlist)
+  }
+
+  async fetchStarterPackEvents(pubkey: string) {
+    const events = await this.pool.querySync(BIG_RELAY_URLS, {
+      kinds: [ExtendedKind.STARTER_PACK],
+      authors: [pubkey]
+    })
+    return events.sort((a, b) => b.created_at - a.created_at)
+  }
+
+  async fetchStarterPackEvent(pubkey: string, dTag: string) {
+    return await this.fetchReplaceableEvent(pubkey, ExtendedKind.STARTER_PACK, dTag)
   }
 
   async updateBlossomServerListEventCache(evt: NEvent) {

@@ -10,48 +10,55 @@ import {
 import { isTouchDevice } from '@/lib/utils'
 import { useNostr } from '@/providers/NostrProvider'
 import { useReply } from '@/providers/ReplyProvider'
-import postEditorCache from '@/services/post-editor-cache.service'
+import { useNoteExpiration } from '@/providers/NoteExpirationProvider'
+import postEditorCache, { ImageAttachment } from '@/services/post-editor-cache.service'
 import { TPollCreateData } from '@/types'
-import { ImageUp, ListTodo, LoaderCircle, Settings, Smile, X } from 'lucide-react'
+import { ImagePlay, ImageUp, ListTodo, LoaderCircle, Settings, Smile, X, HelpCircle } from 'lucide-react'
 import { Event, kinds } from 'nostr-tools'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import EmojiPickerDialog from '../EmojiPickerDialog'
+import GifPicker from '../GifPicker'
+import ImagePreview from './ImagePreview'
 import Mentions from './Mentions'
 import PollEditor from './PollEditor'
 import PostOptions from './PostOptions'
-import PostRelaySelector from './PostRelaySelector'
 import PostTextarea, { TPostTextareaHandle } from './PostTextarea'
 import Uploader from './Uploader'
+import ComposerHelpDialog from './ComposerHelpDialog'
 
 export default function PostContent({
   defaultContent = '',
   parentEvent,
   close,
-  openFrom
+  openFrom,
+  isProtectedEvent,
+  additionalRelayUrls
 }: {
   defaultContent?: string
   parentEvent?: Event
   close: () => void
   openFrom?: string[]
+  isProtectedEvent: boolean
+  additionalRelayUrls: string[]
 }) {
   const { t } = useTranslation()
   const { pubkey, publish, checkLogin } = useNostr()
   const { addReplies } = useReply()
+  const { defaultExpiration, getExpirationTimestamp } = useNoteExpiration()
   const [text, setText] = useState('')
   const textareaRef = useRef<TPostTextareaHandle>(null)
   const [posting, setPosting] = useState(false)
   const [uploadProgresses, setUploadProgresses] = useState<
     { file: File; progress: number; cancel: () => void }[]
   >([])
+  const [images, setImages] = useState<ImageAttachment[]>([])
   const [showMoreOptions, setShowMoreOptions] = useState(false)
   const [addClientTag, setAddClientTag] = useState(false)
   const [mentions, setMentions] = useState<string[]>([])
   const [isNsfw, setIsNsfw] = useState(false)
   const [isPoll, setIsPoll] = useState(false)
-  const [isProtectedEvent, setIsProtectedEvent] = useState(false)
-  const [additionalRelayUrls, setAdditionalRelayUrls] = useState<string[]>([])
   const [pollCreateData, setPollCreateData] = useState<TPollCreateData>({
     isMultipleChoice: false,
     options: ['', ''],
@@ -60,6 +67,7 @@ export default function PostContent({
   })
   const [minPow, setMinPow] = useState(0)
   const isFirstRender = useRef(true)
+
   const canPost = useMemo(() => {
     return (
       !!pubkey &&
@@ -99,6 +107,7 @@ export default function PostContent({
           }
         )
         setAddClientTag(cachedSettings.addClientTag ?? false)
+        setImages(cachedSettings.images ?? [])
       }
       return
     }
@@ -108,10 +117,11 @@ export default function PostContent({
         isNsfw,
         isPoll,
         pollCreateData,
-        addClientTag
+        addClientTag,
+        images
       }
     )
-  }, [defaultContent, parentEvent, isNsfw, isPoll, pollCreateData, addClientTag])
+  }, [defaultContent, parentEvent, isNsfw, isPoll, pollCreateData, addClientTag, images])
 
   const post = async (e?: React.MouseEvent) => {
     e?.stopPropagation()
@@ -120,24 +130,49 @@ export default function PostContent({
 
       setPosting(true)
       try {
+        // Combine text with image URLs at the end
+        let contentWithImages = text.trim()
+        if (images.length > 0) {
+          const imageUrls = images.map((img) => img.url).join('\n')
+          contentWithImages = contentWithImages ? `${contentWithImages}\n${imageUrls}` : imageUrls
+        }
+
         const draftEvent =
           parentEvent && parentEvent.kind !== kinds.ShortTextNote
-            ? await createCommentDraftEvent(text, parentEvent, mentions, {
+            ? await createCommentDraftEvent(contentWithImages, parentEvent, mentions, {
                 addClientTag,
                 protectedEvent: isProtectedEvent,
                 isNsfw
               })
             : isPoll
-              ? await createPollDraftEvent(pubkey!, text, mentions, pollCreateData, {
+              ? await createPollDraftEvent(pubkey!, contentWithImages, mentions, pollCreateData, {
                   addClientTag,
                   isNsfw
                 })
-              : await createShortTextNoteDraftEvent(text, mentions, {
+              : await createShortTextNoteDraftEvent(contentWithImages, mentions, {
                   parentEvent,
                   addClientTag,
                   protectedEvent: isProtectedEvent,
                   isNsfw
                 })
+
+        // Add imeta tags for images with alt text
+        if (images.length > 0) {
+          images.forEach((img) => {
+            const imetaTags: string[] = ['imeta', `url ${img.url}`]
+            if (img.alt) {
+              imetaTags.push(`alt ${img.alt}`)
+            }
+            // Add the tag as a single string with space-separated key-value pairs
+            draftEvent.tags.push(imetaTags)
+          })
+        }
+
+        // Add expiration tag if not "never"
+        const expirationTimestamp = getExpirationTimestamp(defaultExpiration)
+        if (expirationTimestamp !== null) {
+          draftEvent.tags.push(['expiration', String(expirationTimestamp)])
+        }
 
         const newEvent = await publish(draftEvent, {
           specifiedRelayUrls: isProtectedEvent ? additionalRelayUrls : undefined,
@@ -185,12 +220,45 @@ export default function PostContent({
     setUploadProgresses((prev) => prev.filter((item) => item.file !== file))
   }
 
+  const handleImageUploadSuccess = useCallback((url: string) => {
+    // Check if it's an image URL (not video/audio)
+    const isImage =
+      url.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$/i) ||
+      url.includes('image') ||
+      url.includes('nostr.build')
+
+    if (isImage) {
+      setImages((prev) => {
+        const newImages = [...prev, { url }]
+        // Scroll to bottom after adding image (small delay for render)
+        setTimeout(() => {
+          const scrollArea = document.querySelector('[data-radix-scroll-area-viewport]')
+          if (scrollArea) {
+            scrollArea.scrollTop = scrollArea.scrollHeight
+          }
+        }, 100)
+        return newImages
+      })
+    } else {
+      // For non-images (video/audio), add to textarea as before
+      textareaRef.current?.appendText(url, true)
+    }
+  }, [])
+
+  const handleRemoveImage = useCallback((index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const handleUpdateImageAlt = useCallback((index: number, alt: string) => {
+    setImages((prev) => prev.map((img, i) => (i === index ? { ...img, alt } : img)))
+  }, [])
+
   return (
     <div className="space-y-2">
       {parentEvent && (
         <ScrollArea className="flex max-h-48 flex-col overflow-y-auto rounded-lg border bg-muted/40">
           <div className="p-2 sm:p-3 pointer-events-none">
-            <Note size="small" event={parentEvent} hideParentNotePreview />
+            <Note size="small" event={parentEvent} hideParentNotePreview filterMutedNotes={false} />
           </div>
         </ScrollArea>
       )}
@@ -201,10 +269,14 @@ export default function PostContent({
         defaultContent={defaultContent}
         parentEvent={parentEvent}
         onSubmit={() => post()}
-        className={isPoll ? 'min-h-20' : 'min-h-52'}
+        className={isPoll ? 'min-h-20' : 'min-h-32'}
         onUploadStart={handleUploadStart}
         onUploadProgress={handleUploadProgress}
         onUploadEnd={handleUploadEnd}
+        onImageUploadSuccess={handleImageUploadSuccess}
+        images={images}
+        onRemoveImage={handleRemoveImage}
+        onUpdateImageAlt={handleUpdateImageAlt}
       />
       {isPoll && (
         <PollEditor
@@ -240,29 +312,31 @@ export default function PostContent({
             </button>
           </div>
         ))}
-      {!isPoll && (
-        <PostRelaySelector
-          setIsProtectedEvent={setIsProtectedEvent}
-          setAdditionalRelayUrls={setAdditionalRelayUrls}
-          parentEvent={parentEvent}
-          openFrom={openFrom}
-        />
-      )}
+
       <div className="flex items-center justify-between">
         <div className="flex gap-2 items-center">
           <Uploader
             onUploadSuccess={({ url }) => {
-              textareaRef.current?.appendText(url, true)
+              handleImageUploadSuccess(url)
             }}
             onUploadStart={handleUploadStart}
             onUploadEnd={handleUploadEnd}
             onProgress={handleUploadProgress}
             accept="image/*,video/*,audio/*"
           >
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="bg-foreground/5 hover:bg-foreground/10">
               <ImageUp />
             </Button>
           </Uploader>
+          <GifPicker
+            onGifSelect={(url) => {
+              setImages((prev) => [...prev, { url }])
+            }}
+          >
+            <Button variant="ghost" size="icon" className="bg-foreground/5 hover:bg-foreground/10">
+              <ImagePlay />
+            </Button>
+          </GifPicker>
           {/* I'm not sure why, but after triggering the virtual keyboard,
               opening the emoji picker drawer causes an issue,
               the emoji I tap isn't the one that gets inserted. */}
@@ -273,7 +347,7 @@ export default function PostContent({
                 textareaRef.current?.insertEmoji(emoji)
               }}
             >
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="bg-foreground/5 hover:bg-foreground/10">
                 <Smile />
               </Button>
             </EmojiPickerDialog>
@@ -283,7 +357,7 @@ export default function PostContent({
               variant="ghost"
               size="icon"
               title={t('Create Poll')}
-              className={isPoll ? 'bg-accent' : ''}
+              className={isPoll ? 'bg-accent' : 'bg-foreground/5 hover:bg-foreground/10'}
               onClick={handlePollToggle}
             >
               <ListTodo />
@@ -292,11 +366,21 @@ export default function PostContent({
           <Button
             variant="ghost"
             size="icon"
-            className={showMoreOptions ? 'bg-accent' : ''}
+            className={showMoreOptions ? 'bg-accent' : 'bg-foreground/5 hover:bg-foreground/10'}
             onClick={() => setShowMoreOptions((pre) => !pre)}
           >
             <Settings />
           </Button>
+          <ComposerHelpDialog>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground/60 hover:text-muted-foreground hover:bg-foreground/5"
+              title={t('Composer Help')}
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+          </ComposerHelpDialog>
         </div>
         <div className="flex gap-2 items-center">
           <Mentions
@@ -315,8 +399,14 @@ export default function PostContent({
             >
               {t('Cancel')}
             </Button>
-            <Button type="submit" disabled={!canPost} onClick={post}>
-              {posting && <LoaderCircle className="animate-spin" />}
+            <Button
+              type="submit"
+              disabled={!canPost}
+              onClick={post}
+              aria-busy={posting}
+              aria-label={posting ? (parentEvent ? t('Replying...') : t('Posting...')) : (parentEvent ? t('Reply') : t('Post'))}
+            >
+              {posting && <LoaderCircle className="animate-spin" aria-hidden="true" />}
               {parentEvent ? t('Reply') : t('Post')}
             </Button>
           </div>

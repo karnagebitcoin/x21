@@ -4,6 +4,7 @@ import { useContentPolicy } from '@/providers/ContentPolicyProvider'
 import { useMuteList } from '@/providers/MuteListProvider'
 import { useNostr } from '@/providers/NostrProvider'
 import { useUserTrust } from '@/providers/UserTrustProvider'
+import client from '@/services/client.service'
 import { Event, kinds } from 'nostr-tools'
 import { useMemo } from 'react'
 import { MentionNotification } from './MentionNotification'
@@ -20,9 +21,11 @@ export function NotificationItem({
   isNew?: boolean
 }) {
   const { pubkey } = useNostr()
-  const { mutePubkeySet } = useMuteList()
+  const { mutePubkeySet, getMutedDomains, getMutedWords } = useMuteList()
   const { hideContentMentioningMutedUsers, hideNotificationsFromMutedUsers } = useContentPolicy()
   const { hideUntrustedNotifications, isUserTrusted } = useUserTrust()
+  const mutedDomains = getMutedDomains()
+  const mutedWords = getMutedWords()
   const canShow = useMemo(() => {
     return notificationFilter(notification, {
       pubkey,
@@ -30,7 +33,10 @@ export function NotificationItem({
       hideContentMentioningMutedUsers,
       hideNotificationsFromMutedUsers,
       hideUntrustedNotifications,
-      isUserTrusted
+      isUserTrusted,
+      mutedDomains,
+      mutedWords,
+      getProfile: (pubkey: string) => client.getCachedProfile(pubkey)
     })
   }, [
     notification,
@@ -38,7 +44,9 @@ export function NotificationItem({
     hideContentMentioningMutedUsers,
     hideNotificationsFromMutedUsers,
     hideUntrustedNotifications,
-    isUserTrusted
+    isUserTrusted,
+    mutedDomains,
+    mutedWords
   ])
   if (!canShow) return null
 

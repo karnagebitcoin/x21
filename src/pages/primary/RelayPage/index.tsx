@@ -1,8 +1,10 @@
 import PinButton from '@/components/PinButton'
 import Relay from '@/components/Relay'
 import PrimaryPageLayout from '@/layouts/PrimaryPageLayout'
+import { useScreenSize } from '@/providers/ScreenSizeProvider'
+
 import { normalizeUrl, simplifyUrl } from '@/lib/url'
-import { Server } from 'lucide-react'
+import { Box } from 'lucide-react'
 import { forwardRef, useMemo } from 'react'
 
 const RelayPage = forwardRef(({ url }: { url?: string }, ref) => {
@@ -23,13 +25,17 @@ RelayPage.displayName = 'RelayPage'
 export default RelayPage
 
 function RelayPageTitlebar({ url }: { url?: string }) {
+  const { isSmallScreen } = useScreenSize()
+
   return (
     <div className="flex items-center justify-between gap-2 px-3 h-full">
-      <div className="flex items-center gap-2 min-w-0">
-        <Server className="shrink-0" />
-        <div className="text-lg font-semibold truncate" style={{ fontSize: `calc(var(--font-size, 14px) * 1.286)` }}>{simplifyUrl(url ?? '')}</div>
+      <div className="flex items-center gap-2 min-w-0 [&_svg]:text-muted-foreground">
+        <Box className="shrink-0" />
+        <div className="text-lg font-semibold truncate" style={{ fontSize: `var(--title-font-size, 18px)` }}>{simplifyUrl(url ?? '')}</div>
       </div>
-      {url && <PinButton column={{ type: 'relay', props: { url } }} />}
+      <div className="flex gap-1 items-center">
+        {url && <PinButton column={{ type: 'relay', props: { url } }} size="titlebar-icon" />}
+      </div>
     </div>
   )
 }

@@ -65,7 +65,7 @@ export default function ChargeZapButton({ event }: { event: Event }) {
   const { t } = useTranslation()
   const { checkLogin, pubkey } = useNostr()
   const noteStats = useNoteStatsById(event.id)
-  const { chargeZapLimit, zapSound } = useZap()
+  const { chargeZapLimit, zapSound, isWalletConnected } = useZap()
   const [isCharging, setIsCharging] = useState(false)
   const [chargeAmount, setChargeAmount] = useState(0)
   const [zapping, setZapping] = useState(false)
@@ -131,8 +131,8 @@ export default function ChargeZapButton({ event }: { event: Event }) {
         throw new Error('You need to be logged in to zap')
       }
 
-      // Play zap sound
-      if (zapSound !== ZAP_SOUNDS.NONE) {
+      // Play zap sound (only if wallet is connected)
+      if (isWalletConnected && zapSound !== ZAP_SOUNDS.NONE) {
         let soundToPlay = zapSound
         if (zapSound === ZAP_SOUNDS.RANDOM) {
           const randomIndex = Math.floor(Math.random() * ACTUAL_ZAP_SOUNDS.length)

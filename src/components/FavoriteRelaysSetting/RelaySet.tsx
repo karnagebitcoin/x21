@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import DrawerMenuItem from '../DrawerMenuItem'
 import RelayUrls from './RelayUrl'
 import { useRelaySetsSettingComponent } from './provider'
@@ -142,6 +143,7 @@ function RelaySetOptions({ relaySet }: { relaySet: TRelaySet }) {
   const { isSmallScreen } = useScreenSize()
   const { deleteRelaySet } = useFavoriteRelays()
   const { setRenamingRelaySetId } = useRelaySetsSettingComponent()
+  const [copied, setCopied] = useState(false)
 
   const trigger = (
     <Button variant="ghost" size="icon">
@@ -157,6 +159,9 @@ function RelaySetOptions({ relaySet }: { relaySet: TRelaySet }) {
     navigator.clipboard.writeText(
       `https://jumble.social/?${relaySet.relayUrls.map((url) => 'r=' + url).join('&')}`
     )
+    toast.success(t('Share link copied to clipboard'))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   if (isSmallScreen) {

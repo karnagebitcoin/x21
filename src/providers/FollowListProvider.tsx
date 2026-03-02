@@ -8,6 +8,7 @@ import { useNostr } from './NostrProvider'
 type TFollowListContext = {
   followings: string[]
   follow: (pubkey: string) => Promise<void>
+  followMultiple: (pubkeys: string[]) => Promise<void>
   unfollow: (pubkey: string) => Promise<void>
 }
 
@@ -48,6 +49,42 @@ export function FollowListProvider({ children }: { children: React.ReactNode }) 
     await updateFollowListEvent(newFollowListEvent)
   }
 
+  const followMultiple = async (pubkeys: string[]) => {
+    if (!accountPubkey || pubkeys.length === 0) return
+
+    const followListEvent = await client.fetchFollowListEvent(accountPubkey)
+    if (!followListEvent) {
+      const result = confirm(t('FollowListNotFoundConfirmation'))
+
+      if (!result) {
+        return
+      }
+    }
+
+    // Get existing p tags
+    const existingPubkeys = followListEvent?.tags
+      .filter(([tagName]) => tagName === 'p')
+      .map(([, pubkey]) => pubkey) || []
+
+    // Filter out already followed pubkeys
+    const newPubkeys = pubkeys.filter(pk => !existingPubkeys.includes(pk))
+
+    if (newPubkeys.length === 0) {
+      return // All already followed
+    }
+
+    // Create new p tags for new pubkeys
+    const newPTags = newPubkeys.map(pk => ['p', pk] as [string, string])
+
+    // Combine existing tags with new p tags
+    const newFollowListDraftEvent = createFollowListDraftEvent(
+      (followListEvent?.tags ?? []).concat(newPTags),
+      followListEvent?.content
+    )
+    const newFollowListEvent = await publish(newFollowListDraftEvent)
+    await updateFollowListEvent(newFollowListEvent)
+  }
+
   const unfollow = async (pubkey: string) => {
     if (!accountPubkey) return
 
@@ -67,6 +104,7 @@ export function FollowListProvider({ children }: { children: React.ReactNode }) 
       value={{
         followings,
         follow,
+        followMultiple,
         unfollow
       }}
     >

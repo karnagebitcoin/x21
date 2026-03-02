@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import NotFound from '../NotFound'
 
-export default function Relay({ url, className }: { url?: string; className?: string }) {
+export default function Relay({ url, className, isInDeckView = false }: { url?: string; className?: string; isInDeckView?: boolean }) {
   const { t } = useTranslation()
   const { addRelayUrls, removeRelayUrls } = useCurrentRelays()
   const normalizedUrl = useMemo(() => (url ? normalizeUrl(url) : undefined), [url])
@@ -56,6 +56,7 @@ export default function Relay({ url, className }: { url?: string; className?: st
           { urls: [normalizedUrl], filter: debouncedInput ? { search: debouncedInput } : {} }
         ]}
         showRelayCloseReason
+        isInDeckView={isInDeckView}
       />
     </div>
   )

@@ -1,4 +1,4 @@
-import { getNoteBech32Id, isProtectedEvent } from '@/lib/event'
+import { getNoteBech32Id, isProtectedEvent, isReplyNoteEvent, getParentEventHexId, getRootEventHexId } from '@/lib/event'
 import { toNjump } from '@/lib/link'
 import { pubkeyToNpub } from '@/lib/pubkey'
 import { simplifyUrl } from '@/lib/url'
@@ -8,6 +8,8 @@ import { useMuteList } from '@/providers/MuteListProvider'
 import { useNostr } from '@/providers/NostrProvider'
 import { usePinList } from '@/providers/PinListProvider'
 import { useWidgets } from '@/providers/WidgetsProvider'
+import { useAI } from '@/providers/AIProvider'
+import { usePinnedReplies } from '@/providers/PinnedRepliesProvider'
 import client from '@/services/client.service'
 import {
   Bell,
@@ -21,7 +23,8 @@ import {
   StickyNote,
   Trash2,
   TriangleAlert,
-  PanelRightClose
+  PanelRightClose,
+  MessageSquare
 } from 'lucide-react'
 import { Event, kinds } from 'nostr-tools'
 import { useMemo } from 'react'
@@ -71,11 +74,30 @@ export function useMenuActions({
   const relayUrls = useMemo(() => {
     return Array.from(new Set(currentBrowsingRelayUrls.concat(favoriteRelays)))
   }, [currentBrowsingRelayUrls, favoriteRelays])
-  const { mutePubkeyPublicly, mutePubkeyPrivately, unmutePubkey, mutePubkeySet } = useMuteList()
+  const { mutePubkey, unmutePubkey, mutePubkeySet } = useMuteList()
   const { pinnedEventHexIdSet, pin, unpin } = usePinList()
-  const { pinNoteWidget, unpinNoteByEventId, isPinned: isWidgetPinned } = useWidgets()
+  const { pinNoteWidget, unpinNoteByEventId, isPinned: isWidgetPinned, openAIPrompt, closeAIPromptByEventId, isAIPromptOpen } = useWidgets()
+  const { isConfigured: isAIConfigured } = useAI()
+  const { isReplyPinned, pinReply, unpinReply } = usePinnedReplies()
   const isMuted = useMemo(() => mutePubkeySet.has(event.pubkey), [mutePubkeySet, event])
   const isPinnedToSidebar = useMemo(() => isWidgetPinned(event.id), [isWidgetPinned, event.id])
+  const isAIPromptOpenForNote = useMemo(() => isAIPromptOpen(event.id), [isAIPromptOpen, event.id])
+
+  // Check if this is a reply and get the thread ID
+  const isReply = useMemo(() => isReplyNoteEvent(event), [event])
+  const threadId = useMemo(() => {
+    if (!isReply) return null
+    // Use root event ID as the thread identifier
+    const rootId = getRootEventHexId(event)
+    if (rootId) return rootId
+    // Fallback to parent if no root
+    const parentId = getParentEventHexId(event)
+    return parentId || null
+  }, [isReply, event])
+  const isPinnedToTop = useMemo(() => {
+    if (!threadId) return false
+    return isReplyPinned(threadId, event.id)
+  }, [threadId, event.id, isReplyPinned])
 
   const broadcastSubMenu: SubMenuAction[] = useMemo(() => {
     const items = []
@@ -170,24 +192,43 @@ export function useMenuActions({
       {
         icon: Copy,
         label: t('Copy event ID'),
-        onClick: () => {
-          navigator.clipboard.writeText(getNoteBech32Id(event))
+        onClick: async () => {
+          try {
+            await navigator.clipboard.writeText(getNoteBech32Id(event))
+            toast.success('Event ID copied')
+          } catch (error) {
+            console.error('Failed to copy event ID:', error)
+            toast.error('Failed to copy')
+          }
           closeDrawer()
         }
       },
       {
         icon: Copy,
         label: t('Copy user ID'),
-        onClick: () => {
-          navigator.clipboard.writeText(pubkeyToNpub(event.pubkey) ?? '')
+        onClick: async () => {
+          try {
+            const npub = pubkeyToNpub(event.pubkey) ?? ''
+            await navigator.clipboard.writeText(npub)
+            toast.success('User ID copied')
+          } catch (error) {
+            console.error('Failed to copy user ID:', error)
+            toast.error('Failed to copy')
+          }
           closeDrawer()
         }
       },
       {
         icon: Link,
         label: t('Copy share link'),
-        onClick: () => {
-          navigator.clipboard.writeText(toNjump(getNoteBech32Id(event)))
+        onClick: async () => {
+          try {
+            await navigator.clipboard.writeText(toNjump(getNoteBech32Id(event)))
+            toast.success('Share link copied')
+          } catch (error) {
+            console.error('Failed to copy share link:', error)
+            toast.error('Failed to copy')
+          }
           closeDrawer()
         }
       },
@@ -227,6 +268,25 @@ export function useMenuActions({
       })
     }
 
+    // Pin to top of thread option (only for replies)
+    if (isReply && threadId) {
+      actions.push({
+        icon: isPinnedToTop ? PinOff : Pin,
+        label: isPinnedToTop ? t('Unpin from top') : t('Pin to top'),
+        onClick: () => {
+          closeDrawer()
+          if (isPinnedToTop) {
+            unpinReply(threadId, event.id)
+            toast.success('Reply unpinned from top')
+          } else {
+            pinReply(threadId, event.id)
+            toast.success('Reply pinned to top')
+          }
+        },
+        separator: event.pubkey === pubkey && event.kind === kinds.ShortTextNote ? false : true
+      })
+    }
+
     // Pin to sidebar option (available for all users)
     if (pubkey) {
       actions.push({
@@ -236,13 +296,31 @@ export function useMenuActions({
           closeDrawer()
           if (isPinnedToSidebar) {
             unpinNoteByEventId(event.id)
-            toast.success(t('Note unpinned from sidebar'))
+            toast.success('Note unpinned from sidebar')
           } else {
             pinNoteWidget(event.id)
-            toast.success(t('Note pinned to sidebar'))
+            toast.success('Note pinned to sidebar')
           }
         },
-        separator: event.pubkey === pubkey && event.kind === kinds.ShortTextNote ? false : true
+        separator: !isReply || !threadId
+      })
+    }
+
+    // AI Prompt option (available when AI is configured)
+    if (pubkey && isAIConfigured) {
+      actions.push({
+        icon: MessageSquare,
+        label: isAIPromptOpenForNote ? t('Close AI Prompt') : t('AI Prompt'),
+        onClick: () => {
+          closeDrawer()
+          if (isAIPromptOpenForNote) {
+            closeAIPromptByEventId(event.id)
+            toast.success('AI Prompt closed')
+          } else {
+            openAIPrompt(event.id)
+            toast.success('AI Prompt opened')
+          }
+        }
       })
     }
 
@@ -279,32 +357,23 @@ export function useMenuActions({
           onClick: () => {
             closeDrawer()
             unmutePubkey(event.pubkey)
+            toast.success('User unmuted')
           },
           className: 'text-destructive focus:text-destructive',
           separator: true
         })
       } else {
-        actions.push(
-          {
-            icon: BellOff,
-            label: t('Mute user privately'),
-            onClick: () => {
-              closeDrawer()
-              mutePubkeyPrivately(event.pubkey)
-            },
-            className: 'text-destructive focus:text-destructive',
-            separator: true
+        actions.push({
+          icon: BellOff,
+          label: t('Mute user'),
+          onClick: () => {
+            closeDrawer()
+            mutePubkey(event.pubkey)
+            toast.success('User muted')
           },
-          {
-            icon: BellOff,
-            label: t('Mute user publicly'),
-            onClick: () => {
-              closeDrawer()
-              mutePubkeyPublicly(event.pubkey)
-            },
-            className: 'text-destructive focus:text-destructive'
-          }
-        )
+          className: 'text-destructive focus:text-destructive',
+          separator: true
+        })
       }
     }
 
@@ -333,8 +402,7 @@ export function useMenuActions({
     closeDrawer,
     showSubMenuActions,
     setIsRawEventDialogOpen,
-    mutePubkeyPrivately,
-    mutePubkeyPublicly,
+    mutePubkey,
     unmutePubkey
   ])
 

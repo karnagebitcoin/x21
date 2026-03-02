@@ -57,6 +57,43 @@ export function isMentioningMutedUsers(event: Event, mutePubkeySet: Set<string>)
   return false
 }
 
+export function isFromMutedDomain(nip05: string | undefined, mutedDomains: string[]): boolean {
+  if (!nip05 || mutedDomains.length === 0) return false
+
+  const domain = nip05.split('@')[1]?.toLowerCase()
+  if (!domain) return false
+
+  // Check for exact match or if the domain ends with any muted domain
+  // This allows partial matching, e.g., "mostr.pub" will match "mastodon-social.mostr.pub"
+  return mutedDomains.some(mutedDomain => {
+    const normalizedMutedDomain = mutedDomain.toLowerCase()
+    // Exact match
+    if (domain === normalizedMutedDomain) return true
+    // Subdomain match: check if domain ends with .mutedDomain
+    if (domain.endsWith('.' + normalizedMutedDomain)) return true
+    return false
+  })
+}
+
+export function getHashtagCount(event: Event): number {
+  return event.tags.filter(([tagName]) => tagName === 't').length
+}
+
+export function hasExcessiveHashtags(event: Event, maxHashtags: number): boolean {
+  if (maxHashtags === 0) return false // 0 means no filtering
+  return getHashtagCount(event) >= maxHashtags
+}
+
+export function getMentionCount(event: Event): number {
+  return event.tags.filter(([tagName]) => tagName === 'p').length
+}
+
+export function hasExcessiveMentions(event: Event, maxMentions: number): boolean {
+  if (maxMentions === 0) return false // 0 means no filtering
+  const mentionCount = getMentionCount(event)
+  return mentionCount >= maxMentions
+}
+
 export function getParentETag(event?: Event) {
   if (!event) return undefined
 
@@ -319,4 +356,127 @@ export function getRetainedEvent(a: Event, b: Event): Event {
     return a
   }
   return b
+}
+
+// Check if an event contains media (images, videos, or imeta tags)
+export function hasMedia(event: Event): boolean {
+  // Check for imeta tags (NIP-92)
+  if (event.tags.some(([tagName]) => tagName === 'imeta')) {
+    return true
+  }
+
+  // Check content for media URLs
+  const URL_REGEX = /https?:\/\/[\w\p{L}\p{N}\p{M}&.\-/?=#@%+_:!~*]+[^\s.,;:'")\]}!?，。；："'！？】）]/gu
+  const urls = event.content.match(URL_REGEX) || []
+
+  for (const url of urls) {
+    try {
+      const pathname = new URL(url).pathname.toLowerCase()
+
+      // Image extensions
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.svg']
+      if (imageExtensions.some((ext) => pathname.endsWith(ext))) {
+        return true
+      }
+
+      // Video/audio extensions
+      const mediaExtensions = [
+        '.mp4',
+        '.webm',
+        '.ogg',
+        '.mov',
+        '.mp3',
+        '.wav',
+        '.flac',
+        '.aac',
+        '.m4a',
+        '.opus',
+        '.wma'
+      ]
+      if (mediaExtensions.some((ext) => pathname.endsWith(ext))) {
+        return true
+      }
+    } catch {
+      // Invalid URL, skip
+      continue
+    }
+  }
+
+  return false
+}
+
+export function extractMediaUrls(event: Event): { images: string[]; videos: string[] } {
+  const images: string[] = []
+  const videos: string[] = []
+  const urlSet = new Set<string>()
+
+  // Extract from imeta tags (NIP-92)
+  event.tags.forEach((tag) => {
+    if (tag[0] === 'imeta') {
+      const urlTag = tag.find((t) => t.startsWith('url '))
+      if (urlTag) {
+        const url = urlTag.replace('url ', '')
+        if (!urlSet.has(url)) {
+          urlSet.add(url)
+          const mimeTag = tag.find((t) => t.startsWith('m '))
+          if (mimeTag) {
+            const mime = mimeTag.replace('m ', '')
+            if (mime.startsWith('video/')) {
+              videos.push(url)
+            } else if (mime.startsWith('image/')) {
+              images.push(url)
+            }
+          } else {
+            // Fallback to extension-based detection
+            try {
+              const pathname = new URL(url).pathname.toLowerCase()
+              const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.svg']
+              const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov']
+
+              if (imageExtensions.some((ext) => pathname.endsWith(ext))) {
+                images.push(url)
+              } else if (videoExtensions.some((ext) => pathname.endsWith(ext))) {
+                videos.push(url)
+              }
+            } catch {
+              // Invalid URL, skip
+            }
+          }
+        }
+      }
+    }
+  })
+
+  // Extract from content URLs
+  const URL_REGEX = /https?:\/\/[\w\p{L}\p{N}\p{M}&.\-/?=#@%+_:!~*]+[^\s.,;:'")\]}!?，。；："'！？】）]/gu
+  const urls = event.content.match(URL_REGEX) || []
+
+  for (const url of urls) {
+    if (urlSet.has(url)) continue
+
+    try {
+      const pathname = new URL(url).pathname.toLowerCase()
+
+      // Image extensions
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.svg']
+      if (imageExtensions.some((ext) => pathname.endsWith(ext))) {
+        urlSet.add(url)
+        images.push(url)
+        continue
+      }
+
+      // Video extensions
+      const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov']
+      if (videoExtensions.some((ext) => pathname.endsWith(ext))) {
+        urlSet.add(url)
+        videos.push(url)
+        continue
+      }
+    } catch {
+      // Invalid URL, skip
+      continue
+    }
+  }
+
+  return { images, videos }
 }

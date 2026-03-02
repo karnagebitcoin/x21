@@ -6,12 +6,17 @@ import { useTranslation } from 'react-i18next'
 
 export default function DefaultZapAmountInput() {
   const { t } = useTranslation()
-  const { defaultZapSats, updateDefaultSats } = useZap()
+  const { defaultZapSats, updateDefaultSats, isWalletConnected } = useZap()
   const [defaultZapAmountInput, setDefaultZapAmountInput] = useState(defaultZapSats)
 
   return (
     <div className="w-full space-y-1">
-      <Label htmlFor="default-zap-amount-input">{t('Default zap amount')}</Label>
+      <Label
+        htmlFor="default-zap-amount-input"
+        className={!isWalletConnected ? "opacity-50" : ""}
+      >
+        {t('Default zap amount')}
+      </Label>
       <div className="flex w-full items-center gap-2">
         <Input
           id="default-zap-amount-input"
@@ -31,6 +36,7 @@ export default function DefaultZapAmountInput() {
           onBlur={() => {
             updateDefaultSats(defaultZapAmountInput)
           }}
+          disabled={!isWalletConnected}
         />
       </div>
     </div>

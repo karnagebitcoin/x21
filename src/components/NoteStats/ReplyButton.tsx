@@ -47,8 +47,8 @@ export default function ReplyButton({ event }: { event: Event }) {
     <>
       <button
         className={cn(
-          'flex gap-1 items-center enabled:hover:text-blue-400 pr-3 h-full',
-          hasReplied ? 'text-blue-400' : 'text-muted-foreground'
+          'flex gap-1 items-center enabled:hover:text-primary pr-3 h-full',
+          hasReplied ? 'text-primary' : 'text-muted-foreground'
         )}
         onClick={(e) => {
           e.stopPropagation()
@@ -57,9 +57,11 @@ export default function ReplyButton({ event }: { event: Event }) {
           })
         }}
         title={t('Reply')}
+        aria-label={hasReplied ? t('Reply') + `, ${t('you have replied')}` : t('Reply')}
+        aria-pressed={hasReplied}
       >
-        <MessageCircle />
-        {!!replyCount && <div className="text-sm">{formatCount(replyCount)}</div>}
+        <MessageCircle aria-hidden="true" />
+        {!!replyCount && <div className="text-sm ml-1" aria-label={`${replyCount} ${replyCount === 1 ? t('reply') : t('replies')}`}>{formatCount(replyCount)}</div>}
       </button>
       <PostEditor parentEvent={event} open={open} setOpen={setOpen} />
     </>

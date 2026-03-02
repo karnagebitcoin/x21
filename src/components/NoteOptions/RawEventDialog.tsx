@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/dialog'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { Event } from 'nostr-tools'
+import { useTranslation } from 'react-i18next'
 
 export default function RawEventDialog({
   event,
@@ -17,11 +18,12 @@ export default function RawEventDialog({
   isOpen: boolean
   onClose: () => void
 }) {
+  const { t } = useTranslation()
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="h-[60vh]">
         <DialogHeader>
-          <DialogTitle>Raw Event</DialogTitle>
+          <DialogTitle>{t('Raw Event')}</DialogTitle>
           <DialogDescription className="hidden" />
         </DialogHeader>
         <ScrollArea className="h-full">

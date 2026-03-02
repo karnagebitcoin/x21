@@ -18,7 +18,7 @@ export default function ZapButton({ event }: { event: Event }) {
   const { t } = useTranslation()
   const { checkLogin, pubkey } = useNostr()
   const noteStats = useNoteStatsById(event.id)
-  const { defaultZapSats, defaultZapComment, quickZap, zapSound } = useZap()
+  const { defaultZapSats, defaultZapComment, quickZap, zapSound, isWalletConnected } = useZap()
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null)
   const [openZapDialog, setOpenZapDialog] = useState(false)
   const [zapping, setZapping] = useState(false)
@@ -48,8 +48,8 @@ export default function ZapButton({ event }: { event: Event }) {
       }
       if (zapping) return
 
-      // Play zap sound IMMEDIATELY when button is pressed
-      if (zapSound !== ZAP_SOUNDS.NONE) {
+      // Play zap sound IMMEDIATELY when button is pressed (only if wallet is connected)
+      if (isWalletConnected && zapSound !== ZAP_SOUNDS.NONE) {
         let soundToPlay = zapSound
         // If random is selected, pick a random sound
         if (zapSound === ZAP_SOUNDS.RANDOM) {
@@ -145,10 +145,10 @@ export default function ZapButton({ event }: { event: Event }) {
       <button
         className={cn(
           'flex items-center gap-1 select-none px-3 h-full',
-          hasZapped ? 'text-yellow-400' : 'text-muted-foreground',
+          hasZapped ? 'text-primary' : 'text-muted-foreground',
           disable
             ? 'cursor-not-allowed text-muted-foreground/40'
-            : 'cursor-pointer enabled:hover:text-yellow-400'
+            : 'cursor-pointer enabled:hover:text-primary'
         )}
         title={t('Zap')}
         disabled={disable || zapping}
@@ -157,13 +157,15 @@ export default function ZapButton({ event }: { event: Event }) {
         onMouseLeave={handleMouseLeave}
         onTouchStart={handleClickStart}
         onTouchEnd={handleClickEnd}
+        aria-label={hasZapped ? t('Zap') + `, ${t('you have zapped')}` : t('Zap')}
+        aria-pressed={hasZapped}
       >
         {zapping ? (
-          <Loader className="animate-spin" />
+          <Loader className="animate-spin" aria-hidden="true" />
         ) : (
-          <Zap className={hasZapped ? 'fill-yellow-400' : ''} />
+          <Zap className={hasZapped ? 'fill-primary' : ''} aria-hidden="true" />
         )}
-        {!!zapAmount && <div className="text-sm">{formatAmount(zapAmount)}</div>}
+        {!!zapAmount && <div className="text-sm ml-1" aria-label={`${zapAmount} ${t('sats')} ${t('total')}`}>{formatAmount(zapAmount)}</div>}
       </button>
       <ZapDialog
         open={openZapDialog}

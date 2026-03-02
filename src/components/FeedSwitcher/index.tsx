@@ -5,7 +5,7 @@ import { useCustomFeeds } from '@/providers/CustomFeedsProvider'
 import { useFavoriteRelays } from '@/providers/FavoriteRelaysProvider'
 import { useFeed } from '@/providers/FeedProvider'
 import { useNostr } from '@/providers/NostrProvider'
-import { BookmarkIcon, Hash, Search, Trash2, UsersRound } from 'lucide-react'
+import { BookmarkIcon, Hash, Highlighter, Search, Trash2, UserRound, UsersRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import PinButton from '../PinButton'
 import { Button } from '../ui/button'
@@ -63,9 +63,51 @@ export default function FeedSwitcher({ close }: { close?: () => void }) {
         </FeedSwitcherItem>
       )}
 
+      {pubkey && (
+        <FeedSwitcherItem
+          isActive={feedInfo.feedType === 'highlights'}
+          onClick={() => {
+            if (!pubkey) return
+            switchFeed('highlights', { pubkey })
+            close?.()
+          }}
+          controls={
+            <PinButton
+              column={{ type: 'highlights' }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity"
+            />
+          }
+        >
+          <div className="flex gap-2 items-center">
+            <div className="flex justify-center items-center w-6 h-6 shrink-0">
+              <Highlighter className="size-4" />
+            </div>
+            <div>{t('Highlights')}</div>
+          </div>
+        </FeedSwitcherItem>
+      )}
+
+      {pubkey && (
+        <FeedSwitcherItem
+          isActive={feedInfo.feedType === 'one-per-person'}
+          onClick={() => {
+            if (!pubkey) return
+            switchFeed('one-per-person', { pubkey })
+            close?.()
+          }}
+        >
+          <div className="flex gap-2 items-center">
+            <div className="flex justify-center items-center w-6 h-6 shrink-0">
+              <UserRound className="size-4" />
+            </div>
+            <div>{t('Latest Note')}</div>
+          </div>
+        </FeedSwitcherItem>
+      )}
+
       {customFeeds.length > 0 && (
         <>
-          <div className="text-xs font-semibold text-muted-foreground mt-4 mb-2">
+          <div className="text-xs font-semibold mt-4 mb-2">
             {t('Custom Feeds')}
           </div>
           {customFeeds.map((feed) => (

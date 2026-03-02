@@ -1,6 +1,7 @@
 import { kinds, NostrEvent } from 'nostr-tools'
-import { isMentioningMutedUsers } from './event'
+import { isMentioningMutedUsers, isFromMutedDomain } from './event'
 import { tagNameEquals } from './tag'
+import { TProfile } from '@/types'
 
 export function notificationFilter(
   event: NostrEvent,
@@ -10,7 +11,10 @@ export function notificationFilter(
     hideContentMentioningMutedUsers,
     hideNotificationsFromMutedUsers,
     hideUntrustedNotifications,
-    isUserTrusted
+    isUserTrusted,
+    mutedDomains,
+    mutedWords,
+    getProfile
   }: {
     pubkey?: string | null
     mutePubkeySet: Set<string>
@@ -18,6 +22,9 @@ export function notificationFilter(
     hideNotificationsFromMutedUsers?: boolean
     hideUntrustedNotifications?: boolean
     isUserTrusted: (pubkey: string) => boolean
+    mutedDomains?: string[]
+    mutedWords?: string[]
+    getProfile?: (pubkey: string) => TProfile | null | undefined
   }
 ): boolean {
   // For zap events, the actual sender is in the 'P' tag, not event.pubkey
@@ -29,12 +36,34 @@ export function notificationFilter(
     }
   }
 
+  // Check if sender is muted by domain
+  if (hideNotificationsFromMutedUsers && mutedDomains && mutedDomains.length > 0 && getProfile) {
+    const profile = getProfile(senderPubkey)
+    if (profile && isFromMutedDomain(profile.nip05, mutedDomains)) {
+      return false
+    }
+  }
+
   if (
     (hideNotificationsFromMutedUsers && mutePubkeySet.has(senderPubkey)) ||
     (hideContentMentioningMutedUsers && isMentioningMutedUsers(event, mutePubkeySet)) ||
     (hideUntrustedNotifications && !isUserTrusted(senderPubkey))
   ) {
     return false
+  }
+
+  // Check for muted words in content and username
+  if (mutedWords && mutedWords.length > 0) {
+    const content = event.content?.toLowerCase() || ''
+    const profile = getProfile ? getProfile(senderPubkey) : null
+    const username = profile?.username?.toLowerCase() || ''
+
+    if (mutedWords.some(word => {
+      const wordLower = word.toLowerCase()
+      return content.includes(wordLower) || username.includes(wordLower)
+    })) {
+      return false
+    }
   }
 
   if (pubkey && event.kind === kinds.Reaction) {

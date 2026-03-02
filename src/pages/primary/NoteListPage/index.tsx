@@ -1,7 +1,7 @@
 import { useSecondaryPage } from '@/PageManager'
 import BookmarkList from '@/components/BookmarkList'
+import HighlightsList from '@/components/HighlightsList'
 import NormalFeed from '@/components/NormalFeed'
-import PostEditor from '@/components/PostEditor'
 import RelayInfo from '@/components/RelayInfo'
 import PinButton from '@/components/PinButton'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,7 @@ import { useFeed } from '@/providers/FeedProvider'
 import { useNostr } from '@/providers/NostrProvider'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
 import { TPageRef } from '@/types'
-import { Info, PencilLine, Search } from 'lucide-react'
+import { Info, Search } from 'lucide-react'
 import {
   Dispatch,
   forwardRef,
@@ -25,9 +25,12 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import ReadsLink from '@/components/Titlebar/ReadsLink'
+import SlowConnectionToggle from '@/components/Titlebar/SlowConnectionToggle'
 import FeedButton from './FeedButton'
 import FollowingFeed from './FollowingFeed'
 import RelaysFeed from './RelaysFeed'
+import OneNotePerPersonFeed from './OneNotePerPersonFeed'
 
 const NoteListPage = forwardRef((_, ref) => {
   const { t } = useTranslation()
@@ -77,6 +80,18 @@ const NoteListPage = forwardRef((_, ref) => {
     } else {
       content = <BookmarkList />
     }
+  } else if (feedInfo.feedType === 'highlights') {
+    if (!pubkey) {
+      content = (
+        <div className="flex justify-center w-full">
+          <Button size="lg" onClick={() => checkLogin()}>
+            {t('Please login to view highlights')}
+          </Button>
+        </div>
+      )
+    } else {
+      content = <HighlightsList />
+    }
   } else if (feedInfo.feedType === 'custom') {
     const customFeed = customFeeds.find((f) => f.id === feedInfo.id)
     if (!customFeed) {
@@ -106,6 +121,18 @@ const NoteListPage = forwardRef((_, ref) => {
     }
   } else if (feedInfo.feedType === 'following') {
     content = <FollowingFeed />
+  } else if (feedInfo.feedType === 'one-per-person') {
+    if (!pubkey) {
+      content = (
+        <div className="flex justify-center w-full">
+          <Button size="lg" onClick={() => checkLogin()}>
+            {t('Please login to view latest note feed')}
+          </Button>
+        </div>
+      )
+    } else {
+      content = <OneNotePerPersonFeed />
+    }
   } else {
     content = (
       <>
@@ -156,16 +183,33 @@ function NoteListPageTitlebar({
   let pinButton: React.ReactNode = null
 
   if (feedInfo.feedType === 'bookmarks') {
-    pinButton = <PinButton column={{ type: 'bookmarks' }} />
+    pinButton = <PinButton column={{ type: 'bookmarks' }} size="titlebar-icon" />
+  } else if (feedInfo.feedType === 'highlights') {
+    pinButton = <PinButton column={{ type: 'highlights' }} size="titlebar-icon" />
   } else if (feedInfo.feedType === 'relay' && feedInfo.id) {
-    pinButton = <PinButton column={{ type: 'relay', props: { url: feedInfo.id } }} />
+    pinButton = <PinButton column={{ type: 'relay', props: { url: feedInfo.id } }} size="titlebar-icon" />
   } else if (feedInfo.feedType === 'relays' && feedInfo.id) {
-    pinButton = <PinButton column={{ type: 'relays', props: { activeRelaySetId: feedInfo.id } }} />
+    pinButton = <PinButton column={{ type: 'relays', props: { activeRelaySetId: feedInfo.id } }} size="titlebar-icon" />
   } else if (feedInfo.feedType === 'custom' && feedInfo.id) {
     const customFeed = customFeeds.find((f) => f.id === feedInfo.id)
     if (customFeed) {
-      pinButton = <PinButton column={{ type: 'custom', props: { customFeedId: feedInfo.id } }} />
+      pinButton = <PinButton column={{ type: 'custom', props: { customFeedId: feedInfo.id } }} size="titlebar-icon" />
     }
+  }
+
+  if (isSmallScreen) {
+    return (
+      <div className="flex gap-1 items-center h-full justify-between w-full">
+        {/* Left-aligned FeedButton */}
+        <FeedButton className="flex-1 max-w-fit w-0" />
+        {/* Right controls */}
+        <div className="shrink-0 flex gap-1 items-center">
+          <SlowConnectionToggle />
+          <ReadsLink />
+          <SearchButton />
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -190,37 +234,8 @@ function NoteListPageTitlebar({
             <Info />
           </Button>
         )}
-        {isSmallScreen && (
-          <>
-            <SearchButton />
-            <PostButton />
-          </>
-        )}
       </div>
     </div>
-  )
-}
-
-function PostButton() {
-  const { checkLogin } = useNostr()
-  const [open, setOpen] = useState(false)
-
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="titlebar-icon"
-        onClick={(e) => {
-          e.stopPropagation()
-          checkLogin(() => {
-            setOpen(true)
-          })
-        }}
-      >
-        <PencilLine />
-      </Button>
-      <PostEditor open={open} setOpen={setOpen} />
-    </>
   )
 }
 

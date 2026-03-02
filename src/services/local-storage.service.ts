@@ -1,16 +1,27 @@
 import {
   BUTTON_RADIUS_VALUES,
+  CARD_RADIUS_VALUES,
+  MEDIA_RADIUS_VALUES,
   DEFAULT_BUTTON_RADIUS,
+  DEFAULT_CARD_RADIUS,
+  DEFAULT_MEDIA_RADIUS,
   DEFAULT_FONT_FAMILY,
   DEFAULT_FONT_SIZE,
+  DEFAULT_TITLE_FONT_SIZE,
+  DEFAULT_LOGO_FONT_SIZE,
   DEFAULT_NIP_96_SERVICE,
   DEFAULT_PAGE_THEME,
+  DEFAULT_POST_BUTTON_STYLE,
   DEFAULT_PRIMARY_COLOR,
+  DISTRACTION_FREE_MODE,
   ExtendedKind,
   FONT_FAMILIES,
   FONT_SIZES,
+  TITLE_FONT_SIZES,
+  LOGO_FONT_SIZES,
   MEDIA_AUTO_LOAD_POLICY,
   NOTIFICATION_LIST_STYLE,
+  POST_BUTTON_STYLE,
   PRIMARY_COLORS,
   SUPPORTED_KINDS,
   StorageKey,
@@ -22,7 +33,10 @@ import { randomString } from '@/lib/random'
 import {
   TAccount,
   TAccountPointer,
+  TAIServiceConfig,
+  TAIToolsConfig,
   TCustomFeed,
+  TDistractionFreeMode,
   TFeedInfo,
   TFontFamily,
   TMediaAutoLoadPolicy,
@@ -30,17 +44,22 @@ import {
   TNoteListMode,
   TNotificationStyle,
   TPageTheme,
+  TPostButtonStyle,
   TPrimaryColor,
   TRelaySet,
   TThemeSetting,
-  TTranslationServiceConfig
+  TTranslationServiceConfig,
+  TColorPalette,
+  TLogoStyle
 } from '@/types'
+import { DEFAULT_MENU_ITEMS, TMenuItemConfig } from '@/constants/menu-items'
 
 class LocalStorageService {
   static instance: LocalStorageService
 
   private relaySets: TRelaySet[] = []
-  private themeSetting: TThemeSetting = 'system'
+  private themeSetting: TThemeSetting = 'dark'
+  private colorPalette: TColorPalette = 'default'
   private accounts: TAccount[] = []
   private currentAccount: TAccount | null = null
   private noteListMode: TNoteListMode = 'posts'
@@ -54,35 +73,66 @@ class LocalStorageService {
   private hideUntrustedInteractions: boolean = false
   private hideUntrustedNotifications: boolean = false
   private hideUntrustedNotes: boolean = false
+  private trustLevel: number = 0 // 0: Everyone, 1: Network + Follows, 2: Follows only, 3: You only
   private translationServiceConfigMap: Record<string, TTranslationServiceConfig> = {}
   private mediaUploadServiceConfigMap: Record<string, TMediaUploadServiceConfig> = {}
+  private aiServiceConfigMap: Record<string, TAIServiceConfig> = {}
+  private aiToolsConfigMap: Record<string, TAIToolsConfig> = {}
   private defaultShowNsfw: boolean = false
   private dismissedTooManyRelaysAlert: boolean = false
   private showKinds: number[] = []
+  private mediaOnly: boolean = true
   private hideContentMentioningMutedUsers: boolean = false
   private alwaysHideMutedNotes: boolean = false
   private hideNotificationsFromMutedUsers: boolean = false
-  private notificationListStyle: TNotificationStyle = NOTIFICATION_LIST_STYLE.DETAILED
+  private notificationListStyle: TNotificationStyle = NOTIFICATION_LIST_STYLE.COMPACT
   private mediaAutoLoadPolicy: TMediaAutoLoadPolicy = MEDIA_AUTO_LOAD_POLICY.ALWAYS
   private shownCreateWalletGuideToastPubkeys: Set<string> = new Set()
   private fontSize: number = DEFAULT_FONT_SIZE
+  private titleFontSize: number = DEFAULT_TITLE_FONT_SIZE
   private fontFamily: TFontFamily = DEFAULT_FONT_FAMILY
   private primaryColor: TPrimaryColor = DEFAULT_PRIMARY_COLOR
   private buttonRadius: number = DEFAULT_BUTTON_RADIUS
+  private postButtonStyle: TPostButtonStyle = DEFAULT_POST_BUTTON_STYLE
+  private cardRadius: number = DEFAULT_CARD_RADIUS
+  private mediaRadius: number = DEFAULT_MEDIA_RADIUS
   private pageTheme: TPageTheme = DEFAULT_PAGE_THEME
   private trendingNotesDismissed: boolean = false
   private compactSidebar: boolean = false
+  private logoStyle: TLogoStyle = 'image'
+  private customLogoText: string = 'x21'
+  private logoFontSize: number = DEFAULT_LOGO_FONT_SIZE
+  private widgetSidebarTitle: string = 'Widgets'
+  private maxHashtags: number = 3
+  private maxMentions: number = 0
+  private widgetSidebarIcon: string | null = null
+  private hideWidgetTitles: boolean = false
   private enabledWidgets: string[] = []
   private pinnedNoteWidgets: { id: string; eventId: string }[] = []
-  private trendingNotesHeight: 'short' | 'medium' | 'tall' = 'medium'
+  private aiPromptWidgets: { id: string; eventId: string; messages: any[] }[] = []
+  private trendingNotesHeight: 'short' | 'medium' | 'tall' | 'remaining' = 'medium'
   private bitcoinTickerAlignment: 'left' | 'center' = 'left'
   private bitcoinTickerTextSize: 'large' | 'small' = 'large'
+  private bitcoinTickerShowBlockHeight: boolean = false
+  private bitcoinTickerShowSatsMode: boolean = false
   private zapSound: TZapSound = ZAP_SOUNDS.NONE
   private customFeeds: TCustomFeed[] = []
   private chargeZapEnabled: boolean = false
   private chargeZapLimit: number = 1000
   private zapOnReactions: boolean = false
   private onlyZapsMode: boolean = false
+  private distractionFreeMode: TDistractionFreeMode = DISTRACTION_FREE_MODE.DRAIN_MY_TIME
+  private hideReadsInNavigation: boolean = false
+  private hideReadsInProfiles: boolean = false
+  private favoriteListsMap: Record<string, string[]> = {}
+  private readArticles: Set<string> = new Set()
+  private bookmarkTags: Record<string, string[]> = {}
+  private pinnedReplies: Record<string, string[]> = {}
+  private paymentsEnabled: boolean = false
+  private textOnlyMode: boolean = false
+  private lowBandwidthMode: boolean = false
+  private disableAvatarAnimations: boolean = false
+  private defaultReactionEmojis: string[] = ['👍', '❤️', '😂', '🥲', '👀', '🫡', '🫂']
 
   constructor() {
     if (!LocalStorageService.instance) {
@@ -94,7 +144,9 @@ class LocalStorageService {
 
   init() {
     this.themeSetting =
-      (window.localStorage.getItem(StorageKey.THEME_SETTING) as TThemeSetting) ?? 'system'
+      (window.localStorage.getItem(StorageKey.THEME_SETTING) as TThemeSetting) ?? 'dark'
+    this.colorPalette =
+      (window.localStorage.getItem(StorageKey.COLOR_PALETTE) as TColorPalette) ?? 'default'
     const accountsStr = window.localStorage.getItem(StorageKey.ACCOUNTS)
     this.accounts = accountsStr ? JSON.parse(accountsStr) : []
     const currentAccountStr = window.localStorage.getItem(StorageKey.CURRENT_ACCOUNT)
@@ -170,6 +222,9 @@ class LocalStorageService {
       ? storedHideUntrustedNotes === 'true'
       : hideUntrustedEvents
 
+    const storedTrustLevel = window.localStorage.getItem(StorageKey.TRUST_LEVEL)
+    this.trustLevel = storedTrustLevel ? parseInt(storedTrustLevel, 10) : 0
+
     const translationServiceConfigMapStr = window.localStorage.getItem(
       StorageKey.TRANSLATION_SERVICE_CONFIG_MAP
     )
@@ -182,6 +237,16 @@ class LocalStorageService {
     )
     if (mediaUploadServiceConfigMapStr) {
       this.mediaUploadServiceConfigMap = JSON.parse(mediaUploadServiceConfigMapStr)
+    }
+
+    const aiServiceConfigMapStr = window.localStorage.getItem(StorageKey.AI_SERVICE_CONFIG_MAP)
+    if (aiServiceConfigMapStr) {
+      this.aiServiceConfigMap = JSON.parse(aiServiceConfigMapStr)
+    }
+
+    const aiToolsConfigMapStr = window.localStorage.getItem(StorageKey.AI_TOOLS_CONFIG_MAP)
+    if (aiToolsConfigMapStr) {
+      this.aiToolsConfigMap = JSON.parse(aiToolsConfigMapStr)
     }
 
     this.defaultShowNsfw = window.localStorage.getItem(StorageKey.DEFAULT_SHOW_NSFW) === 'true'
@@ -204,6 +269,10 @@ class LocalStorageService {
     window.localStorage.setItem(StorageKey.SHOW_KINDS, JSON.stringify(this.showKinds))
     window.localStorage.setItem(StorageKey.SHOW_KINDS_VERSION, '1')
 
+    const mediaOnlyStr = window.localStorage.getItem(StorageKey.MEDIA_ONLY)
+    // Default to true for new users, otherwise use stored preference
+    this.mediaOnly = mediaOnlyStr === null ? true : mediaOnlyStr === 'true'
+
     this.hideContentMentioningMutedUsers =
       window.localStorage.getItem(StorageKey.HIDE_CONTENT_MENTIONING_MUTED_USERS) === 'true'
 
@@ -213,11 +282,14 @@ class LocalStorageService {
     this.hideNotificationsFromMutedUsers =
       window.localStorage.getItem(StorageKey.HIDE_NOTIFICATIONS_FROM_MUTED_USERS) === 'true'
 
+    const notificationListStyleStr = window.localStorage.getItem(StorageKey.NOTIFICATION_LIST_STYLE)
+    // Default to compact for new users, otherwise use stored preference
     this.notificationListStyle =
-      window.localStorage.getItem(StorageKey.NOTIFICATION_LIST_STYLE) ===
-      NOTIFICATION_LIST_STYLE.COMPACT
+      notificationListStyleStr === null
         ? NOTIFICATION_LIST_STYLE.COMPACT
-        : NOTIFICATION_LIST_STYLE.DETAILED
+        : notificationListStyleStr === NOTIFICATION_LIST_STYLE.COMPACT
+          ? NOTIFICATION_LIST_STYLE.COMPACT
+          : NOTIFICATION_LIST_STYLE.DETAILED
 
     const mediaAutoLoadPolicy = window.localStorage.getItem(StorageKey.MEDIA_AUTO_LOAD_POLICY)
     if (
@@ -242,6 +314,14 @@ class LocalStorageService {
       }
     }
 
+    const titleFontSizeStr = window.localStorage.getItem(StorageKey.TITLE_FONT_SIZE)
+    if (titleFontSizeStr) {
+      const titleFontSize = parseInt(titleFontSizeStr)
+      if (TITLE_FONT_SIZES.includes(titleFontSize as any)) {
+        this.titleFontSize = titleFontSize
+      }
+    }
+
     const fontFamily = window.localStorage.getItem(StorageKey.FONT_FAMILY)
     if (fontFamily && Object.keys(FONT_FAMILIES).includes(fontFamily)) {
       this.fontFamily = fontFamily as TFontFamily
@@ -260,6 +340,27 @@ class LocalStorageService {
       }
     }
 
+    const postButtonStyle = window.localStorage.getItem(StorageKey.POST_BUTTON_STYLE)
+    if (postButtonStyle && (postButtonStyle === POST_BUTTON_STYLE.FILLED || postButtonStyle === POST_BUTTON_STYLE.OUTLINED)) {
+      this.postButtonStyle = postButtonStyle as TPostButtonStyle
+    }
+
+    const cardRadiusStr = window.localStorage.getItem(StorageKey.CARD_RADIUS)
+    if (cardRadiusStr) {
+      const cardRadius = parseInt(cardRadiusStr)
+      if (CARD_RADIUS_VALUES.includes(cardRadius as any)) {
+        this.cardRadius = cardRadius
+      }
+    }
+
+    const mediaRadiusStr = window.localStorage.getItem(StorageKey.MEDIA_RADIUS)
+    if (mediaRadiusStr) {
+      const mediaRadius = parseInt(mediaRadiusStr)
+      if (MEDIA_RADIUS_VALUES.includes(mediaRadius as any)) {
+        this.mediaRadius = mediaRadius
+      }
+    }
+
     const pageTheme = window.localStorage.getItem(StorageKey.PAGE_THEME)
     if (pageTheme && ['default', 'pure-black'].includes(pageTheme)) {
       this.pageTheme = pageTheme as TPageTheme
@@ -271,12 +372,45 @@ class LocalStorageService {
     this.compactSidebar =
       window.localStorage.getItem(StorageKey.COMPACT_SIDEBAR) === 'true'
 
+    const logoStyle = window.localStorage.getItem(StorageKey.LOGO_STYLE)
+    if (logoStyle && ['image', 'text'].includes(logoStyle)) {
+      this.logoStyle = logoStyle as TLogoStyle
+    }
+
+    const customLogoText = window.localStorage.getItem(StorageKey.CUSTOM_LOGO_TEXT)
+    if (customLogoText) {
+      this.customLogoText = customLogoText
+    }
+
+    const logoFontSize = window.localStorage.getItem(StorageKey.LOGO_FONT_SIZE)
+    if (logoFontSize) {
+      const size = Number(logoFontSize)
+      if (LOGO_FONT_SIZES.includes(size as any)) {
+        this.logoFontSize = size
+      }
+    }
+
+    const widgetSidebarTitle = window.localStorage.getItem(StorageKey.WIDGET_SIDEBAR_TITLE)
+    if (widgetSidebarTitle) {
+      this.widgetSidebarTitle = widgetSidebarTitle
+    }
+
+    const widgetSidebarIcon = window.localStorage.getItem(StorageKey.WIDGET_SIDEBAR_ICON)
+    if (widgetSidebarIcon) {
+      this.widgetSidebarIcon = widgetSidebarIcon
+    }
+
+    const hideWidgetTitles = window.localStorage.getItem(StorageKey.HIDE_WIDGET_TITLES)
+    if (hideWidgetTitles) {
+      this.hideWidgetTitles = hideWidgetTitles === 'true'
+    }
+
     const enabledWidgetsStr = window.localStorage.getItem(StorageKey.ENABLED_WIDGETS)
     if (enabledWidgetsStr) {
       this.enabledWidgets = JSON.parse(enabledWidgetsStr)
     } else {
-      // Default to trending notes enabled
-      this.enabledWidgets = ['trending-notes']
+      // Default to trending notes and invite widget enabled for new users
+      this.enabledWidgets = ['trending-notes', 'invite']
       window.localStorage.setItem(StorageKey.ENABLED_WIDGETS, JSON.stringify(this.enabledWidgets))
     }
 
@@ -285,9 +419,14 @@ class LocalStorageService {
       this.pinnedNoteWidgets = JSON.parse(pinnedNoteWidgetsStr)
     }
 
+    // AI Prompt widgets are session-only and should not persist across page reloads
+    // Clear any stored AI prompt widgets
+    this.aiPromptWidgets = []
+    window.localStorage.removeItem(StorageKey.AI_PROMPT_WIDGETS)
+
     const trendingNotesHeight = window.localStorage.getItem(StorageKey.TRENDING_NOTES_HEIGHT)
-    if (trendingNotesHeight && ['short', 'medium', 'tall'].includes(trendingNotesHeight)) {
-      this.trendingNotesHeight = trendingNotesHeight as 'short' | 'medium' | 'tall'
+    if (trendingNotesHeight && ['short', 'medium', 'tall', 'remaining'].includes(trendingNotesHeight)) {
+      this.trendingNotesHeight = trendingNotesHeight as 'short' | 'medium' | 'tall' | 'remaining'
     }
 
     const bitcoinTickerAlignment = window.localStorage.getItem(StorageKey.BITCOIN_TICKER_ALIGNMENT)
@@ -298,6 +437,16 @@ class LocalStorageService {
     const bitcoinTickerTextSize = window.localStorage.getItem(StorageKey.BITCOIN_TICKER_TEXT_SIZE)
     if (bitcoinTickerTextSize && ['large', 'small'].includes(bitcoinTickerTextSize)) {
       this.bitcoinTickerTextSize = bitcoinTickerTextSize as 'large' | 'small'
+    }
+
+    const bitcoinTickerShowBlockHeight = window.localStorage.getItem(StorageKey.BITCOIN_TICKER_SHOW_BLOCK_HEIGHT)
+    if (bitcoinTickerShowBlockHeight !== null) {
+      this.bitcoinTickerShowBlockHeight = bitcoinTickerShowBlockHeight === 'true'
+    }
+
+    const bitcoinTickerShowSatsMode = window.localStorage.getItem(StorageKey.BITCOIN_TICKER_SHOW_SATS_MODE)
+    if (bitcoinTickerShowSatsMode !== null) {
+      this.bitcoinTickerShowSatsMode = bitcoinTickerShowSatsMode === 'true'
     }
 
     const zapSound = window.localStorage.getItem(StorageKey.ZAP_SOUND)
@@ -323,6 +472,98 @@ class LocalStorageService {
     this.zapOnReactions = window.localStorage.getItem(StorageKey.ZAP_ON_REACTIONS) === 'true'
 
     this.onlyZapsMode = window.localStorage.getItem(StorageKey.ONLY_ZAPS_MODE) === 'true'
+
+    this.paymentsEnabled = window.localStorage.getItem(StorageKey.PAYMENTS_ENABLED) === 'true'
+
+    this.textOnlyMode = window.localStorage.getItem(StorageKey.TEXT_ONLY_MODE) === 'true'
+
+    this.lowBandwidthMode = window.localStorage.getItem(StorageKey.LOW_BANDWIDTH_MODE) === 'true'
+
+    this.disableAvatarAnimations = window.localStorage.getItem(StorageKey.DISABLE_AVATAR_ANIMATIONS) === 'true'
+
+    const distractionFreeMode = window.localStorage.getItem(StorageKey.DISTRACTION_FREE_MODE)
+    if (
+      distractionFreeMode &&
+      Object.values(DISTRACTION_FREE_MODE).includes(distractionFreeMode as TDistractionFreeMode)
+    ) {
+      this.distractionFreeMode = distractionFreeMode as TDistractionFreeMode
+    }
+
+    this.hideReadsInNavigation =
+      window.localStorage.getItem(StorageKey.HIDE_READS_IN_NAVIGATION) === 'true'
+
+    this.hideReadsInProfiles =
+      window.localStorage.getItem(StorageKey.HIDE_READS_IN_PROFILES) === 'true'
+
+    const favoriteListsMapStr = window.localStorage.getItem(StorageKey.FAVORITE_LISTS)
+    if (favoriteListsMapStr) {
+      try {
+        const parsed = JSON.parse(favoriteListsMapStr)
+        // Handle migration from old array format to new map format
+        if (Array.isArray(parsed)) {
+          this.favoriteListsMap = { _global: parsed }
+        } else {
+          this.favoriteListsMap = parsed
+        }
+      } catch {
+        this.favoriteListsMap = {}
+      }
+    }
+
+    const readArticlesStr = window.localStorage.getItem(StorageKey.READ_ARTICLES)
+    if (readArticlesStr) {
+      try {
+        this.readArticles = new Set(JSON.parse(readArticlesStr))
+      } catch {
+        this.readArticles = new Set()
+      }
+    }
+
+    const bookmarkTagsStr = window.localStorage.getItem(StorageKey.BOOKMARK_TAGS)
+    if (bookmarkTagsStr) {
+      try {
+        this.bookmarkTags = JSON.parse(bookmarkTagsStr)
+      } catch {
+        this.bookmarkTags = {}
+      }
+    }
+
+    const pinnedRepliesStr = window.localStorage.getItem(StorageKey.PINNED_REPLIES)
+    if (pinnedRepliesStr) {
+      try {
+        this.pinnedReplies = JSON.parse(pinnedRepliesStr)
+      } catch {
+        this.pinnedReplies = {}
+      }
+    }
+
+    const maxHashtagsStr = window.localStorage.getItem(StorageKey.MAX_HASHTAGS)
+    if (maxHashtagsStr) {
+      const num = parseInt(maxHashtagsStr)
+      if (!isNaN(num) && num >= 0 && num <= 10) {
+        this.maxHashtags = num
+      }
+    }
+
+    const maxMentionsStr = window.localStorage.getItem(StorageKey.MAX_MENTIONS)
+    if (maxMentionsStr) {
+      const num = parseInt(maxMentionsStr)
+      if (!isNaN(num) && num >= 0 && num <= 10) {
+        this.maxMentions = num
+      }
+    }
+
+    const defaultReactionEmojisStr = window.localStorage.getItem(StorageKey.DEFAULT_REACTION_EMOJIS)
+    if (defaultReactionEmojisStr) {
+      try {
+        const emojis = JSON.parse(defaultReactionEmojisStr)
+        if (Array.isArray(emojis) && emojis.every((e) => typeof e === 'string')) {
+          this.defaultReactionEmojis = emojis
+        }
+      } catch {
+        // Keep default
+      }
+    }
 
     // Clean up deprecated data
     window.localStorage.removeItem(StorageKey.ACCOUNT_PROFILE_EVENT_MAP)
@@ -350,6 +591,15 @@ class LocalStorageService {
   setThemeSetting(themeSetting: TThemeSetting) {
     window.localStorage.setItem(StorageKey.THEME_SETTING, themeSetting)
     this.themeSetting = themeSetting
+  }
+
+  getColorPalette() {
+    return this.colorPalette
+  }
+
+  setColorPalette(colorPalette: TColorPalette) {
+    window.localStorage.setItem(StorageKey.COLOR_PALETTE, colorPalette)
+    this.colorPalette = colorPalette
   }
 
   getNoteListMode() {
@@ -459,6 +709,42 @@ class LocalStorageService {
     window.localStorage.setItem(StorageKey.CHARGE_ZAP_LIMIT, limit.toString())
   }
 
+  getPaymentsEnabled() {
+    return this.paymentsEnabled
+  }
+
+  setPaymentsEnabled(enabled: boolean) {
+    this.paymentsEnabled = enabled
+    window.localStorage.setItem(StorageKey.PAYMENTS_ENABLED, enabled.toString())
+  }
+
+  getTextOnlyMode() {
+    return this.textOnlyMode
+  }
+
+  setTextOnlyMode(enabled: boolean) {
+    this.textOnlyMode = enabled
+    window.localStorage.setItem(StorageKey.TEXT_ONLY_MODE, enabled.toString())
+  }
+
+  getLowBandwidthMode() {
+    return this.lowBandwidthMode
+  }
+
+  setLowBandwidthMode(enabled: boolean) {
+    this.lowBandwidthMode = enabled
+    window.localStorage.setItem(StorageKey.LOW_BANDWIDTH_MODE, enabled.toString())
+  }
+
+  getDisableAvatarAnimations() {
+    return this.disableAvatarAnimations
+  }
+
+  setDisableAvatarAnimations(enabled: boolean) {
+    this.disableAvatarAnimations = enabled
+    window.localStorage.setItem(StorageKey.DISABLE_AVATAR_ANIMATIONS, enabled.toString())
+  }
+
   getLastReadNotificationTime(pubkey: string) {
     return this.lastReadNotificationTimeMap[pubkey] ?? 0
   }
@@ -525,6 +811,15 @@ class LocalStorageService {
     window.localStorage.setItem(StorageKey.HIDE_UNTRUSTED_NOTES, hideUntrustedNotes.toString())
   }
 
+  getTrustLevel() {
+    return this.trustLevel
+  }
+
+  setTrustLevel(trustLevel: number) {
+    this.trustLevel = trustLevel
+    window.localStorage.setItem(StorageKey.TRUST_LEVEL, trustLevel.toString())
+  }
+
   getTranslationServiceConfig(pubkey?: string | null) {
     return this.translationServiceConfigMap[pubkey ?? '_'] ?? { service: 'jumble' }
   }
@@ -584,6 +879,15 @@ class LocalStorageService {
     window.localStorage.setItem(StorageKey.SHOW_KINDS, JSON.stringify(kinds))
   }
 
+  getMediaOnly() {
+    return this.mediaOnly
+  }
+
+  setMediaOnly(mediaOnly: boolean) {
+    this.mediaOnly = mediaOnly
+    window.localStorage.setItem(StorageKey.MEDIA_ONLY, mediaOnly.toString())
+  }
+
   getHideContentMentioningMutedUsers() {
     return this.hideContentMentioningMutedUsers
   }
@@ -629,6 +933,33 @@ class LocalStorageService {
     window.localStorage.setItem(StorageKey.MEDIA_AUTO_LOAD_POLICY, policy)
   }
 
+  getMaxHashtags() {
+    return this.maxHashtags
+  }
+
+  setMaxHashtags(max: number) {
+    this.maxHashtags = max
+    window.localStorage.setItem(StorageKey.MAX_HASHTAGS, max.toString())
+  }
+
+  getMaxMentions() {
+    return this.maxMentions
+  }
+
+  setMaxMentions(max: number) {
+    this.maxMentions = max
+    window.localStorage.setItem(StorageKey.MAX_MENTIONS, max.toString())
+  }
+
+  getDistractionFreeMode() {
+    return this.distractionFreeMode
+  }
+
+  setDistractionFreeMode(mode: TDistractionFreeMode) {
+    this.distractionFreeMode = mode
+    window.localStorage.setItem(StorageKey.DISTRACTION_FREE_MODE, mode)
+  }
+
   hasShownCreateWalletGuideToast(pubkey: string) {
     return this.shownCreateWalletGuideToastPubkeys.has(pubkey)
   }
@@ -654,6 +985,18 @@ class LocalStorageService {
     }
     this.fontSize = fontSize
     window.localStorage.setItem(StorageKey.FONT_SIZE, fontSize.toString())
+  }
+
+  getTitleFontSize() {
+    return this.titleFontSize
+  }
+
+  setTitleFontSize(titleFontSize: number) {
+    if (!TITLE_FONT_SIZES.includes(titleFontSize as any)) {
+      return
+    }
+    this.titleFontSize = titleFontSize
+    window.localStorage.setItem(StorageKey.TITLE_FONT_SIZE, titleFontSize.toString())
   }
 
   getFontFamily() {
@@ -689,6 +1032,42 @@ class LocalStorageService {
     window.localStorage.setItem(StorageKey.BUTTON_RADIUS, radius.toString())
   }
 
+  getPostButtonStyle() {
+    return this.postButtonStyle
+  }
+
+  setPostButtonStyle(style: TPostButtonStyle) {
+    if (style !== POST_BUTTON_STYLE.FILLED && style !== POST_BUTTON_STYLE.OUTLINED) {
+      return
+    }
+    this.postButtonStyle = style
+    window.localStorage.setItem(StorageKey.POST_BUTTON_STYLE, style)
+  }
+
+  getCardRadius() {
+    return this.cardRadius
+  }
+
+  setCardRadius(radius: number) {
+    if (!CARD_RADIUS_VALUES.includes(radius as any)) {
+      return
+    }
+    this.cardRadius = radius
+    window.localStorage.setItem(StorageKey.CARD_RADIUS, radius.toString())
+  }
+
+  getMediaRadius() {
+    return this.mediaRadius
+  }
+
+  setMediaRadius(radius: number) {
+    if (!MEDIA_RADIUS_VALUES.includes(radius as any)) {
+      return
+    }
+    this.mediaRadius = radius
+    window.localStorage.setItem(StorageKey.MEDIA_RADIUS, radius.toString())
+  }
+
   getPageTheme() {
     return this.pageTheme
   }
@@ -716,6 +1095,64 @@ class LocalStorageService {
     window.localStorage.setItem(StorageKey.COMPACT_SIDEBAR, compact.toString())
   }
 
+  getLogoStyle() {
+    return this.logoStyle
+  }
+
+  setLogoStyle(style: TLogoStyle) {
+    this.logoStyle = style
+    window.localStorage.setItem(StorageKey.LOGO_STYLE, style)
+  }
+
+  getCustomLogoText() {
+    return this.customLogoText
+  }
+
+  setCustomLogoText(text: string) {
+    this.customLogoText = text
+    window.localStorage.setItem(StorageKey.CUSTOM_LOGO_TEXT, text)
+  }
+
+  getLogoFontSize() {
+    return this.logoFontSize
+  }
+
+  setLogoFontSize(size: number) {
+    this.logoFontSize = size
+    window.localStorage.setItem(StorageKey.LOGO_FONT_SIZE, size.toString())
+  }
+
+  getWidgetSidebarTitle() {
+    return this.widgetSidebarTitle
+  }
+
+  setWidgetSidebarTitle(title: string) {
+    this.widgetSidebarTitle = title
+    window.localStorage.setItem(StorageKey.WIDGET_SIDEBAR_TITLE, title)
+  }
+
+  getWidgetSidebarIcon() {
+    return this.widgetSidebarIcon
+  }
+
+  setWidgetSidebarIcon(icon: string | null) {
+    this.widgetSidebarIcon = icon
+    if (icon === null) {
+      window.localStorage.removeItem(StorageKey.WIDGET_SIDEBAR_ICON)
+    } else {
+      window.localStorage.setItem(StorageKey.WIDGET_SIDEBAR_ICON, icon)
+    }
+  }
+
+  getHideWidgetTitles() {
+    return this.hideWidgetTitles
+  }
+
+  setHideWidgetTitles(hide: boolean) {
+    this.hideWidgetTitles = hide
+    window.localStorage.setItem(StorageKey.HIDE_WIDGET_TITLES, hide.toString())
+  }
+
   getEnabledWidgets() {
     return this.enabledWidgets
   }
@@ -729,7 +1166,7 @@ class LocalStorageService {
     return this.trendingNotesHeight
   }
 
-  setTrendingNotesHeight(height: 'short' | 'medium' | 'tall') {
+  setTrendingNotesHeight(height: 'short' | 'medium' | 'tall' | 'remaining') {
     this.trendingNotesHeight = height
     window.localStorage.setItem(StorageKey.TRENDING_NOTES_HEIGHT, height)
   }
@@ -752,6 +1189,24 @@ class LocalStorageService {
     window.localStorage.setItem(StorageKey.BITCOIN_TICKER_TEXT_SIZE, size)
   }
 
+  getBitcoinTickerShowBlockHeight() {
+    return this.bitcoinTickerShowBlockHeight
+  }
+
+  setBitcoinTickerShowBlockHeight(show: boolean) {
+    this.bitcoinTickerShowBlockHeight = show
+    window.localStorage.setItem(StorageKey.BITCOIN_TICKER_SHOW_BLOCK_HEIGHT, show.toString())
+  }
+
+  getBitcoinTickerShowSatsMode() {
+    return this.bitcoinTickerShowSatsMode
+  }
+
+  setBitcoinTickerShowSatsMode(show: boolean) {
+    this.bitcoinTickerShowSatsMode = show
+    window.localStorage.setItem(StorageKey.BITCOIN_TICKER_SHOW_SATS_MODE, show.toString())
+  }
+
   getPinnedNoteWidgets() {
     return this.pinnedNoteWidgets
   }
@@ -771,6 +1226,27 @@ class LocalStorageService {
   removePinnedNoteWidget(id: string) {
     this.pinnedNoteWidgets = this.pinnedNoteWidgets.filter((widget) => widget.id !== id)
     window.localStorage.setItem(StorageKey.PINNED_NOTE_WIDGETS, JSON.stringify(this.pinnedNoteWidgets))
+  }
+
+  getAIPromptWidgets() {
+    return this.aiPromptWidgets
+  }
+
+  setAIPromptWidgets(widgets: { id: string; eventId: string; messages: any[] }[]) {
+    // AI Prompt widgets are session-only, no localStorage persistence
+    this.aiPromptWidgets = widgets
+  }
+
+  addAIPromptWidget(eventId: string, id?: string) {
+    const widgetId = id ?? `ai-prompt-${Date.now()}`
+    this.aiPromptWidgets.push({ id: widgetId, eventId, messages: [] })
+    // AI Prompt widgets are session-only, no localStorage persistence
+    return widgetId
+  }
+
+  removeAIPromptWidget(id: string) {
+    this.aiPromptWidgets = this.aiPromptWidgets.filter((widget) => widget.id !== id)
+    // AI Prompt widgets are session-only, no localStorage persistence
   }
 
   getZapSound() {
@@ -820,6 +1296,226 @@ class LocalStorageService {
   setOnlyZapsMode(enabled: boolean) {
     this.onlyZapsMode = enabled
     window.localStorage.setItem(StorageKey.ONLY_ZAPS_MODE, enabled.toString())
+  }
+
+  getAIServiceConfig(pubkey?: string | null): TAIServiceConfig {
+    return this.aiServiceConfigMap[pubkey ?? '_'] ?? {
+      provider: 'openrouter'
+    }
+  }
+
+  setAIServiceConfig(config: TAIServiceConfig, pubkey?: string | null) {
+    this.aiServiceConfigMap[pubkey ?? '_'] = config
+    window.localStorage.setItem(StorageKey.AI_SERVICE_CONFIG_MAP, JSON.stringify(this.aiServiceConfigMap))
+  }
+
+  getAIToolsConfig(pubkey?: string | null): TAIToolsConfig {
+    return this.aiToolsConfigMap[pubkey ?? '_'] ?? { enableSummary: false }
+  }
+
+  setAIToolsConfig(config: TAIToolsConfig, pubkey?: string | null) {
+    this.aiToolsConfigMap[pubkey ?? '_'] = config
+    window.localStorage.setItem(StorageKey.AI_TOOLS_CONFIG_MAP, JSON.stringify(this.aiToolsConfigMap))
+  }
+
+  getHideReadsInNavigation() {
+    return this.hideReadsInNavigation
+  }
+
+  setHideReadsInNavigation(hide: boolean) {
+    this.hideReadsInNavigation = hide
+    window.localStorage.setItem(StorageKey.HIDE_READS_IN_NAVIGATION, hide.toString())
+  }
+
+  getHideReadsInProfiles() {
+    return this.hideReadsInProfiles
+  }
+
+  setHideReadsInProfiles(hide: boolean) {
+    this.hideReadsInProfiles = hide
+    window.localStorage.setItem(StorageKey.HIDE_READS_IN_PROFILES, hide.toString())
+  }
+
+  getFavoriteLists(pubkey?: string | null) {
+    const key = pubkey || '_global'
+    return this.favoriteListsMap[key] || []
+  }
+
+  addFavoriteList(listKey: string, pubkey?: string | null) {
+    const key = pubkey || '_global'
+    const currentFavorites = this.favoriteListsMap[key] || []
+    if (!currentFavorites.includes(listKey)) {
+      this.favoriteListsMap[key] = [...currentFavorites, listKey]
+      window.localStorage.setItem(StorageKey.FAVORITE_LISTS, JSON.stringify(this.favoriteListsMap))
+    }
+  }
+
+  removeFavoriteList(listKey: string, pubkey?: string | null) {
+    const key = pubkey || '_global'
+    const currentFavorites = this.favoriteListsMap[key] || []
+    this.favoriteListsMap[key] = currentFavorites.filter((k) => k !== listKey)
+    window.localStorage.setItem(StorageKey.FAVORITE_LISTS, JSON.stringify(this.favoriteListsMap))
+  }
+
+  isFavoriteList(listKey: string, pubkey?: string | null) {
+    const key = pubkey || '_global'
+    const currentFavorites = this.favoriteListsMap[key] || []
+    return currentFavorites.includes(listKey)
+  }
+
+  // Read Articles
+  isArticleRead(articleId: string) {
+    return this.readArticles.has(articleId)
+  }
+
+  markArticleAsRead(articleId: string) {
+    if (this.readArticles.has(articleId)) {
+      return
+    }
+    this.readArticles.add(articleId)
+    window.localStorage.setItem(StorageKey.READ_ARTICLES, JSON.stringify(Array.from(this.readArticles)))
+  }
+
+  markArticleAsUnread(articleId: string) {
+    if (!this.readArticles.has(articleId)) {
+      return
+    }
+    this.readArticles.delete(articleId)
+    window.localStorage.setItem(StorageKey.READ_ARTICLES, JSON.stringify(Array.from(this.readArticles)))
+  }
+
+  clearReadArticles() {
+    this.readArticles.clear()
+    window.localStorage.removeItem(StorageKey.READ_ARTICLES)
+  }
+
+  // Bookmark Tags
+  getBookmarkTags(eventId: string): string[] {
+    return this.bookmarkTags[eventId] || []
+  }
+
+  setBookmarkTags(eventId: string, tags: string[]) {
+    this.bookmarkTags[eventId] = tags
+    window.localStorage.setItem(StorageKey.BOOKMARK_TAGS, JSON.stringify(this.bookmarkTags))
+  }
+
+  addBookmarkTag(eventId: string, tag: string) {
+    const currentTags = this.bookmarkTags[eventId] || []
+    if (!currentTags.includes(tag)) {
+      this.bookmarkTags[eventId] = [...currentTags, tag]
+      window.localStorage.setItem(StorageKey.BOOKMARK_TAGS, JSON.stringify(this.bookmarkTags))
+    }
+  }
+
+  removeBookmarkTag(eventId: string, tag: string) {
+    const currentTags = this.bookmarkTags[eventId] || []
+    this.bookmarkTags[eventId] = currentTags.filter((t) => t !== tag)
+    if (this.bookmarkTags[eventId].length === 0) {
+      delete this.bookmarkTags[eventId]
+    }
+    window.localStorage.setItem(StorageKey.BOOKMARK_TAGS, JSON.stringify(this.bookmarkTags))
+  }
+
+  getAllBookmarkTags(): string[] {
+    const allTags = new Set<string>()
+    Object.values(this.bookmarkTags).forEach((tags) => {
+      tags.forEach((tag) => allTags.add(tag))
+    })
+    return Array.from(allTags).sort()
+  }
+
+  deleteBookmarkTag(tag: string) {
+    Object.keys(this.bookmarkTags).forEach((eventId) => {
+      this.bookmarkTags[eventId] = this.bookmarkTags[eventId].filter((t) => t !== tag)
+      if (this.bookmarkTags[eventId].length === 0) {
+        delete this.bookmarkTags[eventId]
+      }
+    })
+    window.localStorage.setItem(StorageKey.BOOKMARK_TAGS, JSON.stringify(this.bookmarkTags))
+  }
+
+  // Pinned Replies - stores which replies are pinned for each thread
+  // Key is the parent event ID, value is array of pinned reply IDs
+  getPinnedRepliesForThread(threadId: string): string[] {
+    return this.pinnedReplies[threadId] || []
+  }
+
+  isReplyPinned(threadId: string, replyId: string): boolean {
+    const pinnedReplies = this.pinnedReplies[threadId] || []
+    return pinnedReplies.includes(replyId)
+  }
+
+  pinReply(threadId: string, replyId: string) {
+    const pinnedReplies = this.pinnedReplies[threadId] || []
+    if (!pinnedReplies.includes(replyId)) {
+      this.pinnedReplies[threadId] = [...pinnedReplies, replyId]
+      window.localStorage.setItem(StorageKey.PINNED_REPLIES, JSON.stringify(this.pinnedReplies))
+    }
+  }
+
+  unpinReply(threadId: string, replyId: string) {
+    const pinnedReplies = this.pinnedReplies[threadId] || []
+    this.pinnedReplies[threadId] = pinnedReplies.filter((id) => id !== replyId)
+    if (this.pinnedReplies[threadId].length === 0) {
+      delete this.pinnedReplies[threadId]
+    }
+    window.localStorage.setItem(StorageKey.PINNED_REPLIES, JSON.stringify(this.pinnedReplies))
+  }
+
+  clearPinnedRepliesForThread(threadId: string) {
+    delete this.pinnedReplies[threadId]
+    window.localStorage.setItem(StorageKey.PINNED_REPLIES, JSON.stringify(this.pinnedReplies))
+  }
+
+  // Menu Items - stores custom order and visibility of navigation menu items
+  getMenuItems() {
+    const storedItems = window.localStorage.getItem(StorageKey.MENU_ITEMS)
+
+    if (!storedItems) {
+      // Return default menu items if nothing stored
+      return DEFAULT_MENU_ITEMS
+    }
+
+    const stored = JSON.parse(storedItems) as TMenuItemConfig[]
+
+    // Migration: Add new menu items that don't exist in stored config
+    const storedIds = stored.map((item) => item.id)
+    const missingItems = DEFAULT_MENU_ITEMS.filter(
+      (defaultItem) => !storedIds.includes(defaultItem.id)
+    )
+
+    if (missingItems.length > 0) {
+      // Find the highest order value in stored items
+      const maxOrder = Math.max(...stored.map((item) => item.order), -1)
+
+      // Add missing items with incremented order
+      const mergedItems = [
+        ...stored,
+        ...missingItems.map((item, index: number) => ({
+          ...item,
+          order: maxOrder + index + 1
+        }))
+      ]
+
+      // Save the merged config
+      this.setMenuItems(mergedItems)
+      return mergedItems
+    }
+
+    return stored
+  }
+
+  setMenuItems(menuItems: any[]) {
+    window.localStorage.setItem(StorageKey.MENU_ITEMS, JSON.stringify(menuItems))
+  }
+
+  getDefaultReactionEmojis() {
+    return this.defaultReactionEmojis
+  }
+
+  setDefaultReactionEmojis(emojis: string[]) {
+    this.defaultReactionEmojis = emojis
+    window.localStorage.setItem(StorageKey.DEFAULT_REACTION_EMOJIS, JSON.stringify(emojis))
   }
 }
 

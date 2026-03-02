@@ -2,11 +2,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { useFetchRelayInfo } from '@/hooks'
-import { normalizeHttpUrl } from '@/lib/url'
+import { normalizeHttpUrl, normalizeUrl } from '@/lib/url'
+import { getRelayDisplayName } from '@/lib/relay'
 import { cn } from '@/lib/utils'
 import { useNostr } from '@/providers/NostrProvider'
-import { Check, Copy, GitBranch, Link, Mail, SquareCode } from 'lucide-react'
-import { useState } from 'react'
+import { Check, Copy, GitBranch, Link, Mail, Plus, SquareCode } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import PostEditor from '../PostEditor'
@@ -15,6 +16,7 @@ import SaveRelayDropdownMenu from '../SaveRelayDropdownMenu'
 import UserAvatar from '../UserAvatar'
 import Username from '../Username'
 import RelayReviewsPreview from './RelayReviewsPreview'
+import { createRelayListDraftEvent } from '@/lib/draft-event'
 
 export default function RelayInfo({ url, className }: { url: string; className?: string }) {
   const { t } = useTranslation()
@@ -34,7 +36,7 @@ export default function RelayInfo({ url, className }: { url: string; className?:
             <div className="flex gap-2 items-center truncate">
               <RelayIcon url={url} className="w-8 h-8" />
               <div className="text-2xl font-semibold truncate select-text">
-                {relayInfo.name || relayInfo.shortUrl}
+                {getRelayDisplayName(relayInfo)}
               </div>
             </div>
             <RelayControls url={relayInfo.url} />
@@ -105,13 +107,16 @@ export default function RelayInfo({ url, className }: { url: string; className?:
           </div>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
-        <Button
-          variant="secondary"
-          className="w-full"
-          onClick={() => checkLogin(() => setOpen(true))}
-        >
-          {t('Share something on this Relay')}
-        </Button>
+        <div className="flex gap-2">
+          <AddToMyRelaysButton relayUrl={relayInfo.url} />
+          <Button
+            variant="default"
+            className="flex-1"
+            onClick={() => checkLogin(() => setOpen(true))}
+          >
+            {t('Share something on this Relay')}
+          </Button>
+        </div>
         <PostEditor open={open} setOpen={setOpen} openFrom={[relayInfo.url]} />
       </div>
       <RelayReviewsPreview relayUrl={url} />
@@ -151,5 +156,76 @@ function RelayControls({ url }: { url: string }) {
       </Button>
       <SaveRelayDropdownMenu urls={[url]} bigButton />
     </div>
+  )
+}
+
+function AddToMyRelaysButton({ relayUrl }: { relayUrl: string }) {
+  const { t } = useTranslation()
+  const { pubkey, relayList, checkLogin, publish, updateRelayListEvent } = useNostr()
+  const [isAdding, setIsAdding] = useState(false)
+
+  const normalizedUrl = useMemo(() => normalizeUrl(relayUrl), [relayUrl])
+
+  const isAlreadyAdded = useMemo(() => {
+    if (!relayList || !normalizedUrl) return false
+    return relayList.originalRelays.some((r) => r.url === normalizedUrl)
+  }, [relayList, normalizedUrl])
+
+  const handleAddToMyRelays = async () => {
+    if (!normalizedUrl) {
+      toast.error(t('Invalid relay URL'))
+      return
+    }
+
+    await checkLogin(async () => {
+      if (!pubkey || !relayList) return
+
+      setIsAdding(true)
+      try {
+        // Add the relay with both read and write permissions
+        const updatedRelays = [
+          ...relayList.originalRelays,
+          { url: normalizedUrl, scope: 'both' as const }
+        ]
+
+        const draftEvent = createRelayListDraftEvent(updatedRelays)
+        const publishedEvent = await publish(draftEvent)
+        await updateRelayListEvent(publishedEvent)
+
+        toast.success(t('Relay added successfully'))
+      } catch (error) {
+        console.error('Failed to add relay:', error)
+        toast.error(t('Failed to add relay'))
+      } finally {
+        setIsAdding(false)
+      }
+    })
+  }
+
+  if (!pubkey) {
+    return null
+  }
+
+  return (
+    <Button
+      variant="secondary"
+      className="flex-1"
+      onClick={handleAddToMyRelays}
+      disabled={isAdding || isAlreadyAdded}
+    >
+      {isAdding ? (
+        t('Adding...')
+      ) : isAlreadyAdded ? (
+        <>
+          <Check className="mr-2 h-4 w-4" />
+          {t('Added')}
+        </>
+      ) : (
+        <>
+          <Plus className="mr-2 h-4 w-4" />
+          {t('Add to my relays')}
+        </>
+      )}
+    </Button>
   )
 }

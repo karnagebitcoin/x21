@@ -96,6 +96,7 @@ const NotePage = forwardRef(({ id, index }: { id?: string; index?: number }, ref
             hideParentNotePreview
             originalNoteId={id}
             showFull
+            filterMutedNotes={false}
           />
           <NoteStats className="mt-3" event={event} fetchIfNotExisting displayTopZapsAndLikes />
         </div>
