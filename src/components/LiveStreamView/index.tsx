@@ -422,65 +422,60 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
                   }}
                   onVolumeChange={(event) => setIsVideoMuted(event.currentTarget.muted)}
                 />
-              </div>
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent p-2">
+                  <div className="pointer-events-auto flex items-center gap-1.5 text-white/90">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+                      onClick={toggleVideoPlayback}
+                    >
+                      {isVideoPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    </Button>
 
-              <div className="shrink-0 border-t border-white/10 bg-black px-2 py-1.5">
-                <div className="flex items-center gap-1.5 text-white/90">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
-                    onClick={toggleVideoPlayback}
-                  >
-                    {isVideoPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+                      onClick={toggleVideoMute}
+                    >
+                      {isVideoMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    </Button>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
-                    onClick={toggleVideoMute}
-                  >
-                    {isVideoMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                  </Button>
-
-                  {hasDuration ? (
-                    <>
-                      <span className="w-11 shrink-0 text-[11px] tabular-nums text-white/70">
-                        {formatMediaTime(currentTime)}
-                      </span>
-                      <Slider
-                        value={[Math.min(currentTime, duration)]}
-                        max={duration}
-                        step={1}
-                        onValueChange={handleSeek}
-                        hideThumb
-                        className="flex-1"
-                      />
-                      <span className="w-11 shrink-0 text-[11px] tabular-nums text-white/70 text-right">
-                        {formatMediaTime(duration)}
-                      </span>
-                    </>
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center">
-                      <Badge variant="outline" className="border-red-500/50 text-red-400 bg-transparent">
-                        {t('LIVE')}
-                      </Badge>
-                    </div>
-                  )}
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
-                    onClick={toggleFullscreen}
-                  >
-                    {isFullscreen ? (
-                      <Minimize2 className="w-4 h-4" />
+                    {hasDuration ? (
+                      <>
+                        <span className="w-11 shrink-0 text-[11px] tabular-nums text-white/70">
+                          {formatMediaTime(currentTime)}
+                        </span>
+                        <Slider
+                          value={[Math.min(currentTime, duration)]}
+                          max={duration}
+                          step={1}
+                          onValueChange={handleSeek}
+                          hideThumb
+                          className="flex-1"
+                        />
+                        <span className="w-11 shrink-0 text-[11px] tabular-nums text-white/70 text-right">
+                          {formatMediaTime(duration)}
+                        </span>
+                      </>
                     ) : (
-                      <Maximize2 className="w-4 h-4" />
+                      <div className="flex-1" />
                     )}
-                  </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+                      onClick={toggleFullscreen}
+                    >
+                      {isFullscreen ? (
+                        <Minimize2 className="w-4 h-4" />
+                      ) : (
+                        <Maximize2 className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </>
