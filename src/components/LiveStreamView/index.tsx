@@ -29,8 +29,11 @@ import { useSecondaryPage } from '@/PageManager'
 import { formatAmount } from '@/lib/lightning'
 import { getZapInfoFromEvent } from '@/lib/event-metadata'
 import ZapDialog from '@/components/ZapDialog'
+import { BIG_RELAY_URLS } from '@/constants'
+import { normalizeUrl } from '@/lib/url'
 
-const DEFAULT_LIVE_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band']
+const DEFAULT_LIVE_RELAYS = ['wss://relay.damus.io/', 'wss://nos.lol/', 'wss://relay.nostr.band/']
+const LIVE_STREAM_LOADING_TIMEOUT = 15_000
 
 type DecodedLiveAddress = {
   identifier: string
@@ -63,6 +66,23 @@ function getAddressTag(decoded: DecodedLiveAddress): string {
   return `${decoded.kind}:${decoded.pubkey}:${decoded.identifier}`
 }
 
+function getStreamRelays(decoded: DecodedLiveAddress): string[] {
+  const relayCandidates = [
+    ...(decoded.relays ?? []),
+    ...DEFAULT_LIVE_RELAYS,
+    ...BIG_RELAY_URLS,
+    'wss://relay.snort.social/',
+    'wss://relay.primal.net/',
+    'wss://nostr.wine/'
+  ]
+
+  const normalized = relayCandidates
+    .map((relay) => normalizeUrl(relay))
+    .filter((relay): relay is string => relay.length > 0)
+
+  return Array.from(new Set(normalized))
+}
+
 export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const { t } = useTranslation()
   const { pubkey, checkLogin, publish } = useNostr()
@@ -87,9 +107,17 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const chatScrollRafRef = useRef<number | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const videoContainerRef = useRef<HTMLDivElement>(null)
+  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearLoadingTimeout = useCallback(() => {
+    if (!loadingTimeoutRef.current) return
+    clearTimeout(loadingTimeoutRef.current)
+    loadingTimeoutRef.current = null
+  }, [])
 
   useEffect(() => {
     if (!decodedEvent) {
+      clearLoadingTimeout()
       setIsLoading(false)
       setLiveEvent(null)
       setChatMessages([])
@@ -100,12 +128,10 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
       return
     }
 
-    const relays =
-      decodedEvent.relays && decodedEvent.relays.length > 0
-        ? decodedEvent.relays
-        : DEFAULT_LIVE_RELAYS
+    const relays = getStreamRelays(decodedEvent)
     const addressTag = getAddressTag(decodedEvent)
 
+    clearLoadingTimeout()
     setIsLoading(true)
     setLiveEvent(null)
     setChatMessages([])
@@ -113,6 +139,32 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
     setCurrentTime(0)
     setDuration(0)
     setIsVideoPlaying(false)
+
+    // Keep loading state a bit longer to avoid false "not found" flashes on slow relays.
+    loadingTimeoutRef.current = setTimeout(() => {
+      setIsLoading(false)
+      loadingTimeoutRef.current = null
+    }, LIVE_STREAM_LOADING_TIMEOUT)
+
+    // Seed with one-shot query to improve first paint speed.
+    client
+      .querySync(relays, {
+        kinds: [decodedEvent.kind],
+        authors: [decodedEvent.pubkey],
+        '#d': [decodedEvent.identifier],
+        limit: 20
+      })
+      .then((events) => {
+        if (events.length === 0) return
+        const latest = events.sort((a, b) => b.created_at - a.created_at)[0]
+        if (!latest) return
+        setLiveEvent(latest)
+        setIsLoading(false)
+        clearLoadingTimeout()
+      })
+      .catch(() => {
+        // Ignore seed errors; live subscription handles retries/updates.
+      })
 
     const liveSub = client.subscribe(
       relays,
@@ -128,9 +180,11 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
             if (!previous) return event
             return event.created_at > previous.created_at ? event : previous
           })
+          setIsLoading(false)
+          clearLoadingTimeout()
         },
-        oneose: (eosed: boolean) => {
-          if (eosed) setIsLoading(false)
+        oneose: () => {
+          // Intentionally no-op: a quick EOSE should not immediately show "not found".
         }
       }
     )
@@ -184,11 +238,12 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
     )
 
     return () => {
+      clearLoadingTimeout()
       liveSub.close()
       chatSub.close()
       zapsSub.close()
     }
-  }, [decodedEvent])
+  }, [clearLoadingTimeout, decodedEvent])
 
   const scrollChatToBottom = useCallback(() => {
     const container = chatContainerRef.current
@@ -208,11 +263,12 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
 
   useEffect(() => {
     return () => {
+      clearLoadingTimeout()
       if (chatScrollRafRef.current !== null) {
         cancelAnimationFrame(chatScrollRafRef.current)
       }
     }
-  }, [])
+  }, [clearLoadingTimeout])
 
   useEffect(() => {
     const count = chatMessages.length

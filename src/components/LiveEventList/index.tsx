@@ -156,8 +156,10 @@ const LiveEventList = forwardRef<
           }
           setIsLoading(false)
         },
-        oneose: () => {
-          setIsLoading(false)
+        oneose: (eosed: boolean) => {
+          if (eosed) {
+            setIsLoading(false)
+          }
         },
         onAllClose: (reasons) => {
           if (reasons.every((reason) => reason === 'closed by caller')) return
