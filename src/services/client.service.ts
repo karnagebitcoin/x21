@@ -10,8 +10,13 @@ import { formatPubkey, isValidPubkey, pubkeyToNpub, userIdToPubkey } from '@/lib
 import { getPubkeysFromPTags, getServersFromServerTags, tagNameEquals } from '@/lib/tag'
 import { isLocalNetworkUrl, isWebsocketUrl, normalizeUrl } from '@/lib/url'
 import { isSafari } from '@/lib/utils'
+import { getMetadataRelayTiers } from '@/services/client/metadata-relay-tiers'
+import { prefetchProfilesForEvents } from '@/services/client/profile-prefetch'
+import {
+  generateMultipleTimelinesKey,
+  generateTimelineKey
+} from '@/services/client/timeline-key'
 import { ISigner, TProfile, TPublishOptions, TRelayList, TSubRequestFilter } from '@/types'
-import { sha256 } from '@noble/hashes/sha2'
 import DataLoader from 'dataloader'
 import dayjs from 'dayjs'
 import FlexSearch from 'flexsearch'
@@ -22,9 +27,7 @@ import {
   kinds,
   Event as NEvent,
   nip19,
-  Relay,
   SimplePool,
-  validateEvent,
   VerifiedEvent
 } from 'nostr-tools'
 import { AbstractRelay } from 'nostr-tools/abstract-relay'
@@ -127,20 +130,7 @@ class ClientService extends EventTarget {
    * Order: user's read relays → favorite relays → big relays (primary) → big relays (secondary)
    */
   private getMetadataRelayTiers(): { tier1: string[]; tier2: string[]; tier3: string[] } {
-    // Tier 1: User's read relays (most preferred)
-    const tier1 = this._preferredReadRelays.slice(0, 4)
-
-    // Tier 2: Favorite relays (excluding those already in tier 1)
-    const tier1Set = new Set(tier1)
-    const tier2 = this._favoriteRelays
-      .filter(url => !tier1Set.has(url))
-      .slice(0, 4)
-
-    // Tier 3: Big relays as final fallback (excluding those already used)
-    const usedSet = new Set([...tier1, ...tier2])
-    const tier3 = BIG_RELAY_URLS.filter(url => !usedSet.has(url))
-
-    return { tier1, tier2, tier3 }
+    return getMetadataRelayTiers(this._preferredReadRelays, this._favoriteRelays, BIG_RELAY_URLS)
   }
 
   async determineTargetRelays(
@@ -282,33 +272,11 @@ class ClientService extends EventTarget {
   /** =========== Timeline =========== */
 
   private generateTimelineKey(urls: string[], filter: Filter) {
-    const stableFilter: any = {}
-    Object.entries(filter)
-      .sort()
-      .forEach(([key, value]) => {
-        if (Array.isArray(value)) {
-          stableFilter[key] = [...value].sort()
-        }
-        stableFilter[key] = value
-      })
-    const paramsStr = JSON.stringify({
-      urls: [...urls].sort(),
-      filter: stableFilter
-    })
-    const encoder = new TextEncoder()
-    const data = encoder.encode(paramsStr)
-    const hashBuffer = sha256(data)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+    return generateTimelineKey(urls, filter)
   }
 
   private generateMultipleTimelinesKey(subRequests: { urls: string[]; filter: Filter }[]) {
-    const keys = subRequests.map(({ urls, filter }) => this.generateTimelineKey(urls, filter))
-    const encoder = new TextEncoder()
-    const data = encoder.encode(JSON.stringify(keys.sort()))
-    const hashBuffer = sha256(data)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+    return generateMultipleTimelinesKey(subRequests)
   }
 
   async subscribeTimeline(
@@ -565,55 +533,10 @@ class ClientService extends EventTarget {
    * 3. Only fetch from relays for profiles not in any cache
    */
   private async prefetchProfilesForEvents(events: NEvent[]) {
-    if (!events.length) return
-
-    // Extract unique pubkeys from events
-    const uniquePubkeys = new Set<string>()
-    events.forEach((evt) => {
-      uniquePubkeys.add(evt.pubkey)
-      // Also prefetch mentioned users (p tags) for better UX
-      evt.tags.forEach(([tagName, tagValue]) => {
-        if (tagName === 'p' && tagValue && /^[0-9a-f]{64}$/.test(tagValue)) {
-          uniquePubkeys.add(tagValue)
-        }
-      })
-    })
-
-    // Filter out pubkeys already in memory cache
-    const pubkeysToFetch: string[] = []
-    const coordinate = (pubkey: string) => getReplaceableCoordinate(kinds.Metadata, pubkey)
-
-    for (const pubkey of uniquePubkeys) {
-      if (!this.replaceableEventCacheMap.has(coordinate(pubkey))) {
-        pubkeysToFetch.push(pubkey)
-      }
-    }
-
-    if (pubkeysToFetch.length === 0) return
-
-    // Check IndexedDB for cached profiles and warm memory cache
-    const cachedEvents = await indexedDb.getManyReplaceableEvents(pubkeysToFetch, kinds.Metadata)
-    const stillNeedFetch: string[] = []
-
-    pubkeysToFetch.forEach((pubkey, i) => {
-      const cachedEvent = cachedEvents[i]
-      if (cachedEvent) {
-        // Warm the memory cache from IndexedDB
-        this.replaceableEventCacheMap.set(coordinate(pubkey), cachedEvent)
-        // Also prime the dataloader cache
-        this.replaceableEventFromBigRelaysDataloader.prime(
-          { pubkey, kind: kinds.Metadata },
-          Promise.resolve(cachedEvent)
-        )
-      } else if (cachedEvent === undefined) {
-        // undefined means not in cache, null means explicitly not found
-        stillNeedFetch.push(pubkey)
-      }
-    })
-
-    // Only fetch from relays for profiles not in any cache
-    stillNeedFetch.forEach((pubkey) => {
-      this.replaceableEventFromBigRelaysDataloader.load({ pubkey, kind: kinds.Metadata })
+    await prefetchProfilesForEvents({
+      events,
+      replaceableEventCacheMap: this.replaceableEventCacheMap,
+      replaceableEventFromBigRelaysDataloader: this.replaceableEventFromBigRelaysDataloader
     })
   }
 

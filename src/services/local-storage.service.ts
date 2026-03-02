@@ -52,7 +52,17 @@ import {
   TColorPalette,
   TLogoStyle
 } from '@/types'
-import { DEFAULT_MENU_ITEMS, TMenuItemConfig } from '@/constants/menu-items'
+import { TMenuItemConfig } from '@/constants/menu-items'
+import { getDefaultMenuItems, mergeMenuItemsWithDefaults } from '@/services/local-storage/menu-items'
+import {
+  getStorageItem,
+  getStorageJson,
+  removeStorageItem,
+  setStorageBoolean,
+  setStorageItem,
+  setStorageJson,
+  setStorageNumber
+} from '@/services/local-storage/persistence'
 
 class LocalStorageService {
   static instance: LocalStorageService
@@ -142,28 +152,41 @@ class LocalStorageService {
     return LocalStorageService.instance
   }
 
+  private setString(key: string, value: string) {
+    setStorageItem(key, value)
+  }
+
+  private setBoolean(key: string, value: boolean) {
+    setStorageBoolean(key, value)
+  }
+
+  private setNumber(key: string, value: number) {
+    setStorageNumber(key, value)
+  }
+
+  private setJson(key: string, value: unknown) {
+    setStorageJson(key, value)
+  }
+
   init() {
-    this.themeSetting =
-      (window.localStorage.getItem(StorageKey.THEME_SETTING) as TThemeSetting) ?? 'dark'
-    this.colorPalette =
-      (window.localStorage.getItem(StorageKey.COLOR_PALETTE) as TColorPalette) ?? 'default'
-    const accountsStr = window.localStorage.getItem(StorageKey.ACCOUNTS)
-    this.accounts = accountsStr ? JSON.parse(accountsStr) : []
-    const currentAccountStr = window.localStorage.getItem(StorageKey.CURRENT_ACCOUNT)
-    this.currentAccount = currentAccountStr ? JSON.parse(currentAccountStr) : null
-    const noteListModeStr = window.localStorage.getItem(StorageKey.NOTE_LIST_MODE)
+    this.themeSetting = (getStorageItem(StorageKey.THEME_SETTING) as TThemeSetting) ?? 'dark'
+    this.colorPalette = (getStorageItem(StorageKey.COLOR_PALETTE) as TColorPalette) ?? 'default'
+    this.accounts = getStorageJson<TAccount[]>(StorageKey.ACCOUNTS, [])
+    this.currentAccount = getStorageJson<TAccount | null>(StorageKey.CURRENT_ACCOUNT, null)
+    const noteListModeStr = getStorageItem(StorageKey.NOTE_LIST_MODE)
     this.noteListMode =
       noteListModeStr && ['posts', 'postsAndReplies', 'pictures'].includes(noteListModeStr)
         ? (noteListModeStr as TNoteListMode)
         : 'posts'
-    const lastReadNotificationTimeMapStr =
-      window.localStorage.getItem(StorageKey.LAST_READ_NOTIFICATION_TIME_MAP) ?? '{}'
-    this.lastReadNotificationTimeMap = JSON.parse(lastReadNotificationTimeMapStr)
+    this.lastReadNotificationTimeMap = getStorageJson<Record<string, number>>(
+      StorageKey.LAST_READ_NOTIFICATION_TIME_MAP,
+      {}
+    )
 
-    const relaySetsStr = window.localStorage.getItem(StorageKey.RELAY_SETS)
+    const relaySetsStr = getStorageItem(StorageKey.RELAY_SETS)
     if (!relaySetsStr) {
       let relaySets: TRelaySet[] = []
-      const legacyRelayGroupsStr = window.localStorage.getItem('relayGroups')
+      const legacyRelayGroupsStr = getStorageItem('relayGroups')
       if (legacyRelayGroupsStr) {
         const legacyRelayGroups = JSON.parse(legacyRelayGroupsStr)
         relaySets = legacyRelayGroups.map((group: any) => {
@@ -177,41 +200,37 @@ class LocalStorageService {
       if (!relaySets.length) {
         relaySets = []
       }
-      window.localStorage.setItem(StorageKey.RELAY_SETS, JSON.stringify(relaySets))
+      this.setJson(StorageKey.RELAY_SETS, relaySets)
       this.relaySets = relaySets
     } else {
       this.relaySets = JSON.parse(relaySetsStr)
     }
 
-    const defaultZapSatsStr = window.localStorage.getItem(StorageKey.DEFAULT_ZAP_SATS)
+    const defaultZapSatsStr = getStorageItem(StorageKey.DEFAULT_ZAP_SATS)
     if (defaultZapSatsStr) {
       const num = parseInt(defaultZapSatsStr)
       if (!isNaN(num)) {
         this.defaultZapSats = num
       }
     }
-    this.defaultZapComment = window.localStorage.getItem(StorageKey.DEFAULT_ZAP_COMMENT) ?? 'Zap!'
-    this.quickZap = window.localStorage.getItem(StorageKey.QUICK_ZAP) === 'true'
+    this.defaultZapComment = getStorageItem(StorageKey.DEFAULT_ZAP_COMMENT) ?? 'Zap!'
+    this.quickZap = getStorageItem(StorageKey.QUICK_ZAP) === 'true'
 
-    const accountFeedInfoMapStr =
-      window.localStorage.getItem(StorageKey.ACCOUNT_FEED_INFO_MAP) ?? '{}'
-    this.accountFeedInfoMap = JSON.parse(accountFeedInfoMapStr)
+    this.accountFeedInfoMap = getStorageJson<Record<string, TFeedInfo | undefined>>(
+      StorageKey.ACCOUNT_FEED_INFO_MAP,
+      {}
+    )
 
     // deprecated
     this.mediaUploadService =
-      window.localStorage.getItem(StorageKey.MEDIA_UPLOAD_SERVICE) ?? DEFAULT_NIP_96_SERVICE
+      getStorageItem(StorageKey.MEDIA_UPLOAD_SERVICE) ?? DEFAULT_NIP_96_SERVICE
 
-    this.autoplay = window.localStorage.getItem(StorageKey.AUTOPLAY) !== 'false'
+    this.autoplay = getStorageItem(StorageKey.AUTOPLAY) !== 'false'
 
-    const hideUntrustedEvents =
-      window.localStorage.getItem(StorageKey.HIDE_UNTRUSTED_EVENTS) === 'true'
-    const storedHideUntrustedInteractions = window.localStorage.getItem(
-      StorageKey.HIDE_UNTRUSTED_INTERACTIONS
-    )
-    const storedHideUntrustedNotifications = window.localStorage.getItem(
-      StorageKey.HIDE_UNTRUSTED_NOTIFICATIONS
-    )
-    const storedHideUntrustedNotes = window.localStorage.getItem(StorageKey.HIDE_UNTRUSTED_NOTES)
+    const hideUntrustedEvents = getStorageItem(StorageKey.HIDE_UNTRUSTED_EVENTS) === 'true'
+    const storedHideUntrustedInteractions = getStorageItem(StorageKey.HIDE_UNTRUSTED_INTERACTIONS)
+    const storedHideUntrustedNotifications = getStorageItem(StorageKey.HIDE_UNTRUSTED_NOTIFICATIONS)
+    const storedHideUntrustedNotes = getStorageItem(StorageKey.HIDE_UNTRUSTED_NOTES)
     this.hideUntrustedInteractions = storedHideUntrustedInteractions
       ? storedHideUntrustedInteractions === 'true'
       : hideUntrustedEvents
@@ -222,7 +241,7 @@ class LocalStorageService {
       ? storedHideUntrustedNotes === 'true'
       : hideUntrustedEvents
 
-    const storedTrustLevel = window.localStorage.getItem(StorageKey.TRUST_LEVEL)
+    const storedTrustLevel = getStorageItem(StorageKey.TRUST_LEVEL)
     this.trustLevel = storedTrustLevel ? parseInt(storedTrustLevel, 10) : 0
 
     const translationServiceConfigMapStr = window.localStorage.getItem(
@@ -581,7 +600,7 @@ class LocalStorageService {
 
   setRelaySets(relaySets: TRelaySet[]) {
     this.relaySets = relaySets
-    window.localStorage.setItem(StorageKey.RELAY_SETS, JSON.stringify(this.relaySets))
+    this.setJson(StorageKey.RELAY_SETS, this.relaySets)
   }
 
   getThemeSetting() {
@@ -589,7 +608,7 @@ class LocalStorageService {
   }
 
   setThemeSetting(themeSetting: TThemeSetting) {
-    window.localStorage.setItem(StorageKey.THEME_SETTING, themeSetting)
+    this.setString(StorageKey.THEME_SETTING, themeSetting)
     this.themeSetting = themeSetting
   }
 
@@ -598,7 +617,7 @@ class LocalStorageService {
   }
 
   setColorPalette(colorPalette: TColorPalette) {
-    window.localStorage.setItem(StorageKey.COLOR_PALETTE, colorPalette)
+    this.setString(StorageKey.COLOR_PALETTE, colorPalette)
     this.colorPalette = colorPalette
   }
 
@@ -607,7 +626,7 @@ class LocalStorageService {
   }
 
   setNoteListMode(mode: TNoteListMode) {
-    window.localStorage.setItem(StorageKey.NOTE_LIST_MODE, mode)
+    this.setString(StorageKey.NOTE_LIST_MODE, mode)
     this.noteListMode = mode
   }
 
@@ -642,13 +661,13 @@ class LocalStorageService {
     } else {
       this.accounts.push(account)
     }
-    window.localStorage.setItem(StorageKey.ACCOUNTS, JSON.stringify(this.accounts))
+    this.setJson(StorageKey.ACCOUNTS, this.accounts)
     return this.accounts
   }
 
   removeAccount(account: TAccount) {
     this.accounts = this.accounts.filter((act) => !isSameAccount(act, account))
-    window.localStorage.setItem(StorageKey.ACCOUNTS, JSON.stringify(this.accounts))
+    this.setJson(StorageKey.ACCOUNTS, this.accounts)
     return this.accounts
   }
 
@@ -661,7 +680,7 @@ class LocalStorageService {
       return
     }
     this.currentAccount = act
-    window.localStorage.setItem(StorageKey.CURRENT_ACCOUNT, JSON.stringify(act))
+    this.setJson(StorageKey.CURRENT_ACCOUNT, act)
   }
 
   getDefaultZapSats() {
@@ -670,7 +689,7 @@ class LocalStorageService {
 
   setDefaultZapSats(sats: number) {
     this.defaultZapSats = sats
-    window.localStorage.setItem(StorageKey.DEFAULT_ZAP_SATS, sats.toString())
+    this.setNumber(StorageKey.DEFAULT_ZAP_SATS, sats)
   }
 
   getDefaultZapComment() {
@@ -679,7 +698,7 @@ class LocalStorageService {
 
   setDefaultZapComment(comment: string) {
     this.defaultZapComment = comment
-    window.localStorage.setItem(StorageKey.DEFAULT_ZAP_COMMENT, comment)
+    this.setString(StorageKey.DEFAULT_ZAP_COMMENT, comment)
   }
 
   getQuickZap() {
@@ -688,7 +707,7 @@ class LocalStorageService {
 
   setQuickZap(quickZap: boolean) {
     this.quickZap = quickZap
-    window.localStorage.setItem(StorageKey.QUICK_ZAP, quickZap.toString())
+    this.setBoolean(StorageKey.QUICK_ZAP, quickZap)
   }
 
   getChargeZapEnabled() {
@@ -697,7 +716,7 @@ class LocalStorageService {
 
   setChargeZapEnabled(enabled: boolean) {
     this.chargeZapEnabled = enabled
-    window.localStorage.setItem(StorageKey.CHARGE_ZAP_ENABLED, enabled.toString())
+    this.setBoolean(StorageKey.CHARGE_ZAP_ENABLED, enabled)
   }
 
   getChargeZapLimit() {
@@ -706,7 +725,7 @@ class LocalStorageService {
 
   setChargeZapLimit(limit: number) {
     this.chargeZapLimit = limit
-    window.localStorage.setItem(StorageKey.CHARGE_ZAP_LIMIT, limit.toString())
+    this.setNumber(StorageKey.CHARGE_ZAP_LIMIT, limit)
   }
 
   getPaymentsEnabled() {
@@ -715,7 +734,7 @@ class LocalStorageService {
 
   setPaymentsEnabled(enabled: boolean) {
     this.paymentsEnabled = enabled
-    window.localStorage.setItem(StorageKey.PAYMENTS_ENABLED, enabled.toString())
+    this.setBoolean(StorageKey.PAYMENTS_ENABLED, enabled)
   }
 
   getTextOnlyMode() {
@@ -724,7 +743,7 @@ class LocalStorageService {
 
   setTextOnlyMode(enabled: boolean) {
     this.textOnlyMode = enabled
-    window.localStorage.setItem(StorageKey.TEXT_ONLY_MODE, enabled.toString())
+    this.setBoolean(StorageKey.TEXT_ONLY_MODE, enabled)
   }
 
   getLowBandwidthMode() {
@@ -733,7 +752,7 @@ class LocalStorageService {
 
   setLowBandwidthMode(enabled: boolean) {
     this.lowBandwidthMode = enabled
-    window.localStorage.setItem(StorageKey.LOW_BANDWIDTH_MODE, enabled.toString())
+    this.setBoolean(StorageKey.LOW_BANDWIDTH_MODE, enabled)
   }
 
   getDisableAvatarAnimations() {
@@ -742,7 +761,7 @@ class LocalStorageService {
 
   setDisableAvatarAnimations(enabled: boolean) {
     this.disableAvatarAnimations = enabled
-    window.localStorage.setItem(StorageKey.DISABLE_AVATAR_ANIMATIONS, enabled.toString())
+    this.setBoolean(StorageKey.DISABLE_AVATAR_ANIMATIONS, enabled)
   }
 
   getLastReadNotificationTime(pubkey: string) {
@@ -751,10 +770,7 @@ class LocalStorageService {
 
   setLastReadNotificationTime(pubkey: string, time: number) {
     this.lastReadNotificationTimeMap[pubkey] = time
-    window.localStorage.setItem(
-      StorageKey.LAST_READ_NOTIFICATION_TIME_MAP,
-      JSON.stringify(this.lastReadNotificationTimeMap)
-    )
+    this.setJson(StorageKey.LAST_READ_NOTIFICATION_TIME_MAP, this.lastReadNotificationTimeMap)
   }
 
   getFeedInfo(pubkey: string) {
@@ -763,10 +779,7 @@ class LocalStorageService {
 
   setFeedInfo(info: TFeedInfo, pubkey?: string | null) {
     this.accountFeedInfoMap[pubkey ?? 'default'] = info
-    window.localStorage.setItem(
-      StorageKey.ACCOUNT_FEED_INFO_MAP,
-      JSON.stringify(this.accountFeedInfoMap)
-    )
+    this.setJson(StorageKey.ACCOUNT_FEED_INFO_MAP, this.accountFeedInfoMap)
   }
 
   getAutoplay() {
@@ -775,7 +788,7 @@ class LocalStorageService {
 
   setAutoplay(autoplay: boolean) {
     this.autoplay = autoplay
-    window.localStorage.setItem(StorageKey.AUTOPLAY, autoplay.toString())
+    this.setBoolean(StorageKey.AUTOPLAY, autoplay)
   }
 
   getHideUntrustedInteractions() {
@@ -784,10 +797,7 @@ class LocalStorageService {
 
   setHideUntrustedInteractions(hideUntrustedInteractions: boolean) {
     this.hideUntrustedInteractions = hideUntrustedInteractions
-    window.localStorage.setItem(
-      StorageKey.HIDE_UNTRUSTED_INTERACTIONS,
-      hideUntrustedInteractions.toString()
-    )
+    this.setBoolean(StorageKey.HIDE_UNTRUSTED_INTERACTIONS, hideUntrustedInteractions)
   }
 
   getHideUntrustedNotifications() {
@@ -796,10 +806,7 @@ class LocalStorageService {
 
   setHideUntrustedNotifications(hideUntrustedNotifications: boolean) {
     this.hideUntrustedNotifications = hideUntrustedNotifications
-    window.localStorage.setItem(
-      StorageKey.HIDE_UNTRUSTED_NOTIFICATIONS,
-      hideUntrustedNotifications.toString()
-    )
+    this.setBoolean(StorageKey.HIDE_UNTRUSTED_NOTIFICATIONS, hideUntrustedNotifications)
   }
 
   getHideUntrustedNotes() {
@@ -808,7 +815,7 @@ class LocalStorageService {
 
   setHideUntrustedNotes(hideUntrustedNotes: boolean) {
     this.hideUntrustedNotes = hideUntrustedNotes
-    window.localStorage.setItem(StorageKey.HIDE_UNTRUSTED_NOTES, hideUntrustedNotes.toString())
+    this.setBoolean(StorageKey.HIDE_UNTRUSTED_NOTES, hideUntrustedNotes)
   }
 
   getTrustLevel() {
@@ -817,7 +824,7 @@ class LocalStorageService {
 
   setTrustLevel(trustLevel: number) {
     this.trustLevel = trustLevel
-    window.localStorage.setItem(StorageKey.TRUST_LEVEL, trustLevel.toString())
+    this.setNumber(StorageKey.TRUST_LEVEL, trustLevel)
   }
 
   getTranslationServiceConfig(pubkey?: string | null) {
@@ -826,10 +833,7 @@ class LocalStorageService {
 
   setTranslationServiceConfig(config: TTranslationServiceConfig, pubkey?: string | null) {
     this.translationServiceConfigMap[pubkey ?? '_'] = config
-    window.localStorage.setItem(
-      StorageKey.TRANSLATION_SERVICE_CONFIG_MAP,
-      JSON.stringify(this.translationServiceConfigMap)
-    )
+    this.setJson(StorageKey.TRANSLATION_SERVICE_CONFIG_MAP, this.translationServiceConfigMap)
   }
 
   getMediaUploadServiceConfig(pubkey?: string | null): TMediaUploadServiceConfig {
@@ -845,10 +849,7 @@ class LocalStorageService {
     config: TMediaUploadServiceConfig
   ): TMediaUploadServiceConfig {
     this.mediaUploadServiceConfigMap[pubkey] = config
-    window.localStorage.setItem(
-      StorageKey.MEDIA_UPLOAD_SERVICE_CONFIG_MAP,
-      JSON.stringify(this.mediaUploadServiceConfigMap)
-    )
+    this.setJson(StorageKey.MEDIA_UPLOAD_SERVICE_CONFIG_MAP, this.mediaUploadServiceConfigMap)
     return config
   }
 
@@ -858,7 +859,7 @@ class LocalStorageService {
 
   setDefaultShowNsfw(defaultShowNsfw: boolean) {
     this.defaultShowNsfw = defaultShowNsfw
-    window.localStorage.setItem(StorageKey.DEFAULT_SHOW_NSFW, defaultShowNsfw.toString())
+    this.setBoolean(StorageKey.DEFAULT_SHOW_NSFW, defaultShowNsfw)
   }
 
   getDismissedTooManyRelaysAlert() {
@@ -867,7 +868,7 @@ class LocalStorageService {
 
   setDismissedTooManyRelaysAlert(dismissed: boolean) {
     this.dismissedTooManyRelaysAlert = dismissed
-    window.localStorage.setItem(StorageKey.DISMISSED_TOO_MANY_RELAYS_ALERT, dismissed.toString())
+    this.setBoolean(StorageKey.DISMISSED_TOO_MANY_RELAYS_ALERT, dismissed)
   }
 
   getShowKinds() {
@@ -876,7 +877,7 @@ class LocalStorageService {
 
   setShowKinds(kinds: number[]) {
     this.showKinds = kinds
-    window.localStorage.setItem(StorageKey.SHOW_KINDS, JSON.stringify(kinds))
+    this.setJson(StorageKey.SHOW_KINDS, kinds)
   }
 
   getMediaOnly() {
@@ -885,7 +886,7 @@ class LocalStorageService {
 
   setMediaOnly(mediaOnly: boolean) {
     this.mediaOnly = mediaOnly
-    window.localStorage.setItem(StorageKey.MEDIA_ONLY, mediaOnly.toString())
+    this.setBoolean(StorageKey.MEDIA_ONLY, mediaOnly)
   }
 
   getHideContentMentioningMutedUsers() {
@@ -894,7 +895,7 @@ class LocalStorageService {
 
   setHideContentMentioningMutedUsers(hide: boolean) {
     this.hideContentMentioningMutedUsers = hide
-    window.localStorage.setItem(StorageKey.HIDE_CONTENT_MENTIONING_MUTED_USERS, hide.toString())
+    this.setBoolean(StorageKey.HIDE_CONTENT_MENTIONING_MUTED_USERS, hide)
   }
 
   getAlwaysHideMutedNotes() {
@@ -903,7 +904,7 @@ class LocalStorageService {
 
   setAlwaysHideMutedNotes(hide: boolean) {
     this.alwaysHideMutedNotes = hide
-    window.localStorage.setItem(StorageKey.ALWAYS_HIDE_MUTED_NOTES, hide.toString())
+    this.setBoolean(StorageKey.ALWAYS_HIDE_MUTED_NOTES, hide)
   }
 
   getHideNotificationsFromMutedUsers() {
@@ -912,7 +913,7 @@ class LocalStorageService {
 
   setHideNotificationsFromMutedUsers(hide: boolean) {
     this.hideNotificationsFromMutedUsers = hide
-    window.localStorage.setItem(StorageKey.HIDE_NOTIFICATIONS_FROM_MUTED_USERS, hide.toString())
+    this.setBoolean(StorageKey.HIDE_NOTIFICATIONS_FROM_MUTED_USERS, hide)
   }
 
   getNotificationListStyle() {
@@ -921,7 +922,7 @@ class LocalStorageService {
 
   setNotificationListStyle(style: TNotificationStyle) {
     this.notificationListStyle = style
-    window.localStorage.setItem(StorageKey.NOTIFICATION_LIST_STYLE, style)
+    this.setString(StorageKey.NOTIFICATION_LIST_STYLE, style)
   }
 
   getMediaAutoLoadPolicy() {
@@ -930,7 +931,7 @@ class LocalStorageService {
 
   setMediaAutoLoadPolicy(policy: TMediaAutoLoadPolicy) {
     this.mediaAutoLoadPolicy = policy
-    window.localStorage.setItem(StorageKey.MEDIA_AUTO_LOAD_POLICY, policy)
+    this.setString(StorageKey.MEDIA_AUTO_LOAD_POLICY, policy)
   }
 
   getMaxHashtags() {
@@ -939,7 +940,7 @@ class LocalStorageService {
 
   setMaxHashtags(max: number) {
     this.maxHashtags = max
-    window.localStorage.setItem(StorageKey.MAX_HASHTAGS, max.toString())
+    this.setNumber(StorageKey.MAX_HASHTAGS, max)
   }
 
   getMaxMentions() {
@@ -948,7 +949,7 @@ class LocalStorageService {
 
   setMaxMentions(max: number) {
     this.maxMentions = max
-    window.localStorage.setItem(StorageKey.MAX_MENTIONS, max.toString())
+    this.setNumber(StorageKey.MAX_MENTIONS, max)
   }
 
   getDistractionFreeMode() {
@@ -957,7 +958,7 @@ class LocalStorageService {
 
   setDistractionFreeMode(mode: TDistractionFreeMode) {
     this.distractionFreeMode = mode
-    window.localStorage.setItem(StorageKey.DISTRACTION_FREE_MODE, mode)
+    this.setString(StorageKey.DISTRACTION_FREE_MODE, mode)
   }
 
   hasShownCreateWalletGuideToast(pubkey: string) {
@@ -969,9 +970,9 @@ class LocalStorageService {
       return
     }
     this.shownCreateWalletGuideToastPubkeys.add(pubkey)
-    window.localStorage.setItem(
+    this.setJson(
       StorageKey.SHOWN_CREATE_WALLET_GUIDE_TOAST_PUBKEYS,
-      JSON.stringify(Array.from(this.shownCreateWalletGuideToastPubkeys))
+      Array.from(this.shownCreateWalletGuideToastPubkeys)
     )
   }
 
@@ -984,7 +985,7 @@ class LocalStorageService {
       return
     }
     this.fontSize = fontSize
-    window.localStorage.setItem(StorageKey.FONT_SIZE, fontSize.toString())
+    this.setNumber(StorageKey.FONT_SIZE, fontSize)
   }
 
   getTitleFontSize() {
@@ -996,7 +997,7 @@ class LocalStorageService {
       return
     }
     this.titleFontSize = titleFontSize
-    window.localStorage.setItem(StorageKey.TITLE_FONT_SIZE, titleFontSize.toString())
+    this.setNumber(StorageKey.TITLE_FONT_SIZE, titleFontSize)
   }
 
   getFontFamily() {
@@ -1008,7 +1009,7 @@ class LocalStorageService {
       return
     }
     this.fontFamily = fontFamily
-    window.localStorage.setItem(StorageKey.FONT_FAMILY, fontFamily)
+    this.setString(StorageKey.FONT_FAMILY, fontFamily)
   }
 
   getPrimaryColor() {
@@ -1017,7 +1018,7 @@ class LocalStorageService {
 
   setPrimaryColor(color: TPrimaryColor) {
     this.primaryColor = color
-    window.localStorage.setItem(StorageKey.PRIMARY_COLOR, color)
+    this.setString(StorageKey.PRIMARY_COLOR, color)
   }
 
   getButtonRadius() {
@@ -1029,7 +1030,7 @@ class LocalStorageService {
       return
     }
     this.buttonRadius = radius
-    window.localStorage.setItem(StorageKey.BUTTON_RADIUS, radius.toString())
+    this.setNumber(StorageKey.BUTTON_RADIUS, radius)
   }
 
   getPostButtonStyle() {
@@ -1041,7 +1042,7 @@ class LocalStorageService {
       return
     }
     this.postButtonStyle = style
-    window.localStorage.setItem(StorageKey.POST_BUTTON_STYLE, style)
+    this.setString(StorageKey.POST_BUTTON_STYLE, style)
   }
 
   getCardRadius() {
@@ -1053,7 +1054,7 @@ class LocalStorageService {
       return
     }
     this.cardRadius = radius
-    window.localStorage.setItem(StorageKey.CARD_RADIUS, radius.toString())
+    this.setNumber(StorageKey.CARD_RADIUS, radius)
   }
 
   getMediaRadius() {
@@ -1065,7 +1066,7 @@ class LocalStorageService {
       return
     }
     this.mediaRadius = radius
-    window.localStorage.setItem(StorageKey.MEDIA_RADIUS, radius.toString())
+    this.setNumber(StorageKey.MEDIA_RADIUS, radius)
   }
 
   getPageTheme() {
@@ -1074,7 +1075,7 @@ class LocalStorageService {
 
   setPageTheme(pageTheme: TPageTheme) {
     this.pageTheme = pageTheme
-    window.localStorage.setItem(StorageKey.PAGE_THEME, pageTheme)
+    this.setString(StorageKey.PAGE_THEME, pageTheme)
   }
 
   getTrendingNotesDismissed() {
@@ -1083,7 +1084,7 @@ class LocalStorageService {
 
   setTrendingNotesDismissed(dismissed: boolean) {
     this.trendingNotesDismissed = dismissed
-    window.localStorage.setItem(StorageKey.TRENDING_NOTES_DISMISSED, dismissed.toString())
+    this.setBoolean(StorageKey.TRENDING_NOTES_DISMISSED, dismissed)
   }
 
   getCompactSidebar() {
@@ -1092,7 +1093,7 @@ class LocalStorageService {
 
   setCompactSidebar(compact: boolean) {
     this.compactSidebar = compact
-    window.localStorage.setItem(StorageKey.COMPACT_SIDEBAR, compact.toString())
+    this.setBoolean(StorageKey.COMPACT_SIDEBAR, compact)
   }
 
   getLogoStyle() {
@@ -1101,7 +1102,7 @@ class LocalStorageService {
 
   setLogoStyle(style: TLogoStyle) {
     this.logoStyle = style
-    window.localStorage.setItem(StorageKey.LOGO_STYLE, style)
+    this.setString(StorageKey.LOGO_STYLE, style)
   }
 
   getCustomLogoText() {
@@ -1110,7 +1111,7 @@ class LocalStorageService {
 
   setCustomLogoText(text: string) {
     this.customLogoText = text
-    window.localStorage.setItem(StorageKey.CUSTOM_LOGO_TEXT, text)
+    this.setString(StorageKey.CUSTOM_LOGO_TEXT, text)
   }
 
   getLogoFontSize() {
@@ -1119,7 +1120,7 @@ class LocalStorageService {
 
   setLogoFontSize(size: number) {
     this.logoFontSize = size
-    window.localStorage.setItem(StorageKey.LOGO_FONT_SIZE, size.toString())
+    this.setNumber(StorageKey.LOGO_FONT_SIZE, size)
   }
 
   getWidgetSidebarTitle() {
@@ -1128,7 +1129,7 @@ class LocalStorageService {
 
   setWidgetSidebarTitle(title: string) {
     this.widgetSidebarTitle = title
-    window.localStorage.setItem(StorageKey.WIDGET_SIDEBAR_TITLE, title)
+    this.setString(StorageKey.WIDGET_SIDEBAR_TITLE, title)
   }
 
   getWidgetSidebarIcon() {
@@ -1138,9 +1139,9 @@ class LocalStorageService {
   setWidgetSidebarIcon(icon: string | null) {
     this.widgetSidebarIcon = icon
     if (icon === null) {
-      window.localStorage.removeItem(StorageKey.WIDGET_SIDEBAR_ICON)
+      removeStorageItem(StorageKey.WIDGET_SIDEBAR_ICON)
     } else {
-      window.localStorage.setItem(StorageKey.WIDGET_SIDEBAR_ICON, icon)
+      this.setString(StorageKey.WIDGET_SIDEBAR_ICON, icon)
     }
   }
 
@@ -1150,7 +1151,7 @@ class LocalStorageService {
 
   setHideWidgetTitles(hide: boolean) {
     this.hideWidgetTitles = hide
-    window.localStorage.setItem(StorageKey.HIDE_WIDGET_TITLES, hide.toString())
+    this.setBoolean(StorageKey.HIDE_WIDGET_TITLES, hide)
   }
 
   getEnabledWidgets() {
@@ -1159,7 +1160,7 @@ class LocalStorageService {
 
   setEnabledWidgets(widgets: string[]) {
     this.enabledWidgets = widgets
-    window.localStorage.setItem(StorageKey.ENABLED_WIDGETS, JSON.stringify(widgets))
+    this.setJson(StorageKey.ENABLED_WIDGETS, widgets)
   }
 
   getTrendingNotesHeight() {
@@ -1168,7 +1169,7 @@ class LocalStorageService {
 
   setTrendingNotesHeight(height: 'short' | 'medium' | 'tall' | 'remaining') {
     this.trendingNotesHeight = height
-    window.localStorage.setItem(StorageKey.TRENDING_NOTES_HEIGHT, height)
+    this.setString(StorageKey.TRENDING_NOTES_HEIGHT, height)
   }
 
   getBitcoinTickerAlignment() {
@@ -1177,7 +1178,7 @@ class LocalStorageService {
 
   setBitcoinTickerAlignment(alignment: 'left' | 'center') {
     this.bitcoinTickerAlignment = alignment
-    window.localStorage.setItem(StorageKey.BITCOIN_TICKER_ALIGNMENT, alignment)
+    this.setString(StorageKey.BITCOIN_TICKER_ALIGNMENT, alignment)
   }
 
   getBitcoinTickerTextSize() {
@@ -1186,7 +1187,7 @@ class LocalStorageService {
 
   setBitcoinTickerTextSize(size: 'large' | 'small') {
     this.bitcoinTickerTextSize = size
-    window.localStorage.setItem(StorageKey.BITCOIN_TICKER_TEXT_SIZE, size)
+    this.setString(StorageKey.BITCOIN_TICKER_TEXT_SIZE, size)
   }
 
   getBitcoinTickerShowBlockHeight() {
@@ -1195,7 +1196,7 @@ class LocalStorageService {
 
   setBitcoinTickerShowBlockHeight(show: boolean) {
     this.bitcoinTickerShowBlockHeight = show
-    window.localStorage.setItem(StorageKey.BITCOIN_TICKER_SHOW_BLOCK_HEIGHT, show.toString())
+    this.setBoolean(StorageKey.BITCOIN_TICKER_SHOW_BLOCK_HEIGHT, show)
   }
 
   getBitcoinTickerShowSatsMode() {
@@ -1204,7 +1205,7 @@ class LocalStorageService {
 
   setBitcoinTickerShowSatsMode(show: boolean) {
     this.bitcoinTickerShowSatsMode = show
-    window.localStorage.setItem(StorageKey.BITCOIN_TICKER_SHOW_SATS_MODE, show.toString())
+    this.setBoolean(StorageKey.BITCOIN_TICKER_SHOW_SATS_MODE, show)
   }
 
   getPinnedNoteWidgets() {
@@ -1213,19 +1214,19 @@ class LocalStorageService {
 
   setPinnedNoteWidgets(widgets: { id: string; eventId: string }[]) {
     this.pinnedNoteWidgets = widgets
-    window.localStorage.setItem(StorageKey.PINNED_NOTE_WIDGETS, JSON.stringify(widgets))
+    this.setJson(StorageKey.PINNED_NOTE_WIDGETS, widgets)
   }
 
   addPinnedNoteWidget(eventId: string) {
     const id = `pinned-note-${Date.now()}`
     this.pinnedNoteWidgets.push({ id, eventId })
-    window.localStorage.setItem(StorageKey.PINNED_NOTE_WIDGETS, JSON.stringify(this.pinnedNoteWidgets))
+    this.setJson(StorageKey.PINNED_NOTE_WIDGETS, this.pinnedNoteWidgets)
     return id
   }
 
   removePinnedNoteWidget(id: string) {
     this.pinnedNoteWidgets = this.pinnedNoteWidgets.filter((widget) => widget.id !== id)
-    window.localStorage.setItem(StorageKey.PINNED_NOTE_WIDGETS, JSON.stringify(this.pinnedNoteWidgets))
+    this.setJson(StorageKey.PINNED_NOTE_WIDGETS, this.pinnedNoteWidgets)
   }
 
   getAIPromptWidgets() {
@@ -1255,7 +1256,7 @@ class LocalStorageService {
 
   setZapSound(sound: TZapSound) {
     this.zapSound = sound
-    window.localStorage.setItem(StorageKey.ZAP_SOUND, sound)
+    this.setString(StorageKey.ZAP_SOUND, sound)
   }
 
   getCustomFeeds() {
@@ -1264,19 +1265,19 @@ class LocalStorageService {
 
   addCustomFeed(feed: TCustomFeed) {
     this.customFeeds.push(feed)
-    window.localStorage.setItem(StorageKey.CUSTOM_FEEDS, JSON.stringify(this.customFeeds))
+    this.setJson(StorageKey.CUSTOM_FEEDS, this.customFeeds)
   }
 
   removeCustomFeed(id: string) {
     this.customFeeds = this.customFeeds.filter((feed) => feed.id !== id)
-    window.localStorage.setItem(StorageKey.CUSTOM_FEEDS, JSON.stringify(this.customFeeds))
+    this.setJson(StorageKey.CUSTOM_FEEDS, this.customFeeds)
   }
 
   updateCustomFeed(id: string, updates: Partial<TCustomFeed>) {
     const index = this.customFeeds.findIndex((feed) => feed.id === id)
     if (index !== -1) {
       this.customFeeds[index] = { ...this.customFeeds[index], ...updates }
-      window.localStorage.setItem(StorageKey.CUSTOM_FEEDS, JSON.stringify(this.customFeeds))
+      this.setJson(StorageKey.CUSTOM_FEEDS, this.customFeeds)
     }
   }
 
@@ -1286,7 +1287,7 @@ class LocalStorageService {
 
   setZapOnReactions(enabled: boolean) {
     this.zapOnReactions = enabled
-    window.localStorage.setItem(StorageKey.ZAP_ON_REACTIONS, enabled.toString())
+    this.setBoolean(StorageKey.ZAP_ON_REACTIONS, enabled)
   }
 
   getOnlyZapsMode() {
@@ -1295,7 +1296,7 @@ class LocalStorageService {
 
   setOnlyZapsMode(enabled: boolean) {
     this.onlyZapsMode = enabled
-    window.localStorage.setItem(StorageKey.ONLY_ZAPS_MODE, enabled.toString())
+    this.setBoolean(StorageKey.ONLY_ZAPS_MODE, enabled)
   }
 
   getAIServiceConfig(pubkey?: string | null): TAIServiceConfig {
@@ -1306,7 +1307,7 @@ class LocalStorageService {
 
   setAIServiceConfig(config: TAIServiceConfig, pubkey?: string | null) {
     this.aiServiceConfigMap[pubkey ?? '_'] = config
-    window.localStorage.setItem(StorageKey.AI_SERVICE_CONFIG_MAP, JSON.stringify(this.aiServiceConfigMap))
+    this.setJson(StorageKey.AI_SERVICE_CONFIG_MAP, this.aiServiceConfigMap)
   }
 
   getAIToolsConfig(pubkey?: string | null): TAIToolsConfig {
@@ -1315,7 +1316,7 @@ class LocalStorageService {
 
   setAIToolsConfig(config: TAIToolsConfig, pubkey?: string | null) {
     this.aiToolsConfigMap[pubkey ?? '_'] = config
-    window.localStorage.setItem(StorageKey.AI_TOOLS_CONFIG_MAP, JSON.stringify(this.aiToolsConfigMap))
+    this.setJson(StorageKey.AI_TOOLS_CONFIG_MAP, this.aiToolsConfigMap)
   }
 
   getHideReadsInNavigation() {
@@ -1324,7 +1325,7 @@ class LocalStorageService {
 
   setHideReadsInNavigation(hide: boolean) {
     this.hideReadsInNavigation = hide
-    window.localStorage.setItem(StorageKey.HIDE_READS_IN_NAVIGATION, hide.toString())
+    this.setBoolean(StorageKey.HIDE_READS_IN_NAVIGATION, hide)
   }
 
   getHideReadsInProfiles() {
@@ -1333,7 +1334,7 @@ class LocalStorageService {
 
   setHideReadsInProfiles(hide: boolean) {
     this.hideReadsInProfiles = hide
-    window.localStorage.setItem(StorageKey.HIDE_READS_IN_PROFILES, hide.toString())
+    this.setBoolean(StorageKey.HIDE_READS_IN_PROFILES, hide)
   }
 
   getFavoriteLists(pubkey?: string | null) {
@@ -1346,7 +1347,7 @@ class LocalStorageService {
     const currentFavorites = this.favoriteListsMap[key] || []
     if (!currentFavorites.includes(listKey)) {
       this.favoriteListsMap[key] = [...currentFavorites, listKey]
-      window.localStorage.setItem(StorageKey.FAVORITE_LISTS, JSON.stringify(this.favoriteListsMap))
+      this.setJson(StorageKey.FAVORITE_LISTS, this.favoriteListsMap)
     }
   }
 
@@ -1354,7 +1355,7 @@ class LocalStorageService {
     const key = pubkey || '_global'
     const currentFavorites = this.favoriteListsMap[key] || []
     this.favoriteListsMap[key] = currentFavorites.filter((k) => k !== listKey)
-    window.localStorage.setItem(StorageKey.FAVORITE_LISTS, JSON.stringify(this.favoriteListsMap))
+    this.setJson(StorageKey.FAVORITE_LISTS, this.favoriteListsMap)
   }
 
   isFavoriteList(listKey: string, pubkey?: string | null) {
@@ -1373,7 +1374,7 @@ class LocalStorageService {
       return
     }
     this.readArticles.add(articleId)
-    window.localStorage.setItem(StorageKey.READ_ARTICLES, JSON.stringify(Array.from(this.readArticles)))
+    this.setJson(StorageKey.READ_ARTICLES, Array.from(this.readArticles))
   }
 
   markArticleAsUnread(articleId: string) {
@@ -1381,12 +1382,12 @@ class LocalStorageService {
       return
     }
     this.readArticles.delete(articleId)
-    window.localStorage.setItem(StorageKey.READ_ARTICLES, JSON.stringify(Array.from(this.readArticles)))
+    this.setJson(StorageKey.READ_ARTICLES, Array.from(this.readArticles))
   }
 
   clearReadArticles() {
     this.readArticles.clear()
-    window.localStorage.removeItem(StorageKey.READ_ARTICLES)
+    removeStorageItem(StorageKey.READ_ARTICLES)
   }
 
   // Bookmark Tags
@@ -1396,14 +1397,14 @@ class LocalStorageService {
 
   setBookmarkTags(eventId: string, tags: string[]) {
     this.bookmarkTags[eventId] = tags
-    window.localStorage.setItem(StorageKey.BOOKMARK_TAGS, JSON.stringify(this.bookmarkTags))
+    this.setJson(StorageKey.BOOKMARK_TAGS, this.bookmarkTags)
   }
 
   addBookmarkTag(eventId: string, tag: string) {
     const currentTags = this.bookmarkTags[eventId] || []
     if (!currentTags.includes(tag)) {
       this.bookmarkTags[eventId] = [...currentTags, tag]
-      window.localStorage.setItem(StorageKey.BOOKMARK_TAGS, JSON.stringify(this.bookmarkTags))
+      this.setJson(StorageKey.BOOKMARK_TAGS, this.bookmarkTags)
     }
   }
 
@@ -1413,7 +1414,7 @@ class LocalStorageService {
     if (this.bookmarkTags[eventId].length === 0) {
       delete this.bookmarkTags[eventId]
     }
-    window.localStorage.setItem(StorageKey.BOOKMARK_TAGS, JSON.stringify(this.bookmarkTags))
+    this.setJson(StorageKey.BOOKMARK_TAGS, this.bookmarkTags)
   }
 
   getAllBookmarkTags(): string[] {
@@ -1431,7 +1432,7 @@ class LocalStorageService {
         delete this.bookmarkTags[eventId]
       }
     })
-    window.localStorage.setItem(StorageKey.BOOKMARK_TAGS, JSON.stringify(this.bookmarkTags))
+    this.setJson(StorageKey.BOOKMARK_TAGS, this.bookmarkTags)
   }
 
   // Pinned Replies - stores which replies are pinned for each thread
@@ -1449,7 +1450,7 @@ class LocalStorageService {
     const pinnedReplies = this.pinnedReplies[threadId] || []
     if (!pinnedReplies.includes(replyId)) {
       this.pinnedReplies[threadId] = [...pinnedReplies, replyId]
-      window.localStorage.setItem(StorageKey.PINNED_REPLIES, JSON.stringify(this.pinnedReplies))
+      this.setJson(StorageKey.PINNED_REPLIES, this.pinnedReplies)
     }
   }
 
@@ -1459,54 +1460,34 @@ class LocalStorageService {
     if (this.pinnedReplies[threadId].length === 0) {
       delete this.pinnedReplies[threadId]
     }
-    window.localStorage.setItem(StorageKey.PINNED_REPLIES, JSON.stringify(this.pinnedReplies))
+    this.setJson(StorageKey.PINNED_REPLIES, this.pinnedReplies)
   }
 
   clearPinnedRepliesForThread(threadId: string) {
     delete this.pinnedReplies[threadId]
-    window.localStorage.setItem(StorageKey.PINNED_REPLIES, JSON.stringify(this.pinnedReplies))
+    this.setJson(StorageKey.PINNED_REPLIES, this.pinnedReplies)
   }
 
   // Menu Items - stores custom order and visibility of navigation menu items
   getMenuItems() {
-    const storedItems = window.localStorage.getItem(StorageKey.MENU_ITEMS)
+    const storedItems = getStorageItem(StorageKey.MENU_ITEMS)
 
     if (!storedItems) {
       // Return default menu items if nothing stored
-      return DEFAULT_MENU_ITEMS
+      return getDefaultMenuItems()
     }
 
     const stored = JSON.parse(storedItems) as TMenuItemConfig[]
 
-    // Migration: Add new menu items that don't exist in stored config
-    const storedIds = stored.map((item) => item.id)
-    const missingItems = DEFAULT_MENU_ITEMS.filter(
-      (defaultItem) => !storedIds.includes(defaultItem.id)
-    )
-
-    if (missingItems.length > 0) {
-      // Find the highest order value in stored items
-      const maxOrder = Math.max(...stored.map((item) => item.order), -1)
-
-      // Add missing items with incremented order
-      const mergedItems = [
-        ...stored,
-        ...missingItems.map((item, index: number) => ({
-          ...item,
-          order: maxOrder + index + 1
-        }))
-      ]
-
-      // Save the merged config
+    const mergedItems = mergeMenuItemsWithDefaults(stored)
+    if (mergedItems.length !== stored.length) {
       this.setMenuItems(mergedItems)
-      return mergedItems
     }
-
-    return stored
+    return mergedItems
   }
 
-  setMenuItems(menuItems: any[]) {
-    window.localStorage.setItem(StorageKey.MENU_ITEMS, JSON.stringify(menuItems))
+  setMenuItems(menuItems: TMenuItemConfig[]) {
+    this.setJson(StorageKey.MENU_ITEMS, menuItems)
   }
 
   getDefaultReactionEmojis() {
@@ -1515,7 +1496,7 @@ class LocalStorageService {
 
   setDefaultReactionEmojis(emojis: string[]) {
     this.defaultReactionEmojis = emojis
-    window.localStorage.setItem(StorageKey.DEFAULT_REACTION_EMOJIS, JSON.stringify(emojis))
+    this.setJson(StorageKey.DEFAULT_REACTION_EMOJIS, emojis)
   }
 }
 
