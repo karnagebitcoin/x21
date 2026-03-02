@@ -280,8 +280,8 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
         )}
       </div>
 
-      <div className="flex-1 min-h-0 grid grid-rows-[minmax(220px,40vh)_minmax(0,1fr)] md:grid-rows-1 md:grid-cols-5">
-        <div className="min-h-0 bg-black border-b md:border-b-0 md:border-r">
+      <div className="flex-1 min-h-0 grid grid-rows-[minmax(220px,42vh)_minmax(0,1fr)]">
+        <div className="min-h-0 bg-black border-b">
           {streamingUrl ? (
             <video src={streamingUrl} controls autoPlay className="w-full h-full object-contain" />
           ) : image ? (
@@ -293,12 +293,12 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
           )}
         </div>
 
-        <div className="md:col-span-2 min-h-0 flex flex-col">
+        <div className="min-h-0 flex flex-col">
           <div className="shrink-0 px-3 py-2 border-b font-semibold">
             {t('Live Chat')} ({chatMessages.length})
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-3 scrollbar-thin">
+          <div className="flex-1 min-h-0 overflow-y-auto px-2.5 py-2 space-y-1.5 scrollbar-thin">
             {chatMessages.map((msg) => (
               <ChatMessage
                 key={msg.id}
@@ -394,7 +394,7 @@ function ChatMessage({
   }
 
   return (
-    <div className="flex gap-2 group hover:bg-accent/50 p-2 rounded-lg transition-colors">
+    <div className="flex gap-1.5 group hover:bg-accent/50 px-2 py-1.5 rounded-md transition-colors">
       <button
         type="button"
         className="shrink-0 mt-0.5 cursor-pointer"
@@ -403,10 +403,10 @@ function ChatMessage({
         <UserAvatar userId={event.pubkey} size="small" noLink />
       </button>
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2 flex-wrap">
+        <div className="flex items-baseline gap-1.5 flex-wrap">
           <button
             type="button"
-            className="text-sm font-semibold cursor-pointer hover:underline"
+            className="text-[13px] font-semibold cursor-pointer hover:underline leading-tight"
             onClick={() => push(`/users/${nip19.npubEncode(event.pubkey)}`)}
           >
             <Username userId={event.pubkey} noLink />
@@ -417,9 +417,9 @@ function ChatMessage({
             short={isSmallScreen}
           />
         </div>
-        <Content content={event.content} className="text-sm mt-0.5" />
+        <Content content={event.content} className="text-[13px] mt-0.5 leading-snug" />
 
-        <div className="flex gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex gap-1.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={handleZapMessage}
             className="text-xs text-muted-foreground hover:text-yellow-500 flex items-center gap-1"
