@@ -9,6 +9,7 @@ import client from '@/services/client.service'
 import { Event } from 'nostr-tools'
 import { BIG_RELAY_URLS, ExtendedKind } from '@/constants'
 import { useTranslation } from 'react-i18next'
+import { useKeyboardFeedScroll } from '@/hooks/useKeyboardFeedScroll'
 
 /**
  * AppWithListPreview
@@ -26,6 +27,8 @@ import { useTranslation } from 'react-i18next'
  * 4. Only navigates to the list if user closes dialog or clicks "View List"
  */
 export function AppWithListPreview() {
+  useKeyboardFeedScroll()
+
   const { t } = useTranslation()
   const { pubkey: myPubkey } = useNostr()
   const { lists } = useLists()
