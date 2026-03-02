@@ -78,10 +78,6 @@ Huge thanks to Cody Tseng for building and open-sourcing the foundation this pro
 
 Original project: [https://github.com/CodyTseng/x21](https://github.com/CodyTseng/x21)
 
-## Design Credit
-
-Logo designed by [Daniel David](http://wolfertdan.com/).
-
 ## License
 
 MIT
