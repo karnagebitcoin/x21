@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNostr } from '@/providers/NostrProvider'
+import { useOptionalNostr } from '@/providers/NostrProvider'
 import * as nip19 from 'nostr-tools/nip19'
 import InviteWelcomeFlow from '@/components/InviteWelcomeFlow'
 
@@ -8,7 +8,8 @@ import InviteWelcomeFlow from '@/components/InviteWelcomeFlow'
  * Checks for ?invite=npub parameter and shows welcome flow
  */
 export default function InviteHandler() {
-  const { pubkey } = useNostr()
+  const nostr = useOptionalNostr()
+  const pubkey = nostr?.pubkey ?? null
   const hasProcessedInvite = useRef(false)
   const [showWelcomeFlow, setShowWelcomeFlow] = useState(false)
   const [inviterPubkey, setInviterPubkey] = useState<string | null>(null)
@@ -18,7 +19,7 @@ export default function InviteHandler() {
     const urlParams = new URLSearchParams(window.location.search)
     const inviteParam = urlParams.get('invite')
 
-    console.log('[InviteHandler] Checking invite param:', inviteParam, 'pubkey:', pubkey, 'hasProcessed:', hasProcessedInvite.current)
+    if (!nostr) return
 
     if (inviteParam && !pubkey && !hasProcessedInvite.current) {
       // User clicked invite link but isn't logged in
@@ -30,14 +31,11 @@ export default function InviteHandler() {
           return
         }
         const inviterPk = decoded.data
-        console.log('[InviteHandler] Decoded inviter pubkey:', inviterPk)
 
         // Show welcome flow immediately
         setInviterPubkey(inviterPk)
         setShowWelcomeFlow(true)
         hasProcessedInvite.current = true
-
-        console.log('[InviteHandler] Set inviterPubkey state and showing welcome flow')
 
         // Clean up URL
         urlParams.delete('invite')
@@ -45,16 +43,15 @@ export default function InviteHandler() {
           ? `${window.location.pathname}?${urlParams.toString()}`
           : window.location.pathname
         window.history.replaceState({}, '', newUrl)
-        console.log('[InviteHandler] Cleaned up URL')
       } catch (error) {
         console.error('[InviteHandler] Failed to decode invite npub:', error)
       }
     }
-  }, [pubkey])
+  }, [nostr, pubkey])
 
   return (
     <>
-      {showWelcomeFlow && inviterPubkey && (
+      {nostr && showWelcomeFlow && inviterPubkey && (
         <InviteWelcomeFlow
           open={showWelcomeFlow}
           onClose={() => setShowWelcomeFlow(false)}
