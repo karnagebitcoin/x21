@@ -358,19 +358,16 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
 
   return (
     <div className="h-[calc(100dvh-4rem)] flex flex-col overflow-hidden">
-      <div className="shrink-0 border-b px-3 py-2 bg-background">
+      <div className="shrink-0 border-b px-3 py-1.5 bg-background">
         <div className="flex items-center gap-2 min-w-0">
           <UserAvatar userId={liveEvent.pubkey} size="small" />
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 min-w-0">
-              <h1 className="font-semibold text-base truncate">{title}</h1>
+            <div className="flex items-center gap-2 min-w-0 text-xs text-muted-foreground">
+              <Username userId={liveEvent.pubkey} noLink className="truncate" />
               <Badge variant="destructive" className="bg-red-600 text-white flex items-center gap-1">
                 <Radio className="w-3 h-3 animate-pulse" />
                 {status === 'live' ? t('LIVE') : status?.toUpperCase()}
               </Badge>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Username userId={liveEvent.pubkey} noLink className="truncate" />
               {currentParticipants && (
                 <span className="inline-flex items-center gap-1">
                   <Users className="w-3 h-3" />
