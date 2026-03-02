@@ -7,14 +7,15 @@ import React, { useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useNostr } from '@/providers/NostrProvider'
 import { TAIMessage } from '@/types'
-import modalManagerService from '@/services/modal-manager.service'
 import { useWidgets, AVAILABLE_WIDGETS } from '@/providers/WidgetsProvider'
+import { useSecondaryPage } from '@/PageManager'
 
 export default function SidebarAIPromptWidget() {
   const { t } = useTranslation()
   const { chat, isConfigured } = useAI()
   const { pubkey } = useNostr()
   const { toggleWidget, hideWidgetTitles } = useWidgets()
+  const { push } = useSecondaryPage()
   const [prompt, setPrompt] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -54,7 +55,7 @@ export default function SidebarAIPromptWidget() {
       ]
 
       // Get AI response
-      const response = await chat(conversationMessages, pubkey)
+      const response = await chat(conversationMessages, pubkey ?? undefined)
 
       // Update messages
       setMessages([
@@ -79,7 +80,7 @@ export default function SidebarAIPromptWidget() {
   }
 
   const handleConfigureAI = () => {
-    modalManagerService.open('/settings/ai-tools')
+    push('/settings/ai-tools')
   }
 
   // Get the widget name from AVAILABLE_WIDGETS

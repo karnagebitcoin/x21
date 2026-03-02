@@ -1,11 +1,10 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Event } from 'nostr-tools'
+import { Event as NostrEvent } from 'nostr-tools'
 import client from '@/services/client.service'
 import LiveEventCard from '@/components/LiveEventCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCurrentRelays } from '@/providers/CurrentRelaysProvider'
-import { BIG_RELAY_URLS } from '@/constants'
 
 export type TLiveEventListRef = {
   refresh: () => void
@@ -25,10 +24,10 @@ const LIVE_STREAM_RELAYS = [
 const LiveEventList = forwardRef<TLiveEventListRef>((_, ref) => {
   const { t } = useTranslation()
   const { relayUrls } = useCurrentRelays()
-  const [events, setEvents] = useState<Event[]>([])
+  const [events, setEvents] = useState<NostrEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const subCloserRef = useRef<{ close: () => void } | null>(null)
-  const eventMapRef = useRef<Map<string, Event>>(new Map())
+  const eventMapRef = useRef<Map<string, NostrEvent>>(new Map())
 
   const updateEventList = useCallback(() => {
     const now = Math.floor(Date.now() / 1000)
@@ -40,14 +39,14 @@ const LiveEventList = forwardRef<TLiveEventListRef>((_, ref) => {
     const allEvents = Array.from(eventMapRef.current.values())
     console.log('[LiveEventList] All events:', allEvents.map(e => ({
       id: e.id.substring(0, 8),
-      status: event.tags.find(t => t[0] === 'status')?.[1],
+      status: e.tags.find((t) => t[0] === 'status')?.[1],
       created_at: e.created_at,
-      title: event.tags.find(t => t[0] === 'title')?.[1]
+      title: e.tags.find((t) => t[0] === 'title')?.[1]
     })))
 
     const liveEvents = allEvents
       .filter(e => {
-        const status = event.tags.find(t => t[0] === 'status')?.[1]?.toLowerCase()
+        const status = e.tags.find((t) => t[0] === 'status')?.[1]?.toLowerCase()
 
         // For debugging, let's be more lenient - show live, planned, and ended streams
         // We'll just filter out really stale ones
@@ -60,8 +59,8 @@ const LiveEventList = forwardRef<TLiveEventListRef>((_, ref) => {
       })
       .sort((a, b) => {
         // Sort by status first: live > planned > ended
-        const getStatusPriority = (event: Event) => {
-          const status = event.tags.find(t => t[0] === 'status')?.[1]?.toLowerCase()
+        const getStatusPriority = (event: NostrEvent) => {
+          const status = event.tags.find((t) => t[0] === 'status')?.[1]?.toLowerCase()
           if (status === 'live') return 0
           if (status === 'planned') return 1
           return 2
@@ -113,7 +112,7 @@ const LiveEventList = forwardRef<TLiveEventListRef>((_, ref) => {
         limit: 100
       },
       {
-        onevent: (event: Event) => {
+        onevent: (event: NostrEvent) => {
           console.log('[LiveEventList] Received event:', {
             id: event.id.substring(0, 8),
             status: event.tags.find(t => t[0] === 'status')?.[1],

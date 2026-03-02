@@ -123,7 +123,7 @@ function NpubQrCodeDialog({
   const content = (
     <div className="w-full flex flex-col items-center gap-4 p-8">
       <div className="flex items-center w-full gap-2 pointer-events-none px-1">
-        <UserAvatar size="md" userId={pubkey} />
+        <UserAvatar size="medium" userId={pubkey} />
         <div className="flex-1 w-0">
           <Username userId={pubkey} className="text-base font-semibold truncate" />
           <Nip05 pubkey={pubkey} />

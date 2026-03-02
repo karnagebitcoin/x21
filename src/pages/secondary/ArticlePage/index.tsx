@@ -331,7 +331,7 @@ const ArticlePage = forwardRef(({ id, index }: { id?: string; index?: number }, 
                 )
               },
               pre: ({ node, ...props }) => (
-                <div {...props} />
+                <pre {...props} />
               ),
               blockquote: ({ node, ...props }) => (
                 <blockquote

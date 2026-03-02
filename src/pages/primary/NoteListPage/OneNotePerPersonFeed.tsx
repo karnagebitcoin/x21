@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Event, kinds } from 'nostr-tools'
 import { useNostr } from '@/providers/NostrProvider'
 import { useFeed } from '@/providers/FeedProvider'
 import client from '@/services/client.service'
-import { TFeedSubRequest, TNoteListRef } from '@/types'
+import { TFeedSubRequest } from '@/types'
 import NoteCard, { NoteCardLoadingSkeleton } from '@/components/NoteCard'
 import { RefreshButton } from '@/components/RefreshButton'
 import { useTranslation } from 'react-i18next'
@@ -15,7 +15,6 @@ import { isReplyNoteEvent } from '@/lib/event'
 import KindFilter from '@/components/KindFilter'
 import Tabs from '@/components/Tabs'
 import PullToRefresh from 'react-simple-pull-to-refresh'
-import dayjs from 'dayjs'
 
 const LIMIT = 500
 
@@ -238,7 +237,12 @@ export default function OneNotePerPersonFeed() {
         options={
           <>
             {!supportTouch && <RefreshButton onClick={handleRefresh} />}
-            <KindFilter showKinds={temporaryShowKinds} onShowKindsChange={handleShowKindsChange} />
+            <KindFilter
+              showKinds={temporaryShowKinds}
+              onShowKindsChange={handleShowKindsChange}
+              mediaOnly={false}
+              onMediaOnlyChange={() => {}}
+            />
           </>
         }
       />

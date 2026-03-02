@@ -1,4 +1,5 @@
 import { Event } from 'nostr-tools'
+import { BIG_RELAY_URLS } from '@/constants'
 import backupService, { BackupData, BackupOptions } from './backup.service'
 import client from './client.service'
 
@@ -187,7 +188,8 @@ class Nip78SyncService {
       }, 10000) // 10 second timeout
 
       const sub = client.subscribe(
-        [filter],
+        BIG_RELAY_URLS,
+        filter,
         {
           onevent: (e) => {
             if (!event || e.created_at > event.created_at) {

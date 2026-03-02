@@ -56,13 +56,15 @@ export class NsecSigner implements ISigner {
     if (!this.privkey) {
       throw new Error('Not logged in')
     }
-    return nip44.encrypt(this.privkey, pubkey, plainText)
+    const conversationKey = nip44.getConversationKey(this.privkey, pubkey)
+    return nip44.encrypt(plainText, conversationKey)
   }
 
   async nip44Decrypt(pubkey: string, cipherText: string) {
     if (!this.privkey) {
       throw new Error('Not logged in')
     }
-    return nip44.decrypt(this.privkey, pubkey, cipherText)
+    const conversationKey = nip44.getConversationKey(this.privkey, pubkey)
+    return nip44.decrypt(cipherText, conversationKey)
   }
 }

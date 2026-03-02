@@ -35,7 +35,7 @@ export default function InviteWelcomeDialog({
   const { pubkey } = useNostr()
   const { profile: inviterProfile, isFetching: fetchingProfile } = useFetchProfile(inviterPubkey)
   const { followings: inviterFollowings } = useFetchFollowings(inviterPubkey)
-  const { followPubkeys } = useFollowList()
+  const { followMultiple } = useFollowList()
   const [followInviter, setFollowInviter] = useState(true)
   const [followInviterFollows, setFollowInviterFollows] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -62,7 +62,7 @@ export default function InviteWelcomeDialog({
       }
 
       if (pubkeysToFollow.length > 0) {
-        await followPubkeys(pubkeysToFollow)
+        await followMultiple(pubkeysToFollow)
 
         const inviterName = inviterProfile?.original_username || inviterProfile?.username || 'your inviter'
 
@@ -131,7 +131,7 @@ export default function InviteWelcomeDialog({
                 <UserAvatar userId={inviterPubkey} size="big" />
                 <div className="flex flex-col items-center text-center">
                   <div className="font-medium">
-                    <Username pubkey={inviterPubkey} />
+                    <Username userId={inviterPubkey} />
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {t('Your inviter')}

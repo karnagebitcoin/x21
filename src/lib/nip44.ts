@@ -8,7 +8,8 @@ import * as nip44 from 'nostr-tools/nip44'
  * @returns Base64 encoded encrypted payload
  */
 export function encrypt(privkey: Uint8Array, pubkey: string, plaintext: string): string {
-  return nip44.encrypt(privkey, pubkey, plaintext)
+  const conversationKey = nip44.getConversationKey(privkey, pubkey)
+  return nip44.encrypt(plaintext, conversationKey)
 }
 
 /**
@@ -19,7 +20,8 @@ export function encrypt(privkey: Uint8Array, pubkey: string, plaintext: string):
  * @returns Decrypted plain text
  */
 export function decrypt(privkey: Uint8Array, pubkey: string, ciphertext: string): string {
-  return nip44.decrypt(privkey, pubkey, ciphertext)
+  const conversationKey = nip44.getConversationKey(privkey, pubkey)
+  return nip44.decrypt(ciphertext, conversationKey)
 }
 
 /**

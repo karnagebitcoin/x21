@@ -76,7 +76,7 @@ export default function WebPreview({ url, pubkey, className }: { url: string; pu
           <ArticleSummaryDialog
             url={url}
             title={title}
-            description={description}
+            description={description ?? undefined}
             open={showSummary}
             onOpenChange={setShowSummary}
           />

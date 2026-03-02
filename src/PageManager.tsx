@@ -222,28 +222,29 @@ export function PageManager({ maxStackSize = 5 }: { maxStackSize?: number }) {
           // Try to use the current URL from the browser
           state.url = currentUrl
         }
+        const nextState = state
 
         // Go forward
-        if (currentIndex === undefined || state.index > currentIndex) {
-          const { newStack } = pushNewPageToStack(pre, state.url, maxStackSize)
+        if (currentIndex === undefined || nextState.index > currentIndex) {
+          const { newStack } = pushNewPageToStack(pre, nextState.url, maxStackSize)
           return newStack
         }
 
-        if (state.index === currentIndex) {
+        if (nextState.index === currentIndex) {
           return pre
         }
 
         // Go back
-        const newStack = pre.filter((item) => item.index <= state.index)
+        const newStack = pre.filter((item) => item.index <= nextState.index)
         const topItem = newStack[newStack.length - 1] as TStackItem | undefined
         if (!topItem) {
           // Create a new stack item if it's not exist (e.g. when the user refreshes the page, the stack will be empty)
-          if (state.url) {
-            const { component, ref } = findAndCreateComponent(state.url, state.index)
+          if (nextState.url) {
+            const { component, ref } = findAndCreateComponent(nextState.url, nextState.index)
             if (component) {
               newStack.push({
-                index: state.index,
-                url: state.url,
+                index: nextState.index,
+                url: nextState.url,
                 component,
                 ref
               })
@@ -251,7 +252,7 @@ export function PageManager({ maxStackSize = 5 }: { maxStackSize?: number }) {
           }
         } else if (!topItem.component && topItem.url) {
           // Load the component if it's not cached
-          const { component, ref } = findAndCreateComponent(topItem.url, state.index)
+          const { component, ref } = findAndCreateComponent(topItem.url, nextState.index)
           if (component) {
             topItem.component = component
             topItem.ref = ref

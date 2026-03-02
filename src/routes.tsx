@@ -48,9 +48,10 @@ function withSuspense<P extends object>(
   LazyComponent: ComponentType<P>,
   displayName?: string
 ) {
+  const AnyLazyComponent = LazyComponent as ComponentType<any>
   const WrappedComponent = forwardRef<any, P>((props, ref) => (
     <Suspense fallback={<PageLoadingFallback />}>
-      <LazyComponent {...props} ref={ref} />
+      <AnyLazyComponent {...props} ref={ref} />
     </Suspense>
   ))
   WrappedComponent.displayName = displayName || 'LazyComponent'

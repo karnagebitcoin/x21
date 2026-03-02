@@ -61,10 +61,12 @@ const WalletPage = forwardRef(({ index }: { index?: number }, ref) => {
                   <strong>{walletInfo.node.alias}</strong>
                 </div>
               )}
-              {walletInfo?.balance !== undefined && (
+              {'balance' in (walletInfo || {}) && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">{t('Balance')}</span>
-                  <strong className="text-lg">{walletInfo.balance.toLocaleString()} sats</strong>
+                  <strong className="text-lg">
+                    {((walletInfo as unknown as { balance: number }).balance ?? 0).toLocaleString()} sats
+                  </strong>
                 </div>
               )}
               <Separator />

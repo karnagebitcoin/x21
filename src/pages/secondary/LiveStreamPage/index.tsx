@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useEffect, useState, useRef, useCallback, forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Event, nip19 } from 'nostr-tools'

@@ -119,7 +119,7 @@ export default function AIPromptWidget({ widgetId, eventId }: AIPromptWidgetProp
       ]
 
       // Get AI response
-      const response = await chat(conversationMessages, pubkey)
+      const response = await chat(conversationMessages, pubkey ?? undefined)
 
       // Update messages
       const newMessages = [

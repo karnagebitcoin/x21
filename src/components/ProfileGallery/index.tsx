@@ -139,13 +139,16 @@ export default function ProfileGallery({
               }}
               render={{
                 slide: ({ slide }) => {
-                  // Use the slide's stored index to get the correct image data
-                  const currentImage = visibleGallery[slide.index]
+                  const typedSlide = slide as { src?: string; index?: number }
+                  const slideIndex =
+                    typeof typedSlide.index === 'number' ? typedSlide.index : lightboxIndex
+                  const currentImage = visibleGallery[slideIndex]
+                  const imageSrc = typedSlide.src || currentImage?.url || ''
                   return (
                     <div className="flex flex-col items-center justify-center h-full w-full p-4">
                       <div className="relative max-w-full max-h-full flex items-center justify-center">
                         <img
-                          src={slide.src}
+                          src={imageSrc}
                           alt=""
                           className="max-w-full max-h-[80vh] object-contain"
                         />

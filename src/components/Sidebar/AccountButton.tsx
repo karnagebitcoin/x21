@@ -31,7 +31,7 @@ export default function AccountButton() {
   }
 }
 
-const ProfileButtonContent = React.forwardRef<HTMLButtonElement, { username: string, avatar: string, defaultAvatar: string }>(
+const ProfileButtonContent = React.forwardRef<HTMLButtonElement, { username: string, avatar?: string, defaultAvatar: string }>(
   ({ username, avatar, defaultAvatar, ...props }, ref) => {
     const { compactSidebar } = useCompactSidebar()
 

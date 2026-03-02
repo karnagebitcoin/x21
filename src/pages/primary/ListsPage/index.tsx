@@ -199,7 +199,7 @@ const ListsPage = forwardRef((_, ref) => {
       ownerPubkey = pubkey
       dTag = tag
     } else {
-      ownerPubkey = pubkey
+      ownerPubkey = pubkey ?? undefined
       dTag = listId
     }
 

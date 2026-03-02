@@ -8,7 +8,7 @@ import type { Root, Text, Link } from 'mdast'
 export function remarkNostrLinks() {
   return (tree: Root) => {
     visit(tree, 'text', (node: Text, index, parent) => {
-      if (!parent || index === null) return
+      if (!parent || index === null || index === undefined) return
 
       const text = node.value
       const parts: Array<Text | Link> = []

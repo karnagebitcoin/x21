@@ -111,7 +111,12 @@ function GifPickerContent({
       let result
       if (searchQuery) {
         // Search works across both tabs
-        result = await gifService.searchGifs(searchQuery, gifsPerPage, offsetRef.current, activeTab === 'my' ? pubkey : undefined)
+        result = await gifService.searchGifs(
+          searchQuery,
+          gifsPerPage,
+          offsetRef.current,
+          activeTab === 'my' ? pubkey ?? undefined : undefined
+        )
       } else if (activeTab === 'my' && pubkey) {
         result = await gifService.fetchMyGifs(pubkey, gifsPerPage, offsetRef.current)
       } else {
@@ -146,7 +151,7 @@ function GifPickerContent({
           query,
           gifsPerPage,
           0,
-          activeTab === 'my' ? pubkey : undefined
+          activeTab === 'my' ? pubkey ?? undefined : undefined
         )
         setGifs(results)
         setHasMore(more)

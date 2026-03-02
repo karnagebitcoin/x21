@@ -264,10 +264,18 @@ const ListPage = forwardRef<HTMLDivElement, ListPageProps>(({ index, listId }, r
 
           <TabsContent value="notes" className="mt-0">
             <NoteList
-              filter={{
-                authors: displayList.pubkeys,
-                kinds: [1, 6]
-              }}
+              subRequests={[
+                {
+                  urls: BIG_RELAY_URLS.slice(0, 5),
+                  filter: {
+                    authors: displayList.pubkeys,
+                    kinds: [1, 6]
+                  }
+                }
+              ]}
+              showKinds={[1, 6]}
+              filterMutedNotes={false}
+              pinnedEventIds={[]}
             />
           </TabsContent>
 

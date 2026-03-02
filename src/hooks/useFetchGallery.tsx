@@ -43,7 +43,7 @@ export function useFetchGallery(pubkey?: string, dTag: string = 'gallery') {
 
         // Fetch the gallery list (kind 30001)
         const listFilter = galleryService.createGalleryListFilter(hexPubkey, dTag)
-        const listEvents = await client.fetchEvents([listFilter])
+        const listEvents = await client.fetchEvents([], listFilter)
 
         console.log('[useFetchGallery] Found list events:', listEvents.length)
 
@@ -69,7 +69,7 @@ export function useFetchGallery(pubkey?: string, dTag: string = 'gallery') {
 
         // Fetch the image events (kind 1063)
         const imagesFilter = galleryService.createGalleryImagesFilter(parsedList.imageEventIds)
-        const imageEvents = await client.fetchEvents([imagesFilter])
+        const imageEvents = await client.fetchEvents([], imagesFilter)
 
         // Parse and sort images
         const parsedImages = imageEvents

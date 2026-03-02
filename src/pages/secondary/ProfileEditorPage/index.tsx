@@ -303,8 +303,8 @@ const ProfileEditorPage = forwardRef(({ index }: { index?: number }, ref) => {
                     to={toProfile(profile.joined_through)}
                     className="flex items-center gap-2 hover:text-foreground transition-colors"
                   >
-                    <UserAvatar pubkey={profile.joined_through} size="xSmall" />
-                    <Username pubkey={profile.joined_through} />
+                    <UserAvatar userId={profile.joined_through} size="xSmall" />
+                    <Username userId={profile.joined_through} />
                   </SecondaryPageLink>
                 </div>
               )}

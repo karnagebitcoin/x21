@@ -90,7 +90,7 @@ class ClientService extends EventTarget {
 
   async init() {
     // Pre-warm memory cache and search index from IndexedDB stored profiles
-    await indexedDb.iterateProfileEvents((profileEvent) => {
+    await indexedDb.iterateProfileEvents(async (profileEvent) => {
       // Add to search index
       this.addUsernameToIndex(profileEvent)
 
@@ -520,6 +520,10 @@ class ClientService extends EventTarget {
         })
       }
     }
+  }
+
+  querySync(relayUrls: string[], filter: Filter) {
+    return this.pool.querySync(relayUrls, filter)
   }
 
   /**

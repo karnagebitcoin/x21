@@ -99,7 +99,7 @@ export default function InviteWelcomeFlow({
               count: pubkeysToFollow.length
             })
           : t('Welcome! You are now following {{name}}', {
-              name: inviterProfile?.display_name || inviterProfile?.name || 'your inviter'
+              name: inviterProfile?.original_username || inviterProfile?.username || 'your inviter'
             })
       )
 
@@ -134,7 +134,7 @@ export default function InviteWelcomeFlow({
                 <Skeleton className="h-8 w-48 mx-auto" />
               ) : (
                 t('{{name}} invites you to x21!', {
-                  name: inviterProfile?.display_name || inviterProfile?.name || 'Someone'
+                  name: inviterProfile?.original_username || inviterProfile?.username || 'Someone'
                 })
               )}
             </DialogTitle>
@@ -157,7 +157,7 @@ export default function InviteWelcomeFlow({
             >
               <UserPlus className="mr-2 h-5 w-5" />
               {t('Join and follow {{name}}', {
-                name: inviterProfile?.display_name || inviterProfile?.name || 'them'
+                name: inviterProfile?.original_username || inviterProfile?.username || 'them'
               })}
             </Button>
 

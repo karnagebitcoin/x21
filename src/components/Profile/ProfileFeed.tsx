@@ -182,7 +182,14 @@ export default function ProfileFeed({
             {!supportTouch && listMode === 'reads' && <RefreshButton onClick={() => articleListRef.current?.refresh()} />}
             {!supportTouch && listMode === 'highlights' && <RefreshButton onClick={() => noteListRef.current?.refresh()} />}
             {!supportTouch && listMode === 'media' && <RefreshButton onClick={() => mediaGridRef.current?.refresh()} />}
-            {listMode !== 'reads' && listMode !== 'highlights' && listMode !== 'media' && <KindFilter showKinds={temporaryShowKinds} onShowKindsChange={handleShowKindsChange} />}
+            {listMode !== 'reads' && listMode !== 'highlights' && listMode !== 'media' && (
+              <KindFilter
+                showKinds={temporaryShowKinds}
+                onShowKindsChange={handleShowKindsChange}
+                mediaOnly={false}
+                onMediaOnlyChange={() => {}}
+              />
+            )}
           </>
         }
         isInDeckView={isInDeckView}

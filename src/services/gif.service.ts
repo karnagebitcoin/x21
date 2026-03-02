@@ -182,7 +182,7 @@ class GifService {
         }
       }
 
-      const events = await client.pool.querySync(GIF_RELAYS, filter) as GifEvent[]
+      const events = await client.querySync(GIF_RELAYS, filter) as GifEvent[]
 
       let newGifsCount = 0
       let filteredOut = 0

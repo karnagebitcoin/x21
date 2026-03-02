@@ -132,7 +132,7 @@ export type TDeckViewMode = 'standard' | 'multi-column'
 
 export type TMediaStyle = 'default' | 'full-width'
 
-export type TPinnedColumnType = 'explore' | 'notifications' | 'profile' | 'search' | 'relay' | 'relays' | 'custom' | 'bookmarks' | 'highlights' | 'reads' | 'lists' | 'list'
+export type TPinnedColumnType = 'explore' | 'notifications' | 'profile' | 'search' | 'relay' | 'relays' | 'custom' | 'bookmarks' | 'highlights' | 'reads' | 'lists' | 'list' | 'livestreams'
 
 export type TPinnedColumn = {
   id: string

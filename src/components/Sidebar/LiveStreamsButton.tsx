@@ -20,6 +20,7 @@ export default function LiveStreamsButton() {
             onClick={() => navigate('livestreams')}
             className={cn(isActive && 'bg-primary/10')}
             aria-label={t('Live Streams')}
+            title={t('Live Streams')}
           >
             <Radio className={cn('size-6', isActive && 'text-primary')} />
             {!compactSidebar && (

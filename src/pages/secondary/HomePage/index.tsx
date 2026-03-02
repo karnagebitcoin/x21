@@ -41,7 +41,7 @@ const HomePage = forwardRef(({ index }: { index?: number }, ref) => {
 
   // In multi-column mode or no widgets enabled, render an invisible placeholder to maintain layout
   if (isMultiColumn || enabledWidgets.length === 0) {
-    return <div className="h-full w-full bg-transparent" ref={ref} />
+    return <div className="h-full w-full bg-transparent" />
   }
 
   return (

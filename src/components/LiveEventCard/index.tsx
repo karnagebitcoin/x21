@@ -4,7 +4,6 @@ import { Badge } from '@/components/ui/badge'
 import { Event } from 'nostr-tools'
 import { useTranslation } from 'react-i18next'
 import { Radio, Users, Calendar, ExternalLink } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import UserAvatar from '@/components/UserAvatar'
 import Username from '@/components/Username'
 import { FormattedTimestamp } from '@/components/FormattedTimestamp'
@@ -62,8 +61,7 @@ export default function LiveEventCard({ event }: { event: Event }) {
       {image && (
         <div className="relative aspect-video overflow-hidden bg-muted">
           <Image
-            src={image}
-            alt={title}
+            image={{ url: image, pubkey: event.pubkey }}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
           <div className="absolute top-2 left-2">

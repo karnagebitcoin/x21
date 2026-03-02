@@ -35,7 +35,7 @@ function isGifUrl(url: string): boolean {
 }
 
 // Helper to get a static version of an avatar
-function getStaticAvatar(avatarUrl: string, disableAnimations: boolean): string {
+function getStaticAvatar(avatarUrl: string | undefined, disableAnimations: boolean): string | undefined {
   if (!disableAnimations || !avatarUrl || !isGifUrl(avatarUrl)) {
     return avatarUrl
   }
@@ -43,7 +43,7 @@ function getStaticAvatar(avatarUrl: string, disableAnimations: boolean): string 
   // For nostr.build, we can add ?aspect=1:1 or similar parameters
   // For now, we'll use a simple approach: show the fallback avatar for GIFs
   // This ensures no animation while still showing something
-  return ''  // Empty string will trigger AvatarFallback
+  return undefined
 }
 
 export default function UserAvatar({

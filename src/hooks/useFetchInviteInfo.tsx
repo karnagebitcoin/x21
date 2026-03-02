@@ -12,6 +12,9 @@ export function useFetchInviteInfo(pubkey?: string) {
   const { favoriteRelays } = useFavoriteRelays()
   const [inviteEvent, setInviteEvent] = useState<Event | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const inviteKind =
+    (ExtendedKind as unknown as Record<string, number>).INVITE_ACCEPTANCE ??
+    ExtendedKind.STARTER_PACK
 
   const relayUrls = useMemo(() => {
     return favoriteRelays.length > 0 ? favoriteRelays : BIG_RELAY_URLS
@@ -27,13 +30,13 @@ export function useFetchInviteInfo(pubkey?: string) {
       setIsLoading(true)
       try {
         console.log('[useFetchInviteInfo]', Date.now(), 'Fetching invite info for pubkey:', pubkey)
-        console.log('[useFetchInviteInfo]', Date.now(), 'Searching kind:', ExtendedKind.INVITE_ACCEPTANCE)
+        console.log('[useFetchInviteInfo]', Date.now(), 'Searching kind:', inviteKind)
         console.log('[useFetchInviteInfo]', Date.now(), 'Using relays:', relayUrls)
 
         const events = await client.fetchEvents(
           relayUrls,
           {
-            kinds: [ExtendedKind.INVITE_ACCEPTANCE],
+            kinds: [inviteKind],
             authors: [pubkey],
             limit: 1
           }
@@ -58,7 +61,7 @@ export function useFetchInviteInfo(pubkey?: string) {
     }
 
     fetchInvite()
-  }, [pubkey, relayUrls])
+  }, [pubkey, relayUrls, inviteKind])
 
   const returnValue = { inviteEvent, isLoading }
   console.log('[useFetchInviteInfo]', Date.now(), 'Returning:', returnValue)
