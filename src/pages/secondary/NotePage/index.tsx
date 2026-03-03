@@ -7,6 +7,7 @@ import UserAvatar from '@/components/UserAvatar'
 import { Card } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import RelayFetchState from '@/components/RelayFetchState'
 import { ExtendedKind } from '@/constants'
 import { useFetchEvent } from '@/hooks'
 import SecondaryPageLayout from '@/layouts/SecondaryPageLayout'
@@ -22,7 +23,7 @@ import NotFound from './NotFound'
 
 const NotePage = forwardRef(({ id, index }: { id?: string; index?: number }, ref) => {
   const { t } = useTranslation()
-  const { event, isFetching } = useFetchEvent(id)
+  const { event, isFetching, isSlowLoading, refetch } = useFetchEvent(id)
   const parentEventId = useMemo(() => getParentBech32Id(event), [event])
   const rootEventId = useMemo(() => getRootBech32Id(event), [event])
   const rootITag = useMemo(
@@ -33,6 +34,14 @@ const NotePage = forwardRef(({ id, index }: { id?: string; index?: number }, ref
   const { isFetching: isFetchingParentEvent, event: parentEvent } = useFetchEvent(parentEventId)
 
   if (!event && isFetching) {
+    if (isSlowLoading) {
+      return (
+        <SecondaryPageLayout ref={ref} index={index} title={t('Note')}>
+          <RelayFetchState mode="slow" relayCount={4} onRetry={refetch} className="h-64" />
+        </SecondaryPageLayout>
+      )
+    }
+
     return (
       <SecondaryPageLayout ref={ref} index={index} title={t('Note')}>
         <div className="px-4 pt-3">
@@ -62,6 +71,7 @@ const NotePage = forwardRef(({ id, index }: { id?: string; index?: number }, ref
   if (!event) {
     return (
       <SecondaryPageLayout ref={ref} index={index} title={t('Note')} displayScrollToTopButton>
+        <RelayFetchState mode="not-found" relayCount={4} onRetry={refetch} className="pb-0" />
         <NotFound bech32Id={id} />
       </SecondaryPageLayout>
     )

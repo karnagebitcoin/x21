@@ -1,10 +1,10 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { Event as NostrEvent } from 'nostr-tools'
 import { BIG_RELAY_URLS } from '@/constants'
 import client from '@/services/client.service'
 import LiveEventCard from '@/components/LiveEventCard'
 import { LiveEventCardSkeleton } from '@/components/LiveEventCard'
+import RelayFetchState from '@/components/RelayFetchState'
 
 export type TLiveEventListRef = {
   refresh: () => void
@@ -54,18 +54,25 @@ const LiveEventList = forwardRef<
   TLiveEventListRef,
   { onOpenStream?: (naddr: string, event: NostrEvent) => void }
 >(({ onOpenStream }, ref) => {
-  const { t } = useTranslation()
   const [events, setEvents] = useState<NostrEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const subCloserRef = useRef<{ close: () => void } | null>(null)
   const eventMapRef = useRef<Map<string, NostrEvent>>(new Map())
   const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const slowLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [isSlowLoading, setIsSlowLoading] = useState(false)
 
   const clearLoadingTimeout = useCallback(() => {
     if (!loadingTimeoutRef.current) return
     clearTimeout(loadingTimeoutRef.current)
     loadingTimeoutRef.current = null
+  }, [])
+
+  const clearSlowLoadingTimeout = useCallback(() => {
+    if (!slowLoadingTimeoutRef.current) return
+    clearTimeout(slowLoadingTimeoutRef.current)
+    slowLoadingTimeoutRef.current = null
   }, [])
 
   const clearReconnectTimeout = useCallback(() => {
@@ -96,13 +103,19 @@ const LiveEventList = forwardRef<
   const loadLiveEvents = useCallback(() => {
     clearReconnectTimeout()
     clearLoadingTimeout()
+    clearSlowLoadingTimeout()
     setIsLoading(true)
+    setIsSlowLoading(false)
 
     // Avoid a permanent skeleton if some relays never EOSE.
     loadingTimeoutRef.current = setTimeout(() => {
       setIsLoading(false)
       loadingTimeoutRef.current = null
     }, 12_000)
+    slowLoadingTimeoutRef.current = setTimeout(() => {
+      setIsSlowLoading(true)
+      slowLoadingTimeoutRef.current = null
+    }, 3500)
 
     if (subCloserRef.current) {
       subCloserRef.current.close()
@@ -120,7 +133,9 @@ const LiveEventList = forwardRef<
       }
       updateEventList()
       setIsLoading(false)
+      setIsSlowLoading(false)
       clearLoadingTimeout()
+      clearSlowLoadingTimeout()
     }
 
     // Then refresh cache from relays in the background.
@@ -140,7 +155,9 @@ const LiveEventList = forwardRef<
         updateEventList()
         if (seedEvents.length > 0) {
           setIsLoading(false)
+          setIsSlowLoading(false)
           clearLoadingTimeout()
+          clearSlowLoadingTimeout()
         }
       })
       .catch(() => {
@@ -166,10 +183,14 @@ const LiveEventList = forwardRef<
           }
           client.cacheLiveStreamEvents([event])
           setIsLoading(false)
+          setIsSlowLoading(false)
+          clearSlowLoadingTimeout()
         },
         oneose: (eosed: boolean) => {
           if (eosed) {
             setIsLoading(false)
+            setIsSlowLoading(false)
+            clearSlowLoadingTimeout()
           }
         },
         onAllClose: (reasons) => {
@@ -183,7 +204,7 @@ const LiveEventList = forwardRef<
     )
 
     subCloserRef.current = sub
-  }, [clearLoadingTimeout, clearReconnectTimeout, updateEventList])
+  }, [clearLoadingTimeout, clearReconnectTimeout, clearSlowLoadingTimeout, updateEventList])
 
   useEffect(() => {
     loadLiveEvents()
@@ -195,18 +216,29 @@ const LiveEventList = forwardRef<
     return () => {
       clearLoadingTimeout()
       clearReconnectTimeout()
+      clearSlowLoadingTimeout()
       if (subCloserRef.current) {
         subCloserRef.current.close()
       }
       clearInterval(interval)
     }
-  }, [clearLoadingTimeout, clearReconnectTimeout, loadLiveEvents, updateEventList])
+  }, [clearLoadingTimeout, clearReconnectTimeout, clearSlowLoadingTimeout, loadLiveEvents, updateEventList])
 
   useImperativeHandle(ref, () => ({
     refresh: loadLiveEvents
   }))
 
   if (isLoading && events.length === 0) {
+    if (isSlowLoading) {
+      return (
+        <RelayFetchState
+          mode="slow"
+          relayCount={LIVE_STREAM_RELAYS.length}
+          onRetry={loadLiveEvents}
+          className="pt-16"
+        />
+      )
+    }
     return (
       <div className="p-4 space-y-4">
         {[...Array(3)].map((_, index) => (
@@ -218,10 +250,12 @@ const LiveEventList = forwardRef<
 
   if (events.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <p className="text-muted-foreground">{t('No live streams at the moment')}</p>
-        <p className="text-sm text-muted-foreground mt-2">{t('Check back later for live events')}</p>
-      </div>
+      <RelayFetchState
+        mode="not-found"
+        relayCount={LIVE_STREAM_RELAYS.length}
+        onRetry={loadLiveEvents}
+        className="py-16"
+      />
     )
   }
 

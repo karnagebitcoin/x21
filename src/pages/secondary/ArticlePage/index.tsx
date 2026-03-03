@@ -7,6 +7,7 @@ import NoteStats from '@/components/NoteStats'
 import ArticleOptions from '@/components/ArticleOptions'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
+import RelayFetchState from '@/components/RelayFetchState'
 import { useFetchEvent, useFetchProfile } from '@/hooks'
 import SecondaryPageLayout from '@/layouts/SecondaryPageLayout'
 import { forwardRef, useMemo, useState, useEffect } from 'react'
@@ -24,7 +25,7 @@ import { isFromMutedDomain, isMentioningMutedUsers } from '@/lib/event'
 
 const ArticlePage = forwardRef(({ id, index }: { id?: string; index?: number }, ref) => {
   const { t } = useTranslation()
-  const { event, isFetching } = useFetchEvent(id)
+  const { event, isFetching, isSlowLoading, refetch } = useFetchEvent(id)
   const [shouldShowHeaderImage, setShouldShowHeaderImage] = useState(true)
   const [showMuted, setShowMuted] = useState(false)
   const { mutePubkeySet, getMutedDomains, getMutedWords } = useMuteList()
@@ -113,6 +114,14 @@ const ArticlePage = forwardRef(({ id, index }: { id?: string; index?: number }, 
   }, [articleData?.image])
 
   if (!event && isFetching) {
+    if (isSlowLoading) {
+      return (
+        <SecondaryPageLayout ref={ref} index={index} title={t('Article')}>
+          <RelayFetchState mode="slow" relayCount={4} onRetry={refetch} className="h-64" />
+        </SecondaryPageLayout>
+      )
+    }
+
     return (
       <SecondaryPageLayout ref={ref} index={index} title={t('Article')}>
         <div className="px-4 pt-3 max-w-3xl mx-auto">
@@ -136,9 +145,7 @@ const ArticlePage = forwardRef(({ id, index }: { id?: string; index?: number }, 
   if (!event || !articleData) {
     return (
       <SecondaryPageLayout ref={ref} index={index} title={t('Article')} displayScrollToTopButton>
-        <div className="text-center text-muted-foreground py-12">
-          {t('Article not found')}
-        </div>
+        <RelayFetchState mode="not-found" relayCount={4} onRetry={refetch} className="h-64" />
       </SecondaryPageLayout>
     )
   }

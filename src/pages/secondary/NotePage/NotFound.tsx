@@ -6,7 +6,7 @@ export default function NotFound({ bech32Id }: { bech32Id?: string }) {
 
   return (
     <div className="text-muted-foreground w-full h-full flex flex-col items-center justify-center gap-2">
-      <div>{t('Note not found')}</div>
+      <div className="text-sm">{t('Try opening this note in another client')}</div>
       <ClientSelect originalNoteId={bech32Id} />
     </div>
   )

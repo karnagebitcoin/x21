@@ -21,6 +21,7 @@ import { Event, nip19 } from 'nostr-tools'
 import { useFollowList } from '@/providers/FollowListProvider'
 import ShareListDialog from '@/components/ShareListDialog'
 import ListPreviewDialog from '@/components/ListPreviewDialog'
+import RelayFetchState from '@/components/RelayFetchState'
 
 type ListPageProps = {
   index?: number
@@ -37,6 +38,8 @@ const ListPage = forwardRef<HTMLDivElement, ListPageProps>(({ index, listId }, r
   const { followings, followMultiple } = useFollowList()
   const [externalList, setExternalList] = useState<TStarterPack | null>(null)
   const [isLoadingExternal, setIsLoadingExternal] = useState(false)
+  const [isSlowLoadingExternal, setIsSlowLoadingExternal] = useState(false)
+  const [externalFetchAttempt, setExternalFetchAttempt] = useState(0)
   const [isFollowingAll, setIsFollowingAll] = useState(false)
   const [activeTab, setActiveTab] = useState('notes')
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
@@ -61,6 +64,10 @@ const ListPage = forwardRef<HTMLDivElement, ListPageProps>(({ index, listId }, r
       if (isOwnList || list || !ownerPubkey || !dTag) return
 
       setIsLoadingExternal(true)
+      setIsSlowLoadingExternal(false)
+      const slowLoadingTimer = setTimeout(() => {
+        setIsSlowLoadingExternal(true)
+      }, 3500)
       try {
         const events = await client.fetchEvents(BIG_RELAY_URLS.slice(0, 5), {
           kinds: [ExtendedKind.STARTER_PACK],
@@ -77,12 +84,13 @@ const ListPage = forwardRef<HTMLDivElement, ListPageProps>(({ index, listId }, r
       } catch (error) {
         console.error('Failed to fetch external list:', error)
       } finally {
+        clearTimeout(slowLoadingTimer)
         setIsLoadingExternal(false)
       }
     }
 
     fetchExternalList()
-  }, [ownerPubkey, dTag, isOwnList, list])
+  }, [ownerPubkey, dTag, isOwnList, list, externalFetchAttempt])
 
   const parseStarterPackEvent = (event: Event): TStarterPack => {
     const dTag = event.tags.find((tag) => tag[0] === 'd')?.[1] || ''
@@ -169,11 +177,27 @@ const ListPage = forwardRef<HTMLDivElement, ListPageProps>(({ index, listId }, r
   const isLoading = isLoadingMyLists || isLoadingExternal
 
   if (isLoading) {
+    if (isSlowLoadingExternal && !list && !externalList) {
+      return (
+        <SecondaryPageLayout ref={ref} index={index} title={t('Loading...')}>
+          <RelayFetchState
+            mode="slow"
+            relayCount={BIG_RELAY_URLS.slice(0, 5).length}
+            onRetry={() => setExternalFetchAttempt((prev) => prev + 1)}
+            className="h-64"
+          />
+        </SecondaryPageLayout>
+      )
+    }
+
     return (
       <SecondaryPageLayout ref={ref} index={index} title={t('Loading...')}>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">{t('Loading list...')}</div>
-        </div>
+        <RelayFetchState
+          mode="loading"
+          relayCount={isLoadingExternal ? BIG_RELAY_URLS.slice(0, 5).length : undefined}
+          onRetry={isLoadingExternal ? () => setExternalFetchAttempt((prev) => prev + 1) : undefined}
+          className="h-64"
+        />
       </SecondaryPageLayout>
     )
   }
@@ -181,10 +205,12 @@ const ListPage = forwardRef<HTMLDivElement, ListPageProps>(({ index, listId }, r
   if (!displayList) {
     return (
       <SecondaryPageLayout ref={ref} index={index} title={t('List Not Found')}>
-        <div className="flex flex-col items-center justify-center h-64 gap-4">
-          <Users className="w-16 h-16 text-muted-foreground opacity-50" />
-          <div className="text-muted-foreground">{t('List not found')}</div>
-        </div>
+        <RelayFetchState
+          mode="not-found"
+          relayCount={BIG_RELAY_URLS.slice(0, 5).length}
+          onRetry={() => setExternalFetchAttempt((prev) => prev + 1)}
+          className="h-64"
+        />
       </SecondaryPageLayout>
     )
   }

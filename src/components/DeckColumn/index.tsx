@@ -27,6 +27,7 @@ import Username from '../Username'
 import { useNostr } from '@/providers/NostrProvider'
 import { useLists } from '@/providers/ListsProvider'
 import client from '@/services/client.service'
+import RelayFetchState from '@/components/RelayFetchState'
 
 export default function DeckColumn({ column }: { column: TPinnedColumn }) {
   const { pageTheme } = usePageTheme()
@@ -460,6 +461,8 @@ function ListContent({ listId }: { listId: string }) {
   const { lists, isLoading: isLoadingMyLists } = useLists()
   const [externalList, setExternalList] = useState<any>(null)
   const [isLoadingExternal, setIsLoadingExternal] = useState(false)
+  const [isSlowLoadingExternal, setIsSlowLoadingExternal] = useState(false)
+  const [externalFetchAttempt, setExternalFetchAttempt] = useState(0)
 
   // Parse listId - could be "d-tag" or "pubkey:d-tag"
   const { ownerPubkey, dTag } = (() => {
@@ -484,6 +487,10 @@ function ListContent({ listId }: { listId: string }) {
       }
 
       setIsLoadingExternal(true)
+      setIsSlowLoadingExternal(false)
+      const slowLoadingTimer = setTimeout(() => {
+        setIsSlowLoadingExternal(true)
+      }, 3500)
       try {
         const events = await client.fetchEvents(BIG_RELAY_URLS.slice(0, 5), {
           kinds: [ExtendedKind.STARTER_PACK],
@@ -500,12 +507,13 @@ function ListContent({ listId }: { listId: string }) {
       } catch (error) {
         console.error('Failed to fetch external list:', error)
       } finally {
+        clearTimeout(slowLoadingTimer)
         setIsLoadingExternal(false)
       }
     }
 
     fetchExternalList()
-  }, [ownerPubkey, dTag, isOwnList, ownList])
+  }, [ownerPubkey, dTag, isOwnList, ownList, externalFetchAttempt])
 
   const parseStarterPackEvent = (event: any) => {
     const dTag = event.tags.find((tag: any) => tag[0] === 'd')?.[1] || ''
@@ -528,19 +536,35 @@ function ListContent({ listId }: { listId: string }) {
   const isLoading = isLoadingMyLists || isLoadingExternal
 
   if (isLoading) {
+    if (isSlowLoadingExternal && !list) {
+      return (
+        <RelayFetchState
+          mode="slow"
+          relayCount={BIG_RELAY_URLS.slice(0, 5).length}
+          onRetry={() => setExternalFetchAttempt((prev) => prev + 1)}
+          className="h-64"
+        />
+      )
+    }
+
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground">{t('Loading list...')}</div>
-      </div>
+      <RelayFetchState
+        mode="loading"
+        relayCount={isLoadingExternal ? BIG_RELAY_URLS.slice(0, 5).length : undefined}
+        onRetry={isLoadingExternal ? () => setExternalFetchAttempt((prev) => prev + 1) : undefined}
+        className="h-64"
+      />
     )
   }
 
   if (!list) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <Users className="w-16 h-16 text-muted-foreground opacity-50" />
-        <div className="text-muted-foreground">{t('List not found')}</div>
-      </div>
+      <RelayFetchState
+        mode="not-found"
+        relayCount={BIG_RELAY_URLS.slice(0, 5).length}
+        onRetry={() => setExternalFetchAttempt((prev) => prev + 1)}
+        className="h-64"
+      />
     )
   }
 

@@ -29,6 +29,7 @@ import { useSecondaryPage } from '@/PageManager'
 import { formatAmount } from '@/lib/lightning'
 import { getZapInfoFromEvent } from '@/lib/event-metadata'
 import ZapDialog from '@/components/ZapDialog'
+import RelayFetchState from '@/components/RelayFetchState'
 import { BIG_RELAY_URLS } from '@/constants'
 import { normalizeUrl } from '@/lib/url'
 
@@ -92,6 +93,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const [chatMessages, setChatMessages] = useState<NostrEvent[]>([])
   const [zaps, setZaps] = useState<LiveZap[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [showSlowLoading, setShowSlowLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [isStreamZapOpen, setIsStreamZapOpen] = useState(false)
@@ -108,6 +110,8 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const videoContainerRef = useRef<HTMLDivElement>(null)
   const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const slowLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   const clearLoadingTimeout = useCallback(() => {
     if (!loadingTimeoutRef.current) return
@@ -115,10 +119,23 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
     loadingTimeoutRef.current = null
   }, [])
 
+  const clearSlowLoadingTimeout = useCallback(() => {
+    if (!slowLoadingTimeoutRef.current) return
+    clearTimeout(slowLoadingTimeoutRef.current)
+    slowLoadingTimeoutRef.current = null
+  }, [])
+
+  const relayCount = useMemo(
+    () => (decodedEvent ? getStreamRelays(decodedEvent).length : 0),
+    [decodedEvent]
+  )
+
   useEffect(() => {
     if (!decodedEvent) {
       clearLoadingTimeout()
+      clearSlowLoadingTimeout()
       setIsLoading(false)
+      setShowSlowLoading(false)
       setLiveEvent(null)
       setChatMessages([])
       setZaps([])
@@ -132,7 +149,9 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
     const addressTag = getAddressTag(decodedEvent)
 
     clearLoadingTimeout()
+    clearSlowLoadingTimeout()
     setIsLoading(true)
+    setShowSlowLoading(false)
     setLiveEvent(null)
     setChatMessages([])
     setZaps([])
@@ -145,6 +164,10 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
       setIsLoading(false)
       loadingTimeoutRef.current = null
     }, LIVE_STREAM_LOADING_TIMEOUT)
+    slowLoadingTimeoutRef.current = setTimeout(() => {
+      setShowSlowLoading(true)
+      slowLoadingTimeoutRef.current = null
+    }, 3500)
 
     // Seed with one-shot query to improve first paint speed.
     client
@@ -160,7 +183,9 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
         if (!latest) return
         setLiveEvent(latest)
         setIsLoading(false)
+        setShowSlowLoading(false)
         clearLoadingTimeout()
+        clearSlowLoadingTimeout()
       })
       .catch(() => {
         // Ignore seed errors; live subscription handles retries/updates.
@@ -181,7 +206,9 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
             return event.created_at > previous.created_at ? event : previous
           })
           setIsLoading(false)
+          setShowSlowLoading(false)
           clearLoadingTimeout()
+          clearSlowLoadingTimeout()
         },
         oneose: () => {
           // Intentionally no-op: a quick EOSE should not immediately show "not found".
@@ -239,11 +266,12 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
 
     return () => {
       clearLoadingTimeout()
+      clearSlowLoadingTimeout()
       liveSub.close()
       chatSub.close()
       zapsSub.close()
     }
-  }, [clearLoadingTimeout, decodedEvent])
+  }, [clearLoadingTimeout, clearSlowLoadingTimeout, decodedEvent, loadAttempt])
 
   const scrollChatToBottom = useCallback(() => {
     const container = chatContainerRef.current
@@ -264,11 +292,12 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   useEffect(() => {
     return () => {
       clearLoadingTimeout()
+      clearSlowLoadingTimeout()
       if (chatScrollRafRef.current !== null) {
         cancelAnimationFrame(chatScrollRafRef.current)
       }
     }
-  }, [clearLoadingTimeout])
+  }, [clearLoadingTimeout, clearSlowLoadingTimeout])
 
   useEffect(() => {
     const count = chatMessages.length
@@ -382,6 +411,17 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   }, [])
 
   if (isLoading) {
+    if (showSlowLoading) {
+      return (
+        <RelayFetchState
+          mode="slow"
+          relayCount={relayCount}
+          onRetry={() => setLoadAttempt((prev) => prev + 1)}
+          className="h-[calc(100dvh-8rem)]"
+        />
+      )
+    }
+
     return (
       <div className="p-4 space-y-4">
         <Skeleton className="h-8 w-3/4" />
@@ -394,7 +434,12 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
 
   if (!liveEvent || !decodedEvent) {
     return (
-      <div className="p-4 text-center text-muted-foreground">{t('Live stream not found')}</div>
+      <RelayFetchState
+        mode="not-found"
+        relayCount={relayCount}
+        onRetry={() => setLoadAttempt((prev) => prev + 1)}
+        className="h-[calc(100dvh-8rem)]"
+      />
     )
   }
 
@@ -536,7 +581,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
             <img src={image} alt={title} className="w-full h-full object-contain" />
           ) : (
             <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground">
-              {t('Live stream not found')}
+              Stream source unavailable
             </div>
           )}
         </div>
