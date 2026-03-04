@@ -250,13 +250,16 @@ class NoteStatsService {
   private async flushBatchFetches() {
     if (!this.pendingFetchMap.size) return
 
-    const requests = Array.from(this.pendingFetchMap.values()).slice(0, NOTE_STATS_BATCH_MAX_NOTES)
-    this.pendingFetchMap.clear()
-
     const requestById = new Map<string, { event: Event; pubkey?: string | null }>()
-    requests.forEach((request) => {
+    Array.from(this.pendingFetchMap.values())
+      .slice(0, NOTE_STATS_BATCH_MAX_NOTES)
+      .forEach((request) => {
       requestById.set(request.event.id, request)
     })
+    requestById.forEach((_request, id) => {
+      this.pendingFetchMap.delete(id)
+    })
+
     const now = dayjs().unix()
     const ids = Array.from(requestById.keys())
 
