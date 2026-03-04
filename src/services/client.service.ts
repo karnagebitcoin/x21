@@ -10,6 +10,7 @@ import { formatPubkey, isValidPubkey, pubkeyToNpub, userIdToPubkey } from '@/lib
 import { getPubkeysFromPTags, getServersFromServerTags, tagNameEquals } from '@/lib/tag'
 import { isLocalNetworkUrl, isWebsocketUrl, normalizeUrl } from '@/lib/url'
 import { isSafari } from '@/lib/utils'
+import { SmartPool } from '@/lib/smart-pool'
 import { getMetadataRelayTiers } from '@/services/client/metadata-relay-tiers'
 import { prefetchProfilesForEvents } from '@/services/client/profile-prefetch'
 import {
@@ -27,7 +28,6 @@ import {
   kinds,
   Event as NEvent,
   nip19,
-  SimplePool,
   VerifiedEvent
 } from 'nostr-tools'
 import { AbstractRelay } from 'nostr-tools/abstract-relay'
@@ -40,7 +40,7 @@ class ClientService extends EventTarget {
 
   signer?: ISigner
   pubkey?: string
-  private pool: SimplePool
+  private pool: SmartPool
 
   // User's preferred relays for tiered fetching (read relays first, then favorites)
   private _preferredReadRelays: string[] = []
@@ -90,7 +90,7 @@ class ClientService extends EventTarget {
 
   constructor() {
     super()
-    this.pool = new SimplePool()
+    this.pool = new SmartPool()
     this.pool.trackRelays = true
   }
 
@@ -437,7 +437,7 @@ class ClientService extends EventTarget {
 
       async function startSub() {
         startedCount++
-        const relay = await that.pool.ensureRelay(url, { connectionTimeout: 5000 }).catch(() => {
+        const relay = await that.pool.ensureRelay(url).catch(() => {
           return undefined
         })
         // cannot connect to relay
@@ -786,7 +786,7 @@ class ClientService extends EventTarget {
             resolve(events)
           }
         },
-        onclose: () => {
+        onAllClose: () => {
           resolve(events)
         }
       })
@@ -838,6 +838,11 @@ class ClientService extends EventTarget {
         const cache = this.replaceableEventCacheMap.get(coordinate)
         if (cache) {
           return cache
+        }
+        const indexedDbCache = await indexedDb.getReplaceableEventByCoordinate(coordinate)
+        if (indexedDbCache) {
+          this.replaceableEventCacheMap.set(coordinate, indexedDbCache)
+          return indexedDbCache
         }
       } else if (eventId) {
         const cache = this.eventCacheMap.get(eventId)

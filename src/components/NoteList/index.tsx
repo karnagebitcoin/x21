@@ -76,6 +76,7 @@ const NoteList = forwardRef(
     const { mutePubkeySet, getMutedWords } = useMuteList()
     const { hideContentMentioningMutedUsers, maxHashtags, maxMentions } = useContentPolicy()
     const mutedWords = useMemo(() => getMutedWords(), [getMutedWords])
+    const mutedWordsLower = useMemo(() => mutedWords.map((word) => word.toLowerCase()), [mutedWords])
     const { isEventDeleted } = useDeletedEvent()
     const { isDistractionFree } = useDistractionFreeMode()
     const showCountIncrement = textOnlyMode ? SHOW_COUNT_TEXT_ONLY : SHOW_COUNT_STANDARD
@@ -89,21 +90,23 @@ const NoteList = forwardRef(
     const supportTouch = useMemo(() => isTouchDevice(), [])
     const bottomRef = useRef<HTMLDivElement | null>(null)
     const topRef = useRef<HTMLDivElement | null>(null)
+    const pinnedEventHexIdSet = useMemo(() => {
+      const set = new Set<string>()
+      pinnedEventIds.forEach((id) => {
+        try {
+          const { type, data } = decode(id)
+          if (type === 'nevent') {
+            set.add(data.id)
+          }
+        } catch {
+          // ignore invalid ids
+        }
+      })
+      return set
+    }, [pinnedEventIds.join(',')])
 
     const shouldHideEvent = useCallback(
       (evt: Event) => {
-        const pinnedEventHexIdSet = new Set()
-        pinnedEventIds.forEach((id) => {
-          try {
-            const { type, data } = decode(id)
-            if (type === 'nevent') {
-              pinnedEventHexIdSet.add(data.id)
-            }
-          } catch {
-            // ignore
-          }
-        })
-
         if (pinnedEventHexIdSet.has(evt.id)) return true
         if (isEventDeleted(evt)) return true
         if (hideReplies && isReplyNoteEvent(evt)) return true
@@ -118,9 +121,9 @@ const NoteList = forwardRef(
         }
 
         // Check for muted words in content
-        if (filterMutedNotes && mutedWords.length > 0) {
+        if (filterMutedNotes && mutedWordsLower.length > 0) {
           const content = evt.content.toLowerCase()
-          if (mutedWords.some(word => content.includes(word.toLowerCase()))) {
+          if (mutedWordsLower.some((word) => content.includes(word))) {
             return true
           }
         }
@@ -142,7 +145,20 @@ const NoteList = forwardRef(
 
         return false
       },
-      [hideReplies, hideUntrustedNotes, mutePubkeySet, pinnedEventIds, isEventDeleted, filterMutedNotes, mutedWords, hideContentMentioningMutedUsers, isUserTrusted, mediaOnly, maxHashtags, maxMentions]
+      [
+        hideReplies,
+        hideUntrustedNotes,
+        mutePubkeySet,
+        pinnedEventHexIdSet,
+        isEventDeleted,
+        filterMutedNotes,
+        mutedWordsLower,
+        hideContentMentioningMutedUsers,
+        isUserTrusted,
+        mediaOnly,
+        maxHashtags,
+        maxMentions
+      ]
     )
 
     const filteredEvents = useMemo(() => {
