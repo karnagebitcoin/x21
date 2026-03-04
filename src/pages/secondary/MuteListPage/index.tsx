@@ -75,7 +75,7 @@ const MuteListPage = forwardRef(({ index }: { index?: number }, ref) => {
       </div>
       <div className="px-4">
         <div className="mb-4 p-3 bg-muted/50 rounded-lg text-sm text-muted-foreground">
-          {t('All mutes are private and encrypted. Only you can see your muted users.')}
+          {t('Mutes created in x21 are private and encrypted. Public mutes from other clients are also respected.')}
         </div>
         <div className="space-y-2">
           {visibleMutePubkeys.map((pubkey, index) => (
