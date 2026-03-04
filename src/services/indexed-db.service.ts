@@ -26,7 +26,9 @@ const StoreNames = {
   RELAY_INFOS: 'relayInfos',
   RELAY_INFO_EVENTS: 'relayInfoEvents', // deprecated
   GIF_CACHE: 'gifCache',
-  TRANSLATED_EVENTS: 'translatedEvents'
+  TRANSLATED_EVENTS: 'translatedEvents',
+  NOTE_STATS: 'noteStats',
+  NOTE_STATS_INTERACTION_META: 'noteStatsInteractionMeta'
 }
 
 class IndexedDbService {
@@ -45,7 +47,7 @@ class IndexedDbService {
   init(): Promise<void> {
     if (!this.initPromise) {
       this.initPromise = new Promise((resolve, reject) => {
-        const request = window.indexedDB.open('jumble', 11)
+        const request = window.indexedDB.open('jumble', 12)
 
         request.onerror = (event) => {
           reject(event)
@@ -107,6 +109,16 @@ class IndexedDbService {
           if (!db.objectStoreNames.contains(StoreNames.TRANSLATED_EVENTS)) {
             const translatedStore = db.createObjectStore(StoreNames.TRANSLATED_EVENTS, { keyPath: 'key' })
             translatedStore.createIndex('addedAt', 'addedAt', { unique: false })
+          }
+          if (!db.objectStoreNames.contains(StoreNames.NOTE_STATS)) {
+            const noteStatsStore = db.createObjectStore(StoreNames.NOTE_STATS, { keyPath: 'key' })
+            noteStatsStore.createIndex('addedAt', 'addedAt', { unique: false })
+          }
+          if (!db.objectStoreNames.contains(StoreNames.NOTE_STATS_INTERACTION_META)) {
+            const interactionMetaStore = db.createObjectStore(StoreNames.NOTE_STATS_INTERACTION_META, {
+              keyPath: 'key'
+            })
+            interactionMetaStore.createIndex('addedAt', 'addedAt', { unique: false })
           }
           if (db.objectStoreNames.contains(StoreNames.RELAY_INFO_EVENTS)) {
             db.deleteObjectStore(StoreNames.RELAY_INFO_EVENTS)
@@ -668,6 +680,14 @@ class IndexedDbService {
       {
         name: StoreNames.PIN_LIST_EVENTS,
         expirationTimestamp: Date.now() - 1000 * 60 * 60 * 24 * 30 // 30 days
+      },
+      {
+        name: StoreNames.NOTE_STATS,
+        expirationTimestamp: Date.now() - 1000 * 60 * 60 * 24 * 7 // 7 days
+      },
+      {
+        name: StoreNames.NOTE_STATS_INTERACTION_META,
+        expirationTimestamp: Date.now() - 1000 * 60 * 60 * 24 * 7 // 7 days
       }
     ]
     const transaction = this.db!.transaction(
@@ -792,6 +812,98 @@ class IndexedDbService {
       request.onerror = (event) => {
         reject(event)
       }
+    })
+  }
+
+  async getNoteStats(eventId: string): Promise<Record<string, any> | null> {
+    await this.init()
+    if (!this.db) return null
+
+    return new Promise<Record<string, any> | null>((resolve, reject) => {
+      const transaction = this.db!.transaction([StoreNames.NOTE_STATS], 'readonly')
+      const store = transaction.objectStore(StoreNames.NOTE_STATS)
+      const request = store.get(eventId)
+
+      request.onsuccess = () => {
+        const result: TValue<Record<string, any>> | undefined = request.result
+        resolve(result?.value ?? null)
+      }
+      request.onerror = (event) => reject(event)
+    })
+  }
+
+  async getManyNoteStats(eventIds: readonly string[]): Promise<Map<string, Record<string, any>>> {
+    await this.init()
+    if (!this.db || eventIds.length === 0) return new Map()
+
+    return new Promise<Map<string, Record<string, any>>>((resolve, reject) => {
+      const transaction = this.db!.transaction([StoreNames.NOTE_STATS], 'readonly')
+      const store = transaction.objectStore(StoreNames.NOTE_STATS)
+      const map = new Map<string, Record<string, any>>()
+      let count = 0
+
+      eventIds.forEach((eventId) => {
+        const request = store.get(eventId)
+        request.onsuccess = () => {
+          const result: TValue<Record<string, any>> | undefined = request.result
+          if (result?.value) {
+            map.set(eventId, result.value)
+          }
+          if (++count === eventIds.length) {
+            resolve(map)
+          }
+        }
+        request.onerror = () => {
+          if (++count === eventIds.length) {
+            resolve(map)
+          }
+        }
+      })
+
+      transaction.onerror = (event) => reject(event)
+    })
+  }
+
+  async putNoteStats(eventId: string, noteStats: Record<string, any>): Promise<void> {
+    await this.init()
+    if (!this.db) return
+
+    return new Promise<void>((resolve, reject) => {
+      const transaction = this.db!.transaction([StoreNames.NOTE_STATS], 'readwrite')
+      const store = transaction.objectStore(StoreNames.NOTE_STATS)
+      const request = store.put(this.formatValue(eventId, noteStats))
+
+      request.onsuccess = () => resolve()
+      request.onerror = (event) => reject(event)
+    })
+  }
+
+  async putManyNoteStats(entries: { eventId: string; noteStats: Record<string, any> }[]): Promise<void> {
+    if (entries.length === 0) return
+    await this.init()
+    if (!this.db) return
+
+    return new Promise<void>((resolve, reject) => {
+      const transaction = this.db!.transaction([StoreNames.NOTE_STATS], 'readwrite')
+      const store = transaction.objectStore(StoreNames.NOTE_STATS)
+      let completed = 0
+      let hasError = false
+
+      entries.forEach(({ eventId, noteStats }) => {
+        const request = store.put(this.formatValue(eventId, noteStats))
+        request.onsuccess = () => {
+          completed += 1
+          if (completed === entries.length) {
+            resolve()
+          }
+        }
+        request.onerror = (event) => {
+          if (!hasError) {
+            hasError = true
+            reject(event)
+          }
+        }
+      })
     })
   }
 }

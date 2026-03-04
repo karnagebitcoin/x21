@@ -1,8 +1,10 @@
 import NoteCard, { NoteCardLoadingSkeleton } from '@/components/NoteCard'
+import { BIG_RELAY_URLS } from '@/constants'
 import { getReplaceableCoordinateFromEvent, isReplaceableEvent } from '@/lib/event'
 import { useDeletedEvent } from '@/providers/DeletedEventProvider'
 import { useUserTrust } from '@/providers/UserTrustProvider'
 import client from '@/services/client.service'
+import noteStatsService from '@/services/note-stats.service'
 import { NostrEvent } from 'nostr-tools'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,6 +40,7 @@ export default function TrendingNotes() {
       setLoading(true)
       const events = await client.fetchTrendingNotes()
       setTrendingNotes(events)
+      noteStatsService.prefetchNoteStats(events.slice(0, 80), undefined, undefined, BIG_RELAY_URLS)
       setLoading(false)
     }
 

@@ -3,6 +3,7 @@ import { getReplaceableCoordinateFromEvent, isReplaceableEvent } from '@/lib/eve
 import { getZapInfoFromEvent } from '@/lib/event-metadata'
 import { getEmojiInfosFromEmojiTags, tagNameEquals } from '@/lib/tag'
 import client from '@/services/client.service'
+import indexedDb from '@/services/indexed-db.service'
 import { TEmoji } from '@/types'
 import dayjs from 'dayjs'
 import { Event, Filter, kinds } from 'nostr-tools'
@@ -28,8 +29,19 @@ type TInteractionMeta =
   | { type: 'repost'; targetEventId: string; pubkey: string }
   | { type: 'zap'; targetEventId: string; pr: string }
 
+type TSerializedNoteStats = {
+  likeIdSet?: string[]
+  likes?: { id: string; pubkey: string; created_at: number; emoji: TEmoji | string }[]
+  repostPubkeySet?: string[]
+  reposts?: { id: string; pubkey: string; created_at: number }[]
+  zapPrSet?: string[]
+  zaps?: { pr: string; pubkey: string; amount: number; created_at: number; comment?: string }[]
+  updatedAt?: number
+}
+
 const NOTE_STATS_FRESH_SECONDS = 15
 const NOTE_STATS_BATCH_DEBOUNCE_MS = 40
+const NOTE_STATS_PERSIST_DEBOUNCE_MS = 80
 const NOTE_STATS_TRACK_TTL_SECONDS = 10 * 60
 const NOTE_STATS_BATCH_MAX_NOTES = 60
 const NOTE_STATS_LIVE_RELAYS_LIMIT = 10
@@ -40,7 +52,10 @@ class NoteStatsService {
   static instance: NoteStatsService
   private noteStatsMap: Map<string, Partial<TNoteStats>> = new Map()
   private noteStatsSubscribers = new Map<string, Set<() => void>>()
-  private pendingFetchMap = new Map<string, { event: Event; pubkey?: string | null }>()
+  private pendingFetchMap = new Map<
+    string,
+    { event: Event; pubkey?: string | null; relayUrls?: string[] }
+  >()
   private inflightFetchMap = new Map<string, Promise<Partial<TNoteStats>>>()
   private pendingResolvers = new Map<
     string,
@@ -52,6 +67,9 @@ class NoteStatsService {
   private fetchTimer: ReturnType<typeof setTimeout> | null = null
   private trackedNotes = new Map<string, TTrackedNote>()
   private interactionMetaById = new Map<string, TInteractionMeta>()
+  private hydratedFromDbIds = new Set<string>()
+  private pendingPersistIds = new Set<string>()
+  private persistTimer: ReturnType<typeof setTimeout> | null = null
   private liveCloser: (() => void) | null = null
   private liveRefreshTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -62,7 +80,11 @@ class NoteStatsService {
     return NoteStatsService.instance
   }
 
-  async fetchNoteStats(event: Event, pubkey?: string | null) {
+  async fetchNoteStats(event: Event, pubkey?: string | null, relayUrls: string[] = []) {
+    if (!this.hydratedFromDbIds.has(event.id)) {
+      await this.hydrateNoteStatsFromDb([event.id], true)
+    }
+
     const existing = this.noteStatsMap.get(event.id)
     const now = dayjs().unix()
     if (existing?.updatedAt && now - existing.updatedAt <= NOTE_STATS_FRESH_SECONDS) {
@@ -71,12 +93,19 @@ class NoteStatsService {
     }
 
     const inflight = this.inflightFetchMap.get(event.id)
-    if (inflight) return inflight
+    if (inflight) {
+      const pending = this.pendingFetchMap.get(event.id)
+      if (pending && relayUrls.length) {
+        pending.relayUrls = Array.from(new Set([...(pending.relayUrls ?? []), ...relayUrls]))
+        this.pendingFetchMap.set(event.id, pending)
+      }
+      return inflight
+    }
 
     this.trackNote(event)
 
     const promise = new Promise<Partial<TNoteStats>>((resolve, reject) => {
-      this.pendingFetchMap.set(event.id, { event, pubkey })
+      this.pendingFetchMap.set(event.id, { event, pubkey, relayUrls })
       this.pendingResolvers.set(event.id, { resolve, reject })
       this.scheduleBatchFetch()
     }).finally(() => {
@@ -87,7 +116,12 @@ class NoteStatsService {
     return promise
   }
 
-  prefetchNoteStats(events: Event[], pubkey?: string | null, max = NOTE_STATS_BATCH_MAX_NOTES) {
+  prefetchNoteStats(
+    events: Event[],
+    pubkey?: string | null,
+    max = NOTE_STATS_BATCH_MAX_NOTES,
+    relayUrls: string[] = []
+  ) {
     const uniqueEvents = new Map<string, Event>()
     for (const event of events) {
       if (!event?.id || uniqueEvents.has(event.id)) continue
@@ -95,8 +129,10 @@ class NoteStatsService {
       if (uniqueEvents.size >= max) break
     }
 
+    void this.hydrateNoteStatsFromDb(Array.from(uniqueEvents.keys()), true)
+
     uniqueEvents.forEach((event) => {
-      void this.fetchNoteStats(event, pubkey).catch(() => {})
+      void this.fetchNoteStats(event, pubkey, relayUrls).catch(() => {})
     })
   }
 
@@ -141,6 +177,7 @@ class NoteStatsService {
     zapPrSet.add(pr)
     zaps.push({ pr, pubkey, amount, comment, created_at })
     this.noteStatsMap.set(eventId, { ...old, zapPrSet, zaps })
+    this.schedulePersist(eventId)
     if (notify) {
       this.notifyNoteStats(eventId)
     }
@@ -166,6 +203,7 @@ class NoteStatsService {
     })
     updatedEventIdSet.forEach((eventId) => {
       this.notifyNoteStats(eventId)
+      this.schedulePersist(eventId)
     })
   }
 
@@ -251,7 +289,10 @@ class NoteStatsService {
   private async flushBatchFetches() {
     if (!this.pendingFetchMap.size) return
 
-    const requestById = new Map<string, { event: Event; pubkey?: string | null }>()
+    const requestById = new Map<
+      string,
+      { event: Event; pubkey?: string | null; relayUrls?: string[] }
+    >()
     Array.from(this.pendingFetchMap.values())
       .slice(0, NOTE_STATS_BATCH_MAX_NOTES)
       .forEach((request) => {
@@ -270,8 +311,9 @@ class NoteStatsService {
       const eventIds = new Set<string>()
       const replaceableCoordinates = new Set<string>()
       const seenRelayUrls = new Set<string>()
+      const hintedRelayUrls = new Set<string>()
 
-      requestById.forEach(({ event }, noteId) => {
+      requestById.forEach(({ event, relayUrls }, noteId) => {
         const oldStats = this.noteStatsMap.get(noteId)
         if (oldStats?.updatedAt) {
           idSinceMap.set(noteId, oldStats.updatedAt)
@@ -280,6 +322,7 @@ class NoteStatsService {
         authors.add(event.pubkey)
         eventIds.add(event.id)
         client.getSeenEventRelayUrls(event.id).forEach((relayUrl) => seenRelayUrls.add(relayUrl))
+        relayUrls?.forEach((relayUrl) => hintedRelayUrls.add(relayUrl))
 
         if (isReplaceableEvent(event.kind)) {
           replaceableCoordinates.add(getReplaceableCoordinateFromEvent(event))
@@ -298,7 +341,11 @@ class NoteStatsService {
         relayLists = []
       }
 
-      const relayUrls = this.pickRelayUrls(relayLists, Array.from(seenRelayUrls))
+      const relayUrls = this.pickRelayUrls(
+        relayLists,
+        Array.from(seenRelayUrls),
+        Array.from(hintedRelayUrls)
+      )
       const filters = this.buildBatchFilters(eventIds, replaceableCoordinates, idSinceMap)
 
       if (filters.length && relayUrls.length) {
@@ -314,6 +361,7 @@ class NoteStatsService {
           ...(this.noteStatsMap.get(id) ?? {}),
           updatedAt: now
         })
+        this.schedulePersist(id)
         this.pendingResolvers.get(id)?.resolve(this.noteStatsMap.get(id) ?? {})
         this.pendingResolvers.delete(id)
       })
@@ -370,11 +418,18 @@ class NoteStatsService {
     return filters
   }
 
-  private pickRelayUrls(relayLists: { read: string[] }[], seenRelayUrls: string[] = []) {
+  private pickRelayUrls(
+    relayLists: { read: string[] }[],
+    seenRelayUrls: string[] = [],
+    hintedRelayUrls: string[] = []
+  ) {
     const relayScoreMap = new Map<string, number>()
 
     seenRelayUrls.forEach((relayUrl, index) => {
       relayScoreMap.set(relayUrl, (relayScoreMap.get(relayUrl) ?? 0) + (200 - index))
+    })
+    hintedRelayUrls.forEach((relayUrl, index) => {
+      relayScoreMap.set(relayUrl, (relayScoreMap.get(relayUrl) ?? 0) + (140 - index))
     })
 
     BIG_RELAY_URLS.forEach((relayUrl, index) => {
@@ -513,6 +568,96 @@ class NoteStatsService {
     })
 
     return updatedEventIds
+  }
+
+  private async hydrateNoteStatsFromDb(noteIds: string[], notify: boolean = false) {
+    const idsToHydrate = noteIds.filter((id) => !this.hydratedFromDbIds.has(id))
+    if (!idsToHydrate.length) return
+
+    idsToHydrate.forEach((id) => this.hydratedFromDbIds.add(id))
+
+    try {
+      const cachedMap = await indexedDb.getManyNoteStats(idsToHydrate)
+      cachedMap.forEach((cached, id) => {
+        const deserialized = this.deserializeNoteStats(cached)
+        const existing = this.noteStatsMap.get(id)
+        if ((existing?.updatedAt ?? 0) >= (deserialized.updatedAt ?? 0)) return
+
+        this.noteStatsMap.set(id, deserialized)
+        if (notify) {
+          this.notifyNoteStats(id)
+        }
+      })
+    } catch {
+      // ignore cache errors
+    }
+  }
+
+  private schedulePersist(eventId: string) {
+    this.pendingPersistIds.add(eventId)
+    if (this.persistTimer) return
+
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null
+      void this.flushPersist()
+    }, NOTE_STATS_PERSIST_DEBOUNCE_MS)
+  }
+
+  private async flushPersist() {
+    const ids = Array.from(this.pendingPersistIds)
+    this.pendingPersistIds.clear()
+    if (!ids.length) return
+
+    const entries = ids
+      .map((eventId) => {
+        const stats = this.noteStatsMap.get(eventId)
+        if (!stats) return null
+        return { eventId, noteStats: this.serializeNoteStats(stats) }
+      })
+      .filter(
+        (
+          entry
+        ): entry is {
+          eventId: string
+          noteStats: TSerializedNoteStats
+        } => !!entry
+      )
+
+    if (!entries.length) return
+
+    try {
+      await indexedDb.putManyNoteStats(entries)
+    } catch {
+      // ignore cache errors
+    }
+
+    if (this.pendingPersistIds.size) {
+      this.schedulePersist(Array.from(this.pendingPersistIds)[0])
+    }
+  }
+
+  private serializeNoteStats(stats: Partial<TNoteStats>): TSerializedNoteStats {
+    return {
+      likeIdSet: stats.likeIdSet ? Array.from(stats.likeIdSet) : [],
+      likes: stats.likes ? [...stats.likes] : [],
+      repostPubkeySet: stats.repostPubkeySet ? Array.from(stats.repostPubkeySet) : [],
+      reposts: stats.reposts ? [...stats.reposts] : [],
+      zapPrSet: stats.zapPrSet ? Array.from(stats.zapPrSet) : [],
+      zaps: stats.zaps ? [...stats.zaps] : [],
+      updatedAt: stats.updatedAt
+    }
+  }
+
+  private deserializeNoteStats(stats: TSerializedNoteStats): Partial<TNoteStats> {
+    return {
+      likeIdSet: new Set(stats.likeIdSet ?? []),
+      likes: stats.likes ?? [],
+      repostPubkeySet: new Set(stats.repostPubkeySet ?? []),
+      reposts: stats.reposts ?? [],
+      zapPrSet: new Set(stats.zapPrSet ?? []),
+      zaps: stats.zaps ?? [],
+      updatedAt: stats.updatedAt
+    }
   }
 }
 

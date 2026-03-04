@@ -303,9 +303,13 @@ const NoteList = forwardRef(
     useEffect(() => {
       if (lowBandwidthMode || !events.length) return
 
-      const notesToPrefetch = events.slice(0, Math.max(showCount + 10, showCountIncrement))
-      noteStatsService.prefetchNoteStats(notesToPrefetch, pubkey)
-    }, [events, showCount, showCountIncrement, pubkey, lowBandwidthMode])
+      const notesToPrefetch = events.slice(
+        0,
+        Math.min(events.length, Math.max(showCount + 60, showCountIncrement * 12))
+      )
+      const relayUrls = Array.from(new Set(subRequests.flatMap((request) => request.urls))).slice(0, 20)
+      noteStatsService.prefetchNoteStats(notesToPrefetch, pubkey, undefined, relayUrls)
+    }, [events, showCount, showCountIncrement, pubkey, lowBandwidthMode, subRequests])
 
     useEffect(() => {
       const options = {

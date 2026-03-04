@@ -11,10 +11,12 @@ import { isTouchDevice } from '@/lib/utils'
 import { useKindFilter } from '@/providers/KindFilterProvider'
 import { useMuteList } from '@/providers/MuteListProvider'
 import { useDeletedEvent } from '@/providers/DeletedEventProvider'
+import { useLowBandwidthMode } from '@/providers/LowBandwidthModeProvider'
 import { isReplyNoteEvent } from '@/lib/event'
 import KindFilter from '@/components/KindFilter'
 import Tabs from '@/components/Tabs'
 import PullToRefresh from 'react-simple-pull-to-refresh'
+import noteStatsService from '@/services/note-stats.service'
 
 const LIMIT = 500
 
@@ -32,6 +34,7 @@ export default function OneNotePerPersonFeed() {
   const [refreshCount, setRefreshCount] = useState(0)
   const [timelineKey, setTimelineKey] = useState<string | undefined>(undefined)
   const { showKinds } = useKindFilter()
+  const { lowBandwidthMode } = useLowBandwidthMode()
   const [temporaryShowKinds, setTemporaryShowKinds] = useState(showKinds)
   const { mutePubkeySet } = useMuteList()
   const { isEventDeleted } = useDeletedEvent()
@@ -194,6 +197,14 @@ export default function OneNotePerPersonFeed() {
       }
     }
   }, [loading, loadingMore, hasMore, allEvents, timelineKey])
+
+  useEffect(() => {
+    if (lowBandwidthMode || filteredEvents.length === 0) return
+
+    const notesToPrefetch = filteredEvents.slice(0, Math.min(filteredEvents.length, 120))
+    const relayUrls = Array.from(new Set(subRequests.flatMap((request) => request.urls))).slice(0, 20)
+    noteStatsService.prefetchNoteStats(notesToPrefetch, pubkey, undefined, relayUrls)
+  }, [filteredEvents, subRequests, pubkey, lowBandwidthMode])
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)

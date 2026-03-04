@@ -70,6 +70,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,png,jpg,svg}'],
         globDirectory: 'dist/',
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
