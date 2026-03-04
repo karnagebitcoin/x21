@@ -14,6 +14,9 @@ interface ErrorBoundaryState {
   copied: boolean
 }
 
+const CHUNK_ERROR_RELOAD_KEY = 'x21:chunk-error-reload-at'
+const CHUNK_ERROR_RELOAD_WINDOW_MS = 60_000
+
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props)
@@ -27,6 +30,48 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo)
     this.setState({ errorInfo })
+
+    if (this.isChunkLoadError(error) && this.canAttemptChunkRecovery()) {
+      void this.recoverFromChunkError()
+    }
+  }
+
+  private isChunkLoadError(error: Error) {
+    const message = error?.message ?? ''
+    const stack = error?.stack ?? ''
+    return (
+      message.includes('Failed to fetch dynamically imported module') ||
+      message.includes('Importing a module script failed') ||
+      message.includes('Loading chunk') ||
+      stack.includes('Failed to fetch dynamically imported module')
+    )
+  }
+
+  private canAttemptChunkRecovery() {
+    const lastAttemptAt = Number(sessionStorage.getItem(CHUNK_ERROR_RELOAD_KEY) ?? '0')
+    const now = Date.now()
+    if (lastAttemptAt && now - lastAttemptAt < CHUNK_ERROR_RELOAD_WINDOW_MS) {
+      return false
+    }
+    sessionStorage.setItem(CHUNK_ERROR_RELOAD_KEY, String(now))
+    return true
+  }
+
+  private async recoverFromChunkError() {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        await Promise.allSettled(registrations.map((registration) => registration.unregister()))
+      }
+      if ('caches' in window) {
+        const cacheKeys = await caches.keys()
+        await Promise.allSettled(cacheKeys.map((key) => caches.delete(key)))
+      }
+    } catch {
+      // ignore recovery errors
+    }
+
+    window.location.reload()
   }
 
   copyErrorToClipboard = async () => {
