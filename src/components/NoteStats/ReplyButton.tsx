@@ -40,7 +40,15 @@ export default function ReplyButton({ event }: { event: Event }) {
         }).length ?? 0,
       hasReplied
     }
-  }, [repliesMap, event.id, hideUntrustedInteractions])
+  }, [
+    repliesMap,
+    event.id,
+    pubkey,
+    hideUntrustedInteractions,
+    isUserTrusted,
+    mutePubkeySet,
+    hideContentMentioningMutedUsers
+  ])
   const [open, setOpen] = useState(false)
 
   return (

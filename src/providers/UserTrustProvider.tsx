@@ -41,6 +41,7 @@ export function UserTrustProvider({ children }: { children: React.ReactNode }) {
     storage.getHideUntrustedNotes()
   )
   const [trustLevel, setTrustLevel] = useState(() => storage.getTrustLevel())
+  const [trustGraphVersion, setTrustGraphVersion] = useState(0)
 
   useEffect(() => {
     if (!currentPubkey) return
@@ -49,16 +50,19 @@ export function UserTrustProvider({ children }: { children: React.ReactNode }) {
       // Clear previous data
       wotSet.clear()
       followsSet.clear()
+      setTrustGraphVersion((v) => v + 1)
 
       const followings = await client.fetchFollowings(currentPubkey)
       followings.forEach((pubkey) => {
         followsSet.add(pubkey)
         wotSet.add(pubkey)
       })
+      setTrustGraphVersion((v) => v + 1)
 
       const batchSize = 20
       for (let i = 0; i < followings.length; i += batchSize) {
         const batch = followings.slice(i, i + batchSize)
+        const previousWoTSize = wotSet.size
         await Promise.allSettled(
           batch.map(async (pubkey) => {
             const _followings = await client.fetchFollowings(pubkey)
@@ -67,6 +71,9 @@ export function UserTrustProvider({ children }: { children: React.ReactNode }) {
             })
           })
         )
+        if (wotSet.size !== previousWoTSize) {
+          setTrustGraphVersion((v) => v + 1)
+        }
         await new Promise((resolve) => setTimeout(resolve, 200))
       }
     }
@@ -78,7 +85,7 @@ export function UserTrustProvider({ children }: { children: React.ReactNode }) {
       if (!currentPubkey) return false
       return followsSet.has(pubkey)
     },
-    [currentPubkey]
+    [currentPubkey, trustGraphVersion]
   )
 
   const isUserTrusted = useCallback(
@@ -104,7 +111,7 @@ export function UserTrustProvider({ children }: { children: React.ReactNode }) {
           return wotSet.has(pubkey)
       }
     },
-    [currentPubkey, trustLevel]
+    [currentPubkey, trustLevel, trustGraphVersion]
   )
 
   const updateHideUntrustedInteractions = (hide: boolean) => {

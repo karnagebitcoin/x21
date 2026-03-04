@@ -61,7 +61,7 @@ export default function LikeButton({ event }: { event: Event }) {
       ? stats.likes?.filter((like) => isUserTrusted(like.pubkey))
       : stats.likes
     return { myLastEmoji: myLike?.emoji, likeCount: likes?.length }
-  }, [noteStats, pubkey, hideUntrustedInteractions])
+  }, [noteStats, pubkey, hideUntrustedInteractions, isUserTrusted])
 
   useEffect(() => {
     if (!zapOnReactions || !isWalletConnected) {

@@ -37,7 +37,7 @@ export default function RepostButton({ event }: { event: Event }) {
         : noteStats?.reposts?.length,
       hasReposted: pubkey ? noteStats?.repostPubkeySet?.has(pubkey) : false
     }
-  }, [noteStats, event.id, hideUntrustedInteractions])
+  }, [noteStats, pubkey, hideUntrustedInteractions, isUserTrusted])
   const canRepost = !hasReposted && !reposting
 
   const repost = async () => {
