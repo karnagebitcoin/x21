@@ -64,7 +64,15 @@ export default function MainNoteCard({
             filterMutedNotes={filterMutedNotes}
           />
         </Collapsible>
-        {!embedded && <NoteStats className="mt-3 px-4" event={event} onTagsChange={onTagsChange} bookmarkId={bookmarkId} />}
+        {!embedded && (
+          <NoteStats
+            className="mt-3 px-4"
+            event={event}
+            onTagsChange={onTagsChange}
+            bookmarkId={bookmarkId}
+            fetchIfNotExisting
+          />
+        )}
       </div>
       {!embedded && !hideSeparator && <Separator />}
     </article>

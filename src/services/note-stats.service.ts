@@ -34,6 +34,7 @@ const NOTE_STATS_TRACK_TTL_SECONDS = 10 * 60
 const NOTE_STATS_BATCH_MAX_NOTES = 60
 const NOTE_STATS_LIVE_RELAYS_LIMIT = 10
 const NOTE_STATS_FETCH_RELAYS_LIMIT = 8
+const NOTE_STATS_RELAY_LIST_TIMEOUT_MS = 350
 
 class NoteStatsService {
   static instance: NoteStatsService
@@ -268,6 +269,7 @@ class NoteStatsService {
       const authors = new Set<string>()
       const eventIds = new Set<string>()
       const replaceableCoordinates = new Set<string>()
+      const seenRelayUrls = new Set<string>()
 
       requestById.forEach(({ event }, noteId) => {
         const oldStats = this.noteStatsMap.get(noteId)
@@ -277,14 +279,26 @@ class NoteStatsService {
 
         authors.add(event.pubkey)
         eventIds.add(event.id)
+        client.getSeenEventRelayUrls(event.id).forEach((relayUrl) => seenRelayUrls.add(relayUrl))
 
         if (isReplaceableEvent(event.kind)) {
           replaceableCoordinates.add(getReplaceableCoordinateFromEvent(event))
         }
       })
 
-      const relayLists = await client.fetchRelayLists(Array.from(authors))
-      const relayUrls = this.pickRelayUrls(relayLists)
+      let relayLists: { read: string[] }[] = []
+      try {
+        relayLists = await Promise.race([
+          client.fetchRelayLists(Array.from(authors)),
+          new Promise<{ read: string[] }[]>((resolve) => {
+            setTimeout(() => resolve([]), NOTE_STATS_RELAY_LIST_TIMEOUT_MS)
+          })
+        ])
+      } catch {
+        relayLists = []
+      }
+
+      const relayUrls = this.pickRelayUrls(relayLists, Array.from(seenRelayUrls))
       const filters = this.buildBatchFilters(eventIds, replaceableCoordinates, idSinceMap)
 
       if (filters.length && relayUrls.length) {
@@ -356,8 +370,12 @@ class NoteStatsService {
     return filters
   }
 
-  private pickRelayUrls(relayLists: { read: string[] }[]) {
+  private pickRelayUrls(relayLists: { read: string[] }[], seenRelayUrls: string[] = []) {
     const relayScoreMap = new Map<string, number>()
+
+    seenRelayUrls.forEach((relayUrl, index) => {
+      relayScoreMap.set(relayUrl, (relayScoreMap.get(relayUrl) ?? 0) + (200 - index))
+    })
 
     BIG_RELAY_URLS.forEach((relayUrl, index) => {
       relayScoreMap.set(relayUrl, 100 - index)
