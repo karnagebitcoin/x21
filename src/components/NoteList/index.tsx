@@ -13,11 +13,13 @@ import { isTouchDevice } from '@/lib/utils'
 import { useContentPolicy } from '@/providers/ContentPolicyProvider'
 import { useDeletedEvent } from '@/providers/DeletedEventProvider'
 import { useDistractionFreeMode } from '@/providers/DistractionFreeModeProvider'
+import { useLowBandwidthMode } from '@/providers/LowBandwidthModeProvider'
 import { useMuteList } from '@/providers/MuteListProvider'
 import { useNostr } from '@/providers/NostrProvider'
 import { useTextOnlyMode } from '@/providers/TextOnlyModeProvider'
 import { useUserTrust } from '@/providers/UserTrustProvider'
 import client from '@/services/client.service'
+import noteStatsService from '@/services/note-stats.service'
 import { TFeedSubRequest } from '@/types'
 import dayjs from 'dayjs'
 import { Event } from 'nostr-tools'
@@ -71,6 +73,7 @@ const NoteList = forwardRef(
   ) => {
     const { t } = useTranslation()
     const { startLogin, pubkey } = useNostr()
+    const { lowBandwidthMode } = useLowBandwidthMode()
     const { isUserTrusted } = useUserTrust()
     const { textOnlyMode } = useTextOnlyMode()
     const { mutePubkeySet, getMutedWords } = useMuteList()
@@ -296,6 +299,13 @@ const NoteList = forwardRef(
         onEventsChange(events)
       }
     }, [events, onEventsChange])
+
+    useEffect(() => {
+      if (lowBandwidthMode || !events.length) return
+
+      const notesToPrefetch = events.slice(0, Math.max(showCount + 10, showCountIncrement))
+      noteStatsService.prefetchNoteStats(notesToPrefetch, pubkey)
+    }, [events, showCount, showCountIncrement, pubkey, lowBandwidthMode])
 
     useEffect(() => {
       const options = {
