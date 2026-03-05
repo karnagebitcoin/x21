@@ -374,8 +374,12 @@ async function settleTransaction(tx) {
 
 async function getInvoiceVerificationState(tx) {
   try {
+    const normalizedInvoice = normalizeBolt11(tx.invoice)
+    if (!normalizedInvoice) {
+      return { state: 'pending' }
+    }
     const invoice = new Invoice({
-      pr: tx.invoice,
+      pr: normalizedInvoice,
       verify: typeof tx.verify === 'string' && tx.verify ? tx.verify : undefined
     })
     const paid = await withTimeout(invoice.verifyPayment(), 4000, false)
@@ -1060,7 +1064,9 @@ async function getFallbackTransactionState(tx) {
 
   const statusUrls = Array.from(domains).flatMap((domain) => [
     `https://${domain}/api/invoice/${paymentHash}`,
-    `https://${domain}/api/v1/invoice/${paymentHash}`
+    `https://${domain}/api/v1/invoice/${paymentHash}`,
+    `https://${domain}/api/payments/${paymentHash}`,
+    `https://${domain}/api/payment/${paymentHash}`
   ])
 
   for (const statusUrl of statusUrls) {
@@ -1123,12 +1129,30 @@ function looksFailed(data) {
 }
 
 function getPaymentHashFromInvoice(invoice) {
+  const normalizedInvoice = normalizeBolt11(invoice)
+  if (!normalizedInvoice) {
+    return null
+  }
   try {
-    const parsed = new Invoice({ pr: invoice })
+    const parsed = new Invoice({ pr: normalizedInvoice })
     return parsed.paymentHash || null
   } catch {
     return null
   }
+}
+
+function normalizeBolt11(input) {
+  if (typeof input !== 'string') return ''
+  let value = input.trim()
+  if (!value) return ''
+  if (value.toLowerCase().startsWith('lightning:')) {
+    value = value.slice('lightning:'.length)
+  }
+  const match = value.match(/(ln[a-z0-9]+1[0-9a-z]+)/i)
+  if (match?.[1]) {
+    return match[1]
+  }
+  return value
 }
 
 async function listJsonEntries(store, prefix, limit = 200) {
@@ -1174,7 +1198,16 @@ function mapTransactionForAdmin(tx, user) {
     preimage: tx.preimage || null,
     manualSettled: Boolean(tx.manualSettled),
     manualReason: tx.manualReason || null,
-    user: user ? mapUserForAdmin(user) : null
+    user: user
+      ? {
+          pubkey: user.pubkey,
+          api_key_masked: maskSecret(user.apiKey || ''),
+          balance: Number(user.balance || 0),
+          purchased_credits: Number(user.purchasedCredits || 0),
+          spent_credits: Number(user.spentCredits || 0),
+          total_sats_paid: Number(user.totalSatsPaid || 0)
+        }
+      : null
   }
 }
 
