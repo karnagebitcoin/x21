@@ -119,6 +119,13 @@ class LocalStorageService {
   private hideWidgetTitles: boolean = false
   private enabledWidgets: string[] = []
   private pinnedNoteWidgets: { id: string; eventId: string }[] = []
+  private liveStreamWidgets: {
+    id: string
+    naddr: string
+    streamingUrl: string
+    title: string
+    image?: string
+  }[] = []
   private aiPromptWidgets: { id: string; eventId: string; messages: any[] }[] = []
   private trendingNotesHeight: 'short' | 'medium' | 'tall' | 'remaining' = 'medium'
   private bitcoinTickerAlignment: 'left' | 'center' = 'left'
@@ -436,6 +443,11 @@ class LocalStorageService {
     const pinnedNoteWidgetsStr = window.localStorage.getItem(StorageKey.PINNED_NOTE_WIDGETS)
     if (pinnedNoteWidgetsStr) {
       this.pinnedNoteWidgets = JSON.parse(pinnedNoteWidgetsStr)
+    }
+
+    const liveStreamWidgetsStr = window.localStorage.getItem(StorageKey.LIVE_STREAM_WIDGETS)
+    if (liveStreamWidgetsStr) {
+      this.liveStreamWidgets = JSON.parse(liveStreamWidgetsStr)
     }
 
     // AI Prompt widgets are session-only and should not persist across page reloads
@@ -1227,6 +1239,29 @@ class LocalStorageService {
   removePinnedNoteWidget(id: string) {
     this.pinnedNoteWidgets = this.pinnedNoteWidgets.filter((widget) => widget.id !== id)
     this.setJson(StorageKey.PINNED_NOTE_WIDGETS, this.pinnedNoteWidgets)
+  }
+
+  getLiveStreamWidgets() {
+    return this.liveStreamWidgets
+  }
+
+  setLiveStreamWidgets(
+    widgets: { id: string; naddr: string; streamingUrl: string; title: string; image?: string }[]
+  ) {
+    this.liveStreamWidgets = widgets
+    this.setJson(StorageKey.LIVE_STREAM_WIDGETS, widgets)
+  }
+
+  addLiveStreamWidget(payload: { naddr: string; streamingUrl: string; title: string; image?: string }) {
+    const id = `live-stream-${Date.now()}`
+    this.liveStreamWidgets.push({ id, ...payload })
+    this.setJson(StorageKey.LIVE_STREAM_WIDGETS, this.liveStreamWidgets)
+    return id
+  }
+
+  removeLiveStreamWidget(id: string) {
+    this.liveStreamWidgets = this.liveStreamWidgets.filter((widget) => widget.id !== id)
+    this.setJson(StorageKey.LIVE_STREAM_WIDGETS, this.liveStreamWidgets)
   }
 
   getAIPromptWidgets() {

@@ -15,6 +15,7 @@ import {
   Pause,
   Volume2,
   VolumeX,
+  Pin,
   PictureInPicture2,
   Maximize2,
   Minimize2
@@ -34,6 +35,7 @@ import RelayFetchState from '@/components/RelayFetchState'
 import { BIG_RELAY_URLS } from '@/constants'
 import { normalizeUrl } from '@/lib/url'
 import { useLiveStreamPopout } from '@/providers/LiveStreamPopoutProvider'
+import { useWidgets } from '@/providers/WidgetsProvider'
 
 const DEFAULT_LIVE_RELAYS = ['wss://relay.damus.io/', 'wss://nos.lol/', 'wss://relay.nostr.band/']
 const FAST_LIVE_RELAYS = ['wss://relay.snort.social/', 'wss://relay.primal.net/', 'wss://nostr.wine/']
@@ -125,6 +127,7 @@ export default function LiveStreamView({
   const { t } = useTranslation()
   const { pubkey, checkLogin, publish } = useNostr()
   const { openPopout, isPopoutOpenForUrl } = useLiveStreamPopout()
+  const { pinLiveStreamWidget, unpinLiveStreamByNaddr, isLiveStreamPinned } = useWidgets()
   const { isSmallScreen } = useScreenSize()
   const decodedEvent = useMemo(() => decodeLiveNaddr(naddr), [naddr])
   const [liveEvent, setLiveEvent] = useState<NostrEvent | null>(null)
@@ -156,6 +159,7 @@ export default function LiveStreamView({
     [liveEvent]
   )
   const isInPopout = isPopoutOpenForUrl(activeStreamingUrl)
+  const isPinnedToWidget = isLiveStreamPinned(naddr)
 
   const clearLoadingTimeout = useCallback(() => {
     if (!loadingTimeoutRef.current) return
@@ -715,6 +719,32 @@ export default function LiveStreamView({
                         title={isInPopout ? 'Popout player active' : 'Open popout player'}
                       >
                         <PictureInPicture2 className="w-4 h-4" />
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-8 w-8 shrink-0 text-white/80 hover:text-white hover:bg-white/10 ${
+                          isPinnedToWidget ? 'bg-white/20 text-white' : ''
+                        }`}
+                        onClick={() => {
+                          if (!naddr) return
+                          if (isPinnedToWidget) {
+                            unpinLiveStreamByNaddr(naddr)
+                            return
+                          }
+                          if (!streamingUrl) return
+                          pinLiveStreamWidget({
+                            naddr,
+                            streamingUrl,
+                            title,
+                            image
+                          })
+                        }}
+                        disabled={!streamingUrl || !naddr}
+                        title={isPinnedToWidget ? t('Pinned to widget') : t('Pin to widget')}
+                      >
+                        <Pin className="w-4 h-4" />
                       </Button>
 
                       <Button

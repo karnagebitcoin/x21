@@ -6,6 +6,7 @@ import PinnedNoteWidget from '@/components/PinnedNoteWidget'
 import AIPromptWidget from '@/components/AIPromptWidget'
 import SidebarAIPromptWidget from '@/components/AIPromptWidget/SidebarAIPromptWidget'
 import InviteWidget from '@/components/InviteWidget'
+import LiveStreamWidget from '@/components/LiveStreamWidget'
 import { cn } from '@/lib/utils'
 import { createPortal } from 'react-dom'
 
@@ -17,7 +18,7 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType> = {
 }
 
 export default function Widgets() {
-  const { enabledWidgets, pinnedNoteWidgets, aiPromptWidgets } = useWidgets()
+  const { enabledWidgets, pinnedNoteWidgets, liveStreamWidgets, aiPromptWidgets } = useWidgets()
   const { pageTheme } = usePageTheme()
 
   // Use border for pure-black and white themes, shadow for others
@@ -41,6 +42,22 @@ export default function Widgets() {
               return (
                 <div key={widgetId} className={widgetClassName} style={widgetStyle}>
                   <PinnedNoteWidget widgetId={widgetId} eventId={pinnedNote.eventId} />
+                </div>
+              )
+            }
+
+            // Check if this is a pinned live stream widget
+            const liveStream = liveStreamWidgets.find((w) => w.id === widgetId)
+            if (liveStream) {
+              return (
+                <div key={widgetId} className={widgetClassName} style={widgetStyle}>
+                  <LiveStreamWidget
+                    widgetId={widgetId}
+                    naddr={liveStream.naddr}
+                    streamingUrl={liveStream.streamingUrl}
+                    title={liveStream.title}
+                    image={liveStream.image}
+                  />
                 </div>
               )
             }

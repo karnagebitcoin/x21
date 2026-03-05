@@ -78,6 +78,7 @@ export const StorageKey = {
   HIDE_WIDGET_TITLES: 'hideWidgetTitles',
   ENABLED_WIDGETS: 'enabledWidgets',
   PINNED_NOTE_WIDGETS: 'pinnedNoteWidgets',
+  LIVE_STREAM_WIDGETS: 'liveStreamWidgets',
   AI_PROMPT_WIDGETS: 'aiPromptWidgets',
   ZAP_SOUND: 'zapSound',
   FONT_FAMILY: 'fontFamily',

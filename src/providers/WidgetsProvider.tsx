@@ -24,6 +24,14 @@ export type TPinnedNoteWidget = {
   eventId: string
 }
 
+export type TLiveStreamWidget = {
+  id: string
+  naddr: string
+  streamingUrl: string
+  title: string
+  image?: string
+}
+
 export type TAIPromptWidget = {
   id: string
   eventId: string
@@ -84,6 +92,11 @@ type TWidgetsContext = {
   unpinNoteWidget: (widgetId: string) => void
   unpinNoteByEventId: (eventId: string) => void
   isPinned: (eventId: string) => boolean
+  liveStreamWidgets: TLiveStreamWidget[]
+  pinLiveStreamWidget: (payload: Omit<TLiveStreamWidget, 'id'>) => string
+  unpinLiveStreamWidget: (widgetId: string) => void
+  unpinLiveStreamByNaddr: (naddr: string) => void
+  isLiveStreamPinned: (naddr?: string) => boolean
   aiPromptWidgets: TAIPromptWidget[]
   openAIPrompt: (eventId: string) => string
   closeAIPrompt: (widgetId: string) => void
@@ -102,6 +115,10 @@ export function WidgetsProvider({ children }: { children: ReactNode }) {
 
   const [pinnedNoteWidgets, setPinnedNoteWidgets] = useState<TPinnedNoteWidget[]>(() => {
     return localStorageService.getPinnedNoteWidgets()
+  })
+
+  const [liveStreamWidgets, setLiveStreamWidgets] = useState<TLiveStreamWidget[]>(() => {
+    return localStorageService.getLiveStreamWidgets()
   })
 
   const [aiPromptWidgets, setAIPromptWidgets] = useState<TAIPromptWidget[]>(() => {
@@ -139,6 +156,10 @@ export function WidgetsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorageService.setPinnedNoteWidgets(pinnedNoteWidgets)
   }, [pinnedNoteWidgets])
+
+  useEffect(() => {
+    localStorageService.setLiveStreamWidgets(liveStreamWidgets)
+  }, [liveStreamWidgets])
 
   // AI Prompt widgets are session-only and don't need to persist to localStorage
 
@@ -240,6 +261,41 @@ export function WidgetsProvider({ children }: { children: ReactNode }) {
     return pinnedNoteWidgets.some((w) => w.eventId === eventId)
   }
 
+  const pinLiveStreamWidget = (payload: Omit<TLiveStreamWidget, 'id'>) => {
+    const existing = liveStreamWidgets.find((widget) => widget.naddr === payload.naddr)
+    if (existing) {
+      if (!enabledWidgets.includes(existing.id)) {
+        setEnabledWidgets((prev) => [...prev, existing.id])
+      }
+      return existing.id
+    }
+
+    const id = localStorageService.addLiveStreamWidget(payload)
+    setLiveStreamWidgets((prev) => [...prev, { id, ...payload }])
+    if (!enabledWidgets.includes(id)) {
+      setEnabledWidgets((prev) => [...prev, id])
+    }
+    return id
+  }
+
+  const unpinLiveStreamWidget = (widgetId: string) => {
+    localStorageService.removeLiveStreamWidget(widgetId)
+    setLiveStreamWidgets((prev) => prev.filter((widget) => widget.id !== widgetId))
+    setEnabledWidgets((prev) => prev.filter((id) => id !== widgetId))
+  }
+
+  const unpinLiveStreamByNaddr = (naddr: string) => {
+    const widget = liveStreamWidgets.find((item) => item.naddr === naddr)
+    if (widget) {
+      unpinLiveStreamWidget(widget.id)
+    }
+  }
+
+  const isLiveStreamPinned = (naddr?: string) => {
+    if (!naddr) return false
+    return liveStreamWidgets.some((widget) => widget.naddr === naddr)
+  }
+
   const openAIPrompt = (eventId: string) => {
     // Check if there's already an AI prompt widget open
     const existingWidget = aiPromptWidgets[0]
@@ -317,6 +373,11 @@ export function WidgetsProvider({ children }: { children: ReactNode }) {
         unpinNoteWidget,
         unpinNoteByEventId,
         isPinned,
+        liveStreamWidgets,
+        pinLiveStreamWidget,
+        unpinLiveStreamWidget,
+        unpinLiveStreamByNaddr,
+        isLiveStreamPinned,
         aiPromptWidgets,
         openAIPrompt,
         closeAIPrompt,
