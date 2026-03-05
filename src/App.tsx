@@ -58,8 +58,8 @@ import { DisableAvatarAnimationsProvider } from '@/providers/DisableAvatarAnimat
 import { DefaultReactionEmojisProvider } from '@/providers/DefaultReactionEmojisProvider'
 import { CollapseLongNotesProvider } from '@/providers/CollapseLongNotesProvider'
 import { AlwaysShowFullMediaProvider } from '@/providers/AlwaysShowFullMediaProvider'
+import { LiveStreamPopoutProvider } from '@/providers/LiveStreamPopoutProvider'
 
-import { PageManager } from './PageManager'
 import { AppWithListPreview } from './components/AppWithListPreview'
 
 export default function App(): JSX.Element {
@@ -120,8 +120,10 @@ export default function App(): JSX.Element {
                                                               <TrendingNotesDismissedProvider>
                                                                 <WidgetsProvider>
                                                                   <WidgetSidebarDismissedProvider>
-                                                                    <AppWithListPreview />
-                                                                    <Toaster />
+                                                                    <LiveStreamPopoutProvider>
+                                                                      <AppWithListPreview />
+                                                                      <Toaster />
+                                                                    </LiveStreamPopoutProvider>
                                                                   </WidgetSidebarDismissedProvider>
                                                                 </WidgetsProvider>
                                                               </TrendingNotesDismissedProvider>

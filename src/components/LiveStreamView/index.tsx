@@ -15,6 +15,7 @@ import {
   Pause,
   Volume2,
   VolumeX,
+  PictureInPicture2,
   Maximize2,
   Minimize2
 } from 'lucide-react'
@@ -32,6 +33,7 @@ import ZapDialog from '@/components/ZapDialog'
 import RelayFetchState from '@/components/RelayFetchState'
 import { BIG_RELAY_URLS } from '@/constants'
 import { normalizeUrl } from '@/lib/url'
+import { useLiveStreamPopout } from '@/providers/LiveStreamPopoutProvider'
 
 const DEFAULT_LIVE_RELAYS = ['wss://relay.damus.io/', 'wss://nos.lol/', 'wss://relay.nostr.band/']
 const LIVE_STREAM_LOADING_TIMEOUT = 15_000
@@ -87,6 +89,7 @@ function getStreamRelays(decoded: DecodedLiveAddress): string[] {
 export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const { t } = useTranslation()
   const { pubkey, checkLogin, publish } = useNostr()
+  const { openPopout, isPopoutOpenForUrl } = useLiveStreamPopout()
   const { isSmallScreen } = useScreenSize()
   const decodedEvent = useMemo(() => decodeLiveNaddr(naddr), [naddr])
   const [liveEvent, setLiveEvent] = useState<NostrEvent | null>(null)
@@ -450,6 +453,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const currentParticipants = liveEvent.tags.find((tag) => tag[0] === 'current_participants')?.[1]
   const status = liveEvent.tags.find((tag) => tag[0] === 'status')?.[1]
   const hasDuration = Number.isFinite(duration) && duration > 0
+  const isInPopout = isPopoutOpenForUrl(streamingUrl)
   const handleChatScroll = () => {
     const container = chatContainerRef.current
     if (!container) return
@@ -560,6 +564,27 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
                     ) : (
                       <div className="flex-1" />
                     )}
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-8 w-8 text-white/80 hover:text-white hover:bg-white/10 ${
+                        isInPopout ? 'bg-white/20 text-white' : ''
+                      }`}
+                      onClick={() => {
+                        if (!streamingUrl) return
+                        openPopout({
+                          streamingUrl,
+                          title,
+                          image,
+                          naddr
+                        })
+                      }}
+                      disabled={!streamingUrl}
+                      title={isInPopout ? 'Popout player active' : 'Open popout player'}
+                    >
+                      <PictureInPicture2 className="w-4 h-4" />
+                    </Button>
 
                     <Button
                       variant="ghost"
