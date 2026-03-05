@@ -157,6 +157,9 @@ const GeneralSettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
               <Label className="text-base font-normal">
                 {t('Distraction-Free Mode')}
               </Label>
+              <p className="text-sm text-muted-foreground">
+                {t('Choose how much attention-grabbing UI you want. Focus mode hides notification badges and new-notes nudges, but notifications still load in the Notifications page.')}
+              </p>
               <div className="grid grid-cols-2 gap-3 w-full">
                 <button
                   onClick={() => setDistractionFreeMode(DISTRACTION_FREE_MODE.DRAIN_MY_TIME)}
@@ -172,6 +175,9 @@ const GeneralSettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
                     <BellRing className="w-5 h-5" />
                   </div>
                   <span className="text-xs font-medium">{t('Drain my time')}</span>
+                  <span className="text-[11px] text-muted-foreground text-center">
+                    {t('Show all badges and new note prompts.')}
+                  </span>
                   {distractionFreeMode === DISTRACTION_FREE_MODE.DRAIN_MY_TIME && (
                     <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5">
                       <Check className="w-3 h-3" />
@@ -192,6 +198,9 @@ const GeneralSettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
                     <BellOff className="w-5 h-5" />
                   </div>
                   <span className="text-xs font-medium">{t('Focus mode')}</span>
+                  <span className="text-[11px] text-muted-foreground text-center">
+                    {t('Hide badge dots, tab unread count, and new note prompts.')}
+                  </span>
                   {distractionFreeMode === DISTRACTION_FREE_MODE.FOCUS_MODE && (
                     <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-0.5">
                       <Check className="w-3 h-3" />
