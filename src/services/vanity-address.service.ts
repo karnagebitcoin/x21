@@ -16,8 +16,10 @@ type TVanityAccount = {
     updatedAt?: number | null
   } | null
   pricing?: {
-    sats: number
+    minSats: number
+    maxSats: number
     termDays: number
+    currentSats?: number | null
   }
 }
 
@@ -88,7 +90,12 @@ class VanityAddressService {
     return data
   }
 
-  async checkAvailability(name: string): Promise<{ available: boolean; reason?: string; domain?: string }> {
+  async checkAvailability(name: string): Promise<{
+    available: boolean
+    reason?: string
+    domain?: string
+    sats?: number
+  }> {
     const url = new URL('/v1/nip5/availability', JUMBLE_API_BASE_URL)
     url.searchParams.set('name', name)
     const response = await fetch(url.toString(), { method: 'GET' })

@@ -16,19 +16,139 @@ const TRANSLATION_LIGHTNING_ADDRESS =
   process.env.TRANSLATION_LIGHTNING_ADDRESS || 'translation@katvibes.com'
 const NIP5_LIGHTNING_ADDRESS = process.env.NIP5_LIGHTNING_ADDRESS || TRANSLATION_LIGHTNING_ADDRESS
 const NIP5_DOMAIN = (process.env.NIP5_DOMAIN || 'x21.social').trim().toLowerCase()
-const NIP5_CLAIM_SATS = toSafeInt(process.env.NIP5_CLAIM_SATS, 2100, 1, 10_000_000)
-const NIP5_TERM_DAYS = toSafeInt(process.env.NIP5_TERM_DAYS, 365, 1, 3650)
-const NIP5_REQUIRE_SIGNUP = process.env.NIP5_REQUIRE_SIGNUP !== 'false'
-const NIP5_RESERVED_NAMES = parseReservedNames(
+const NIP5_CLAIM_SATS_DEFAULT = toSafeInt(process.env.NIP5_CLAIM_SATS, 2100, 1, 10_000_000)
+const NIP5_TERM_DAYS_DEFAULT = toSafeInt(process.env.NIP5_TERM_DAYS, 365, 1, 3650)
+const NIP5_REQUIRE_SIGNUP_DEFAULT = process.env.NIP5_REQUIRE_SIGNUP !== 'false'
+const NIP5_DEFAULT_RESERVED_NAMES = [
+  'admin',
+  'administrator',
+  'admins',
+  'sysadmin',
+  'root',
+  'owner',
+  'official',
+  'verified',
+  'support',
+  'help',
+  'helper',
+  'contact',
+  'billing',
+  'refund',
+  'refunds',
+  'payments',
+  'payment',
+  'wallet',
+  'security',
+  'trust',
+  'safety',
+  'abuse',
+  'legal',
+  'privacy',
+  'policy',
+  'terms',
+  'tos',
+  'status',
+  'ops',
+  'operations',
+  'team',
+  'staff',
+  'moderator',
+  'mod',
+  'founder',
+  'ceo',
+  'cfo',
+  'cto',
+  'dev',
+  'developer',
+  'developers',
+  'engineering',
+  'product',
+  'marketing',
+  'press',
+  'media',
+  'news',
+  'announcements',
+  'announce',
+  'updates',
+  'update',
+  'service',
+  'services',
+  'api',
+  'docs',
+  'documentation',
+  'info',
+  'about',
+  'faq',
+  'feedback',
+  'report',
+  'reports',
+  'mail',
+  'email',
+  'postmaster',
+  'webmaster',
+  'hostmaster',
+  'noc',
+  'www',
+  'web',
+  'app',
+  'apps',
+  'auth',
+  'login',
+  'signin',
+  'signup',
+  'register',
+  'account',
+  'accounts',
+  'user',
+  'users',
+  'profile',
+  'profiles',
+  'settings',
+  'config',
+  'configuration',
+  'dashboard',
+  'panel',
+  'console',
+  'relay',
+  'relays',
+  'nostr',
+  'x21',
+  'x21social',
+  'karnage',
+  'holokat',
+  'holocat',
+  'carnage',
+  'kat',
+  'cat',
+  'admin',
+  'support',
+  'jack'
+]
+const NIP5_RESERVED_NAMES_ENV = parseReservedNames(
   process.env.NIP5_RESERVED_NAMES,
-  ['admin', 'support', 'help', 'wallet', 'api', 'www', 'root', 'owner', 'x21']
+  NIP5_DEFAULT_RESERVED_NAMES
+)
+const NIP5_DEFAULT_PRICE_TIERS = normalizeNip5PriceTiers(
+  parseNip5PriceTiers(process.env.NIP5_PRICE_TIERS, []),
+  [
+    { minLength: 1, maxLength: 1, sats: 500_000 },
+    { minLength: 2, maxLength: 2, sats: 250_000 },
+    { minLength: 3, maxLength: 3, sats: 120_000 },
+    { minLength: 4, maxLength: 4, sats: 60_000 },
+    { minLength: 5, maxLength: 5, sats: 30_000 },
+    { minLength: 6, maxLength: 6, sats: 16_000 },
+    { minLength: 7, maxLength: 7, sats: 10_000 },
+    { minLength: 8, maxLength: 10, sats: 6_000 },
+    { minLength: 11, maxLength: 14, sats: 4_000 },
+    { minLength: 15, maxLength: 20, sats: 2_500 }
+  ]
 )
 const NIP5_STATIC_NAMES = parseNip5StaticNames(process.env.NIP5_STATIC_NAMES, {
   _: 'f4eb8e62add1340b9cadcd9861e669b2e907cea534e0f7f3ac974c11c758a51a',
   cody: '8125b911ed0e94dbe3008a0be48cfe5cd0c0b05923cfff917ae7e87da8400883',
   cody2: '24462930821b45f530ec0063eca0a6522e5a577856f982fa944df0ef3caf03ab'
 })
-const NIP5_NAME_MIN_LENGTH = 3
+const NIP5_NAME_MIN_LENGTH = 1
 const NIP5_NAME_MAX_LENGTH = 20
 const NIP5_NAME_REGEX = /^[a-z0-9_]+$/
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || ''
@@ -176,6 +296,17 @@ export default async (request) => {
           eventKind: TRANSLATION_RECEIPT_EVENT_KIND
         }
       })
+    }
+
+    if (request.method === 'GET' && route === '/v1/admin/nip5/config') {
+      assertAdminRequest(request)
+      return await getNip5ConfigForAdmin()
+    }
+
+    if (request.method === 'POST' && route === '/v1/admin/nip5/config') {
+      assertAdminRequest(request)
+      const body = await parseJson(request)
+      return await updateNip5ConfigForAdmin(body)
     }
 
     if (request.method === 'GET' && route === '/v1/admin/translation/transactions') {
@@ -472,31 +603,71 @@ function validateNip5Name(name) {
   if (!NIP5_NAME_REGEX.test(name)) {
     return 'Use lowercase letters, numbers, and underscores only'
   }
-  if (NIP5_RESERVED_NAMES.has(name)) {
-    return 'That handle is reserved'
-  }
   return ''
+}
+
+async function resolveNip5Config() {
+  const stored = (await adminConfigStore.get('nip5', { type: 'json' })) || {}
+  const reservedNames = parseReservedNames(stored.reservedNames, NIP5_RESERVED_NAMES_ENV)
+  const priceTiers = normalizeNip5PriceTiers(stored.priceTiers, NIP5_DEFAULT_PRICE_TIERS)
+  const termDays = toSafeInt(stored.termDays, NIP5_TERM_DAYS_DEFAULT, 1, 3650)
+  const requireSignup =
+    typeof stored.requireSignup === 'boolean' ? stored.requireSignup : NIP5_REQUIRE_SIGNUP_DEFAULT
+  const updatedAt = Number(stored.updatedAt || 0) || null
+
+  return {
+    domain: NIP5_DOMAIN,
+    reservedNames,
+    reservedNameSet: new Set(reservedNames),
+    priceTiers,
+    termDays,
+    requireSignup,
+    updatedAt
+  }
+}
+
+function quoteNip5SatsByLength(length, priceTiers) {
+  const normalizedLength = Math.max(1, Math.min(length || 1, NIP5_NAME_MAX_LENGTH))
+  for (const tier of priceTiers) {
+    if (normalizedLength >= tier.minLength && normalizedLength <= tier.maxLength) {
+      return Number(tier.sats || 0)
+    }
+  }
+  const fallbackTier = priceTiers[priceTiers.length - 1]
+  return Number(fallbackTier?.sats || NIP5_CLAIM_SATS_DEFAULT)
 }
 
 async function getNip5Availability(request) {
   const url = new URL(request.url)
   const name = normalizeNip5Name(url.searchParams.get('name') || '')
+  const config = await resolveNip5Config()
+  const sats = quoteNip5SatsByLength(name.length, config.priceTiers)
   const validationError = validateNip5Name(name)
   if (validationError) {
     return json(400, { available: false, name, reason: validationError })
+  }
+  if (config.reservedNameSet.has(name)) {
+    return json(200, {
+      available: false,
+      name,
+      domain: NIP5_DOMAIN,
+      reason: 'Unavailable',
+      sats
+    })
   }
 
   const now = Date.now()
   const existing = await nip5Store.get(`handle:${name}`, { type: 'json' })
   if (!existing || Number(existing.expiresAt || 0) <= now) {
-    return json(200, { available: true, name, domain: NIP5_DOMAIN })
+    return json(200, { available: true, name, domain: NIP5_DOMAIN, sats })
   }
 
   return json(200, {
     available: false,
     name,
     domain: NIP5_DOMAIN,
-    reason: 'Already claimed',
+    reason: 'Unavailable',
+    sats,
     ownerPubkey: existing.pubkey || null,
     expiresAt: Number(existing.expiresAt || 0) || null
   })
@@ -520,7 +691,8 @@ async function registerNip5Eligibility(user, body) {
 }
 
 async function getNip5Eligibility(pubkey) {
-  if (!NIP5_REQUIRE_SIGNUP) {
+  const config = await resolveNip5Config()
+  if (!config.requireSignup) {
     return {
       eligible: true,
       source: 'disabled'
@@ -535,8 +707,11 @@ async function getNip5Eligibility(pubkey) {
 }
 
 async function getNip5Account(user) {
+  const config = await resolveNip5Config()
   const account = await getCurrentNip5Assignment(user.pubkey)
   const eligibility = await getNip5Eligibility(user.pubkey)
+  const minSats = Math.min(...config.priceTiers.map((tier) => Number(tier.sats || 0)))
+  const maxSats = Math.max(...config.priceTiers.map((tier) => Number(tier.sats || 0)))
   return json(200, {
     domain: NIP5_DOMAIN,
     eligibility,
@@ -551,13 +726,18 @@ async function getNip5Account(user) {
         }
       : null,
     pricing: {
-      sats: NIP5_CLAIM_SATS,
-      termDays: NIP5_TERM_DAYS
+      termDays: config.termDays,
+      minSats: Number.isFinite(minSats) ? minSats : NIP5_CLAIM_SATS_DEFAULT,
+      maxSats: Number.isFinite(maxSats) ? maxSats : NIP5_CLAIM_SATS_DEFAULT,
+      currentSats: account?.name
+        ? quoteNip5SatsByLength(account.name.length, config.priceTiers)
+        : null
     }
   })
 }
 
 async function createNip5Claim(user, body) {
+  const config = await resolveNip5Config()
   const eligibility = await getNip5Eligibility(user.pubkey)
   if (!eligibility.eligible) {
     const err = new Error('Vanity address claims are currently limited to accounts created on x21')
@@ -569,6 +749,9 @@ async function createNip5Claim(user, body) {
   const validationError = validateNip5Name(name)
   if (validationError) {
     return json(400, { error: validationError })
+  }
+  if (config.reservedNameSet.has(name)) {
+    return json(409, { error: 'Handle unavailable' })
   }
 
   const now = Date.now()
@@ -583,12 +766,13 @@ async function createNip5Claim(user, body) {
 
   const assignment = await getCurrentNip5Assignment(user.pubkey)
   const action = assignment?.name === name ? 'renew' : assignment?.name ? 'change' : 'claim'
+  const sats = quoteNip5SatsByLength(name.length, config.priceTiers)
 
   const claimId = createId('nip5')
   const invoiceComment = `x21 nip5 ${action} ${name}@${NIP5_DOMAIN} ${claimId}`
   const invoiceData = await createInvoiceForLightningAddress({
     lightningAddress: NIP5_LIGHTNING_ADDRESS,
-    sats: NIP5_CLAIM_SATS,
+    sats,
     comment: invoiceComment
   })
 
@@ -598,8 +782,8 @@ async function createNip5Claim(user, body) {
     name,
     domain: NIP5_DOMAIN,
     action,
-    sats: NIP5_CLAIM_SATS,
-    termDays: NIP5_TERM_DAYS,
+    sats,
+    termDays: config.termDays,
     state: 'pending',
     invoice: invoiceData.invoice,
     verify: invoiceData.verify ?? null,
@@ -707,7 +891,8 @@ async function settleNip5Claim(claim) {
       ? Number(existingHandle?.expiresAt || 0)
       : 0
   )
-  const nextExpiry = baseExpiry + NIP5_TERM_DAYS * 24 * 60 * 60 * 1000
+  const termDays = toSafeInt(claim.termDays, NIP5_TERM_DAYS_DEFAULT, 1, 3650)
+  const nextExpiry = baseExpiry + termDays * 24 * 60 * 60 * 1000
 
   const handleRecord = {
     name,
@@ -760,6 +945,55 @@ async function settleNip5Claim(claim) {
     expiresAt: nextExpiry
   }
   await nip5SalesStore.setJSON(`sale:${sale.id}`, sale)
+}
+
+async function getNip5ConfigForAdmin() {
+  const config = await resolveNip5Config()
+  return json(200, {
+    domain: config.domain,
+    termDays: config.termDays,
+    requireSignup: config.requireSignup,
+    reservedNames: config.reservedNames,
+    priceTiers: config.priceTiers,
+    updatedAt: config.updatedAt
+  })
+}
+
+async function updateNip5ConfigForAdmin(body) {
+  const current = (await adminConfigStore.get('nip5', { type: 'json' })) || {}
+  const next = { ...current }
+
+  if (body?.reservedNames !== undefined) {
+    const reservedNames = parseReservedNames(body.reservedNames, [])
+    next.reservedNames = reservedNames
+  }
+
+  if (body?.priceTiers !== undefined) {
+    const parsedTiers = normalizeNip5PriceTiers(
+      parseNip5PriceTiers(body.priceTiers, []),
+      []
+    )
+    if (!parsedTiers.length) {
+      return json(400, { error: 'Invalid price tiers' })
+    }
+    next.priceTiers = parsedTiers
+  }
+
+  if (body?.termDays !== undefined) {
+    const termDays = toSafeInt(body.termDays, Number.NaN, 1, 3650)
+    if (!Number.isFinite(termDays)) {
+      return json(400, { error: 'Invalid term days' })
+    }
+    next.termDays = termDays
+  }
+
+  if (body?.requireSignup !== undefined) {
+    next.requireSignup = Boolean(body.requireSignup)
+  }
+
+  next.updatedAt = Date.now()
+  await adminConfigStore.setJSON('nip5', next)
+  return await getNip5ConfigForAdmin()
 }
 
 async function getNip5SalesForAdmin(limit) {
@@ -2270,11 +2504,60 @@ function parseRelayList(value, fallbackRelays) {
 }
 
 function parseReservedNames(value, fallbackNames) {
-  const input = typeof value === 'string' ? value : ''
-  const names = (input ? input.split(',') : fallbackNames)
-    .map((item) => String(item || '').trim().toLowerCase())
+  let raw = []
+  if (Array.isArray(value)) {
+    raw = value
+  } else if (typeof value === 'string' && value.trim()) {
+    raw = value
+      .split(/[\n,]/g)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  } else {
+    raw = fallbackNames
+  }
+
+  const names = raw
+    .map((item) => normalizeNip5Name(String(item || '')))
     .filter(Boolean)
-  return new Set(names)
+  return Array.from(new Set(names))
+}
+
+function parseNip5PriceTiers(value, fallbackTiers) {
+  if (Array.isArray(value)) {
+    return value
+  }
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : fallbackTiers
+    } catch {
+      return fallbackTiers
+    }
+  }
+  return fallbackTiers
+}
+
+function normalizeNip5PriceTiers(tiers, fallbackTiers) {
+  const normalized = (Array.isArray(tiers) ? tiers : [])
+    .map((tier) => {
+      const minLength = toSafeInt(tier?.minLength, Number.NaN, 1, NIP5_NAME_MAX_LENGTH)
+      const maxLength = toSafeInt(tier?.maxLength, Number.NaN, 1, NIP5_NAME_MAX_LENGTH)
+      const sats = toSafeInt(tier?.sats, Number.NaN, 1, 10_000_000)
+      if (!Number.isFinite(minLength) || !Number.isFinite(maxLength) || !Number.isFinite(sats)) {
+        return null
+      }
+      if (maxLength < minLength) {
+        return null
+      }
+      return { minLength, maxLength, sats }
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.minLength - b.minLength || a.maxLength - b.maxLength)
+
+  if (normalized.length) {
+    return normalized
+  }
+  return Array.isArray(fallbackTiers) ? fallbackTiers : []
 }
 
 function parseNip5StaticNames(value, fallbackNames) {

@@ -20,12 +20,14 @@ type TVanityAccountState = {
     expiresAt: number | null
   } | null
   pricing?: {
-    sats: number
+    minSats: number
+    maxSats: number
     termDays: number
+    currentSats?: number | null
   }
 }
 
-const HANDLE_MIN = 3
+const HANDLE_MIN = 1
 const HANDLE_MAX = 20
 const HANDLE_REGEX = /^[a-z0-9_]+$/
 
@@ -39,7 +41,11 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
   const [loading, setLoading] = useState(false)
   const [handle, setHandle] = useState('')
   const [availabilityLoading, setAvailabilityLoading] = useState(false)
-  const [availability, setAvailability] = useState<{ available: boolean; reason?: string } | null>(null)
+  const [availability, setAvailability] = useState<{
+    available: boolean
+    reason?: string
+    sats?: number
+  } | null>(null)
   const [claiming, setClaiming] = useState(false)
   const [claimId, setClaimId] = useState('')
   const [claimStatus, setClaimStatus] = useState('')
@@ -50,6 +56,25 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
   const domain = account?.domain || 'x21.social'
   const selectedAddress = normalizedHandle ? `${normalizedHandle}@${domain}` : ''
   const isRenew = Boolean(currentName && normalizedHandle === currentName)
+  const quotedSats = useMemo(() => {
+    if (!normalizedHandle) return 0
+    if (isRenew) {
+      const renewSats = Number(
+        account?.pricing?.currentSats ??
+          account?.pricing?.maxSats ??
+          account?.pricing?.minSats ??
+          0
+      )
+      return Number.isFinite(renewSats) ? Math.max(renewSats, 0) : 0
+    }
+
+    if (typeof availability?.sats === 'number' && Number.isFinite(availability.sats)) {
+      return Math.max(availability.sats, 0)
+    }
+
+    const fallbackSats = Number(account?.pricing?.maxSats ?? account?.pricing?.minSats ?? 0)
+    return Number.isFinite(fallbackSats) ? Math.max(fallbackSats, 0) : 0
+  }, [normalizedHandle, isRenew, availability?.sats, account?.pricing?.currentSats, account?.pricing?.maxSats, account?.pricing?.minSats])
 
   const validationError = useMemo(() => {
     if (!normalizedHandle) return ''
@@ -89,7 +114,10 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
       return
     }
     if (normalizedHandle === currentName) {
-      setAvailability({ available: true })
+      setAvailability({
+        available: true,
+        sats: Number(account?.pricing?.currentSats ?? account?.pricing?.maxSats ?? account?.pricing?.minSats ?? 0)
+      })
       return
     }
 
@@ -100,7 +128,7 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
         .checkAvailability(normalizedHandle)
         .then((result) => {
           if (ignore) return
-          setAvailability({ available: Boolean(result.available), reason: result.reason })
+          setAvailability({ available: Boolean(result.available), reason: result.reason, sats: result.sats })
         })
         .catch((error) => {
           if (ignore) return
@@ -115,7 +143,7 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
       ignore = true
       clearTimeout(timer)
     }
-  }, [normalizedHandle, validationError, currentName])
+  }, [normalizedHandle, validationError, currentName, account?.pricing?.currentSats, account?.pricing?.maxSats, account?.pricing?.minSats])
 
   const pollClaimUntilSettled = async (id: string, initialHandle: string) => {
     let settled = false
@@ -266,7 +294,9 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
           <div className="flex items-center rounded-lg border px-3 py-2">
             <Input
               value={handle}
-              onChange={(event) => setHandle(event.target.value)}
+              onChange={(event) =>
+                setHandle(event.target.value.toLowerCase().replace(/\s+/g, ''))
+              }
               placeholder="god"
               className="border-none shadow-none px-0 focus-visible:ring-0"
             />
@@ -305,8 +335,8 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
         >
           {claiming ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {isRenew
-            ? `Renew for ${(account?.pricing?.sats || 0).toLocaleString()} sats`
-            : `Claim for ${(account?.pricing?.sats || 0).toLocaleString()} sats`}
+            ? `Renew for ${quotedSats.toLocaleString()} sats`
+            : `Claim for ${quotedSats.toLocaleString()} sats`}
         </Button>
 
         {claimId ? (
