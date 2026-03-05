@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { createProfileDraftEvent } from '@/lib/draft-event'
 import SecondaryPageLayout from '@/layouts/SecondaryPageLayout'
 import { useNostr } from '@/providers/NostrProvider'
 import vanityAddress from '@/services/vanity-address.service'
@@ -35,9 +36,10 @@ function normalizeHandle(value: string) {
 }
 
 const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
-  const { pubkey, startLogin } = useNostr()
+  const { pubkey, profile, profileEvent, publish, updateProfileEvent, startLogin } = useNostr()
   const [account, setAccount] = useState<TVanityAccountState | null>(null)
   const [loading, setLoading] = useState(false)
+  const [applyingProfile, setApplyingProfile] = useState(false)
   const [handle, setHandle] = useState('')
   const [availabilityLoading, setAvailabilityLoading] = useState(false)
   const [availability, setAvailability] = useState<{
@@ -55,6 +57,12 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
   const currentName = account?.assignment?.name || ''
   const domain = account?.domain || 'x21.social'
   const selectedAddress = normalizedHandle ? `${normalizedHandle}@${domain}` : ''
+  const assignedAddress = currentName ? `${currentName}@${domain}` : ''
+  const isAppliedToProfile = Boolean(
+    assignedAddress &&
+      profile?.nip05 &&
+      profile.nip05.toLowerCase() === assignedAddress.toLowerCase()
+  )
   const isRenew = Boolean(currentName && normalizedHandle === currentName)
   const quotedSats = useMemo(() => {
     if (!normalizedHandle) return 0
@@ -280,6 +288,34 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
     }
   }
 
+  const applyClaimedAddressToProfile = async () => {
+    if (!assignedAddress || isAppliedToProfile) return
+
+    setApplyingProfile(true)
+    try {
+      const baseProfile =
+        profileEvent?.content && profileEvent.content.trim()
+          ? JSON.parse(profileEvent.content)
+          : {}
+      const profileContent = {
+        ...baseProfile,
+        nip05: assignedAddress
+      }
+
+      const profileDraftEvent = createProfileDraftEvent(
+        JSON.stringify(profileContent),
+        profileEvent?.tags
+      )
+      const newProfileEvent = await publish(profileDraftEvent)
+      await updateProfileEvent(newProfileEvent)
+      toast.success(`Applied ${assignedAddress} to your profile`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to apply vanity address to profile')
+    } finally {
+      setApplyingProfile(false)
+    }
+  }
+
   if (!pubkey) {
     return (
       <SecondaryPageLayout ref={ref} index={index} title="Vanity Address">
@@ -306,6 +342,17 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
           <p className="text-xs text-muted-foreground mt-2">
             Claims last {account?.pricing?.termDays || 365} days. Renew before expiry to keep your handle.
           </p>
+          {assignedAddress ? (
+            <Button
+              variant="outline"
+              className="mt-3"
+              disabled={applyingProfile || isAppliedToProfile}
+              onClick={() => void applyClaimedAddressToProfile()}
+            >
+              {applyingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {isAppliedToProfile ? 'Applied to profile' : 'Apply to profile'}
+            </Button>
+          ) : null}
         </div>
 
         <div className="space-y-2">
