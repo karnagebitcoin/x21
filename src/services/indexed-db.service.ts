@@ -28,7 +28,8 @@ const StoreNames = {
   GIF_CACHE: 'gifCache',
   TRANSLATED_EVENTS: 'translatedEvents',
   NOTE_STATS: 'noteStats',
-  NOTE_STATS_INTERACTION_META: 'noteStatsInteractionMeta'
+  NOTE_STATS_INTERACTION_META: 'noteStatsInteractionMeta',
+  LAST_ACTIVITY: 'lastActivity'
 }
 
 class IndexedDbService {
@@ -47,7 +48,7 @@ class IndexedDbService {
   init(): Promise<void> {
     if (!this.initPromise) {
       this.initPromise = new Promise((resolve, reject) => {
-        const request = window.indexedDB.open('jumble', 12)
+        const request = window.indexedDB.open('jumble', 13)
 
         request.onerror = (event) => {
           reject(event)
@@ -119,6 +120,10 @@ class IndexedDbService {
               keyPath: 'key'
             })
             interactionMetaStore.createIndex('addedAt', 'addedAt', { unique: false })
+          }
+          if (!db.objectStoreNames.contains(StoreNames.LAST_ACTIVITY)) {
+            const lastActivityStore = db.createObjectStore(StoreNames.LAST_ACTIVITY, { keyPath: 'key' })
+            lastActivityStore.createIndex('addedAt', 'addedAt', { unique: false })
           }
           if (db.objectStoreNames.contains(StoreNames.RELAY_INFO_EVENTS)) {
             db.deleteObjectStore(StoreNames.RELAY_INFO_EVENTS)
@@ -688,6 +693,10 @@ class IndexedDbService {
       {
         name: StoreNames.NOTE_STATS_INTERACTION_META,
         expirationTimestamp: Date.now() - 1000 * 60 * 60 * 24 * 7 // 7 days
+      },
+      {
+        name: StoreNames.LAST_ACTIVITY,
+        expirationTimestamp: Date.now() - 1000 * 60 * 60 * 24 * 3 // 3 days
       }
     ]
     const transaction = this.db!.transaction(
@@ -891,6 +900,79 @@ class IndexedDbService {
 
       entries.forEach(({ eventId, noteStats }) => {
         const request = store.put(this.formatValue(eventId, noteStats))
+        request.onsuccess = () => {
+          completed += 1
+          if (completed === entries.length) {
+            resolve()
+          }
+        }
+        request.onerror = (event) => {
+          if (!hasError) {
+            hasError = true
+            reject(event)
+          }
+        }
+      })
+    })
+  }
+
+  async getManyLastActivity(
+    pubkeys: readonly string[]
+  ): Promise<Map<string, { lastPostTimestamp: number | null; checkedAt: number }>> {
+    await this.init()
+    if (!this.db || pubkeys.length === 0) return new Map()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([StoreNames.LAST_ACTIVITY], 'readonly')
+      const store = transaction.objectStore(StoreNames.LAST_ACTIVITY)
+      const result = new Map<string, { lastPostTimestamp: number | null; checkedAt: number }>()
+      let count = 0
+
+      pubkeys.forEach((pubkey) => {
+        const request = store.get(pubkey)
+        request.onsuccess = () => {
+          const record = request.result as TValue<{
+            lastPostTimestamp: number | null
+            checkedAt: number
+          }> | undefined
+          if (record?.value) {
+            result.set(pubkey, record.value)
+          }
+          if (++count === pubkeys.length) {
+            resolve(result)
+          }
+        }
+        request.onerror = () => {
+          if (++count === pubkeys.length) {
+            resolve(result)
+          }
+        }
+      })
+
+      transaction.onerror = (event) => reject(event)
+    })
+  }
+
+  async putManyLastActivity(
+    entries: { pubkey: string; lastPostTimestamp: number | null; checkedAt: number }[]
+  ): Promise<void> {
+    if (entries.length === 0) return
+    await this.init()
+    if (!this.db) return
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([StoreNames.LAST_ACTIVITY], 'readwrite')
+      const store = transaction.objectStore(StoreNames.LAST_ACTIVITY)
+      let completed = 0
+      let hasError = false
+
+      entries.forEach(({ pubkey, lastPostTimestamp, checkedAt }) => {
+        const request = store.put(
+          this.formatValue(pubkey, {
+            lastPostTimestamp,
+            checkedAt
+          })
+        )
         request.onsuccess = () => {
           completed += 1
           if (completed === entries.length) {

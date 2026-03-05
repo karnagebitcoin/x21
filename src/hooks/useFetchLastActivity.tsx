@@ -1,6 +1,6 @@
 import client from '@/services/client.service'
+import indexedDb from '@/services/indexed-db.service'
 import { useEffect, useState } from 'react'
-import { Event } from 'nostr-tools'
 
 export type TLastActivityData = {
   pubkey: string
@@ -11,7 +11,8 @@ export type TLastActivityData = {
 
 // Cache for last activity data - persists across component mounts
 const lastActivityCache = new Map<string, { lastPostTimestamp: number | null; cachedAt: number }>()
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+const MEMORY_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+const PERSISTED_CACHE_DURATION = 12 * 60 * 60 * 1000 // 12 hours
 
 export function useFetchLastActivity(pubkeys: string[], enabled: boolean = false) {
   const [activityMap, setActivityMap] = useState<Map<string, TLastActivityData>>(new Map())
@@ -40,10 +41,11 @@ export function useFetchLastActivity(pubkeys: string[], enabled: boolean = false
       // Check cache first
       const now = Date.now()
       const pubkeysToFetch: string[] = []
+      const memoryMisses: string[] = []
 
       pubkeys.forEach(pubkey => {
         const cached = lastActivityCache.get(pubkey)
-        if (cached && (now - cached.cachedAt) < CACHE_DURATION) {
+        if (cached && (now - cached.cachedAt) < MEMORY_CACHE_DURATION) {
           const daysSince = cached.lastPostTimestamp
             ? Math.floor((now - cached.lastPostTimestamp) / (1000 * 60 * 60 * 24))
             : null
@@ -55,9 +57,41 @@ export function useFetchLastActivity(pubkeys: string[], enabled: boolean = false
             isLoading: false
           })
         } else {
-          pubkeysToFetch.push(pubkey)
+          memoryMisses.push(pubkey)
         }
       })
+
+      if (memoryMisses.length > 0) {
+        try {
+          const persistedCache = await indexedDb.getManyLastActivity(memoryMisses)
+          memoryMisses.forEach(pubkey => {
+            const cached = persistedCache.get(pubkey)
+            if (cached && (now - cached.checkedAt) < PERSISTED_CACHE_DURATION) {
+              const daysSince = cached.lastPostTimestamp
+                ? Math.floor((now - cached.lastPostTimestamp) / (1000 * 60 * 60 * 24))
+                : null
+
+              newActivityMap.set(pubkey, {
+                pubkey,
+                lastPostTimestamp: cached.lastPostTimestamp,
+                daysSinceLastPost: daysSince,
+                isLoading: false
+              })
+
+              // Promote persisted cache to hot in-memory cache
+              lastActivityCache.set(pubkey, {
+                lastPostTimestamp: cached.lastPostTimestamp,
+                cachedAt: cached.checkedAt
+              })
+            } else {
+              pubkeysToFetch.push(pubkey)
+            }
+          })
+        } catch (err) {
+          console.error('[useFetchLastActivity] Failed to read IndexedDB cache:', err)
+          pubkeysToFetch.push(...memoryMisses)
+        }
+      }
 
       // Update with cached data
       setActivityMap(new Map(newActivityMap))
@@ -66,6 +100,8 @@ export function useFetchLastActivity(pubkeys: string[], enabled: boolean = false
         setIsLoading(false)
         return
       }
+
+      const entriesToPersist: { pubkey: string; lastPostTimestamp: number | null; checkedAt: number }[] = []
 
       // Fetch individually to ensure each user gets checked properly
       // This prevents active users from crowding out inactive ones in results
@@ -104,6 +140,11 @@ export function useFetchLastActivity(pubkeys: string[], enabled: boolean = false
               lastPostTimestamp,
               cachedAt: now
             })
+            entriesToPersist.push({
+              pubkey,
+              lastPostTimestamp,
+              checkedAt: now
+            })
 
             newActivityMap.set(pubkey, {
               pubkey,
@@ -131,6 +172,13 @@ export function useFetchLastActivity(pubkeys: string[], enabled: boolean = false
       }
 
       setIsLoading(false)
+
+      // Persist successful fetches for faster future filter runs
+      if (entriesToPersist.length > 0) {
+        indexedDb.putManyLastActivity(entriesToPersist).catch((err) => {
+          console.error('[useFetchLastActivity] Failed to write IndexedDB cache:', err)
+        })
+      }
     }
 
     fetchLastActivity()
