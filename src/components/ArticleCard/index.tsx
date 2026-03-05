@@ -10,7 +10,7 @@ import localStorageService from '@/services/local-storage.service'
 import { useTextOnlyMode } from '@/providers/TextOnlyModeProvider'
 import { useMuteList } from '@/providers/MuteListProvider'
 import { useFetchProfile } from '@/hooks'
-import { isFromMutedDomain, isMentioningMutedUsers } from '@/lib/event'
+import { hasMutedHashtag, isFromMutedDomain, isMentioningMutedUsers } from '@/lib/event'
 import { useContentPolicy } from '@/providers/ContentPolicyProvider'
 import { useTranslation } from 'react-i18next'
 
@@ -19,11 +19,12 @@ export default function ArticleCard({ event }: { event: NostrEvent }) {
   const { textOnlyMode } = useTextOnlyMode()
   const [shouldShowImage, setShouldShowImage] = useState(true)
   const [isRead, setIsRead] = useState(false)
-  const { mutePubkeySet, getMutedDomains, getMutedWords } = useMuteList()
+  const { mutePubkeySet, getMutedDomains, getMutedWords, getMutedTags } = useMuteList()
   const { profile, isFetching } = useFetchProfile(event.pubkey)
   const { hideContentMentioningMutedUsers } = useContentPolicy()
   const mutedDomains = getMutedDomains()
   const mutedWords = useMemo(() => getMutedWords(), [getMutedWords])
+  const mutedTags = useMemo(() => getMutedTags(), [getMutedTags])
 
   const { title, summary, image, publishedAt, identifier } = useMemo(() => {
     const titleTag = event.tags.find((tag) => tag[0] === 'title')
@@ -116,6 +117,10 @@ export default function ArticleCard({ event }: { event: NostrEvent }) {
       return true
     }
 
+    if (mutedTags.length > 0 && hasMutedHashtag(event, mutedTags)) {
+      return true
+    }
+
     // Check for muted words in title, summary, content, and username
     if (mutedWords.length > 0) {
       const titleLower = title.toLowerCase()
@@ -135,7 +140,7 @@ export default function ArticleCard({ event }: { event: NostrEvent }) {
     }
 
     return false
-  }, [event, mutePubkeySet, mutedWords, mutedDomains, profile, hideContentMentioningMutedUsers, title, summary])
+  }, [event, mutePubkeySet, mutedWords, mutedDomains, mutedTags, profile, hideContentMentioningMutedUsers, title, summary])
 
   // If we have muted domains configured and profile is still loading, wait for profile to load
   if (mutedDomains.length > 0 && isFetching) {

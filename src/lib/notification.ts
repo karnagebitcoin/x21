@@ -1,5 +1,5 @@
 import { kinds, NostrEvent } from 'nostr-tools'
-import { isMentioningMutedUsers, isFromMutedDomain } from './event'
+import { hasMutedHashtag, isMentioningMutedUsers, isFromMutedDomain } from './event'
 import { tagNameEquals } from './tag'
 import { TProfile } from '@/types'
 
@@ -14,6 +14,7 @@ export function notificationFilter(
     isUserTrusted,
     mutedDomains,
     mutedWords,
+    mutedTags,
     getProfile
   }: {
     pubkey?: string | null
@@ -24,6 +25,7 @@ export function notificationFilter(
     isUserTrusted: (pubkey: string) => boolean
     mutedDomains?: string[]
     mutedWords?: string[]
+    mutedTags?: string[]
     getProfile?: (pubkey: string) => TProfile | null | undefined
   }
 ): boolean {
@@ -49,6 +51,10 @@ export function notificationFilter(
     (hideContentMentioningMutedUsers && isMentioningMutedUsers(event, mutePubkeySet)) ||
     (hideUntrustedNotifications && !isUserTrusted(senderPubkey))
   ) {
+    return false
+  }
+
+  if (mutedTags && mutedTags.length > 0 && hasMutedHashtag(event, mutedTags)) {
     return false
   }
 

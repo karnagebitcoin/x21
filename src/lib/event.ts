@@ -75,6 +75,35 @@ export function isFromMutedDomain(nip05: string | undefined, mutedDomains: strin
   })
 }
 
+function normalizeHashtag(value: string): string {
+  return value.trim().replace(/^#/, '').toLowerCase()
+}
+
+export function getEventHashtags(event: Event): string[] {
+  const hashtags = new Set<string>()
+
+  for (const [tagName, tagValue] of event.tags) {
+    if (tagName !== 't' || !tagValue) continue
+    const normalized = normalizeHashtag(tagValue)
+    if (normalized) hashtags.add(normalized)
+  }
+
+  const contentMatches = event.content.match(/#([\p{L}\p{N}\p{M}_]+)/gu) ?? []
+  for (const hashtag of contentMatches) {
+    const normalized = normalizeHashtag(hashtag)
+    if (normalized) hashtags.add(normalized)
+  }
+
+  return Array.from(hashtags)
+}
+
+export function hasMutedHashtag(event: Event, mutedTags: string[]): boolean {
+  if (mutedTags.length === 0) return false
+  const mutedSet = new Set(mutedTags.map(normalizeHashtag).filter(Boolean))
+  if (mutedSet.size === 0) return false
+  return getEventHashtags(event).some((tag) => mutedSet.has(tag))
+}
+
 export function getHashtagCount(event: Event): number {
   return event.tags.filter(([tagName]) => tagName === 't').length
 }

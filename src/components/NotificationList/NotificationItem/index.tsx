@@ -21,11 +21,12 @@ export function NotificationItem({
   isNew?: boolean
 }) {
   const { pubkey } = useNostr()
-  const { mutePubkeySet, getMutedDomains, getMutedWords } = useMuteList()
+  const { mutePubkeySet, getMutedDomains, getMutedWords, getMutedTags } = useMuteList()
   const { hideContentMentioningMutedUsers, hideNotificationsFromMutedUsers } = useContentPolicy()
   const { hideUntrustedNotifications, isUserTrusted } = useUserTrust()
   const mutedDomains = getMutedDomains()
   const mutedWords = getMutedWords()
+  const mutedTags = getMutedTags()
   const canShow = useMemo(() => {
     return notificationFilter(notification, {
       pubkey,
@@ -36,6 +37,7 @@ export function NotificationItem({
       isUserTrusted,
       mutedDomains,
       mutedWords,
+      mutedTags,
       getProfile: (pubkey: string) => client.getCachedProfile(pubkey)
     })
   }, [
@@ -46,7 +48,8 @@ export function NotificationItem({
     hideUntrustedNotifications,
     isUserTrusted,
     mutedDomains,
-    mutedWords
+    mutedWords,
+    mutedTags
   ])
   if (!canShow) return null
 

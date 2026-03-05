@@ -2,6 +2,7 @@ import NewNotesButton from '@/components/NewNotesButton'
 import { Button } from '@/components/ui/button'
 import {
   getReplaceableCoordinateFromEvent,
+  hasMutedHashtag,
   hasMedia,
   hasExcessiveHashtags,
   hasExcessiveMentions,
@@ -76,10 +77,11 @@ const NoteList = forwardRef(
     const { lowBandwidthMode } = useLowBandwidthMode()
     const { isUserTrusted } = useUserTrust()
     const { textOnlyMode } = useTextOnlyMode()
-    const { mutePubkeySet, getMutedWords } = useMuteList()
+    const { mutePubkeySet, getMutedWords, getMutedTags } = useMuteList()
     const { hideContentMentioningMutedUsers, maxHashtags, maxMentions } = useContentPolicy()
     const mutedWords = useMemo(() => getMutedWords(), [getMutedWords])
     const mutedWordsLower = useMemo(() => mutedWords.map((word) => word.toLowerCase()), [mutedWords])
+    const mutedTags = useMemo(() => getMutedTags(), [getMutedTags])
     const { isEventDeleted } = useDeletedEvent()
     const { isDistractionFree } = useDistractionFreeMode()
     const showCountIncrement = textOnlyMode ? SHOW_COUNT_TEXT_ONLY : SHOW_COUNT_STANDARD
@@ -123,6 +125,8 @@ const NoteList = forwardRef(
           return true
         }
 
+        if (filterMutedNotes && mutedTags.length > 0 && hasMutedHashtag(evt, mutedTags)) return true
+
         // Check for muted words in content
         if (filterMutedNotes && mutedWordsLower.length > 0) {
           const content = evt.content.toLowerCase()
@@ -156,6 +160,7 @@ const NoteList = forwardRef(
         isEventDeleted,
         filterMutedNotes,
         mutedWordsLower,
+        mutedTags,
         hideContentMentioningMutedUsers,
         isUserTrusted,
         mediaOnly,

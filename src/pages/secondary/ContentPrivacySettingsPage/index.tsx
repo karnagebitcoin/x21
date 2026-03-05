@@ -52,6 +52,7 @@ const ContentPrivacySettingsPage = forwardRef(({ index }: { index?: number }, re
   const tabDefinitions = [
     { value: 'content', label: t('Content') },
     { value: 'words', label: t('Muted Words') },
+    { value: 'hashtags', label: t('Muted Hashtags') },
     { value: 'threads', label: t('Muted Threads') },
     { value: 'domains', label: t('Muted Domains') }
   ]
@@ -318,6 +319,9 @@ const ContentPrivacySettingsPage = forwardRef(({ index }: { index?: number }, re
         {/* MUTED WORDS TAB */}
         {activeTab === 'words' && <MutedWordsTab />}
 
+        {/* MUTED HASHTAGS TAB */}
+        {activeTab === 'hashtags' && <MutedHashtagsTab />}
+
         {/* MUTED THREADS TAB */}
         {activeTab === 'threads' && <MutedThreadsTab />}
 
@@ -332,7 +336,8 @@ export default ContentPrivacySettingsPage
 
 function MutedWordsTab() {
   const { t } = useTranslation()
-  const { getMutedWords, addMutedWord, removeMutedWord } = useMuteList()
+  const { getMutedWords, addMutedWord, removeMutedWord, isMutedWordPublic, makeMutedWordPublic } =
+    useMuteList()
   const [newWord, setNewWord] = useState('')
   const mutedWords = getMutedWords()
 
@@ -345,6 +350,9 @@ function MutedWordsTab() {
 
   return (
     <div className="space-y-4 mt-4 px-4">
+      <div className="text-sm text-muted-foreground">
+        {t('Muted words are private on x21 by default.')}
+      </div>
       <div className="flex gap-2">
         <Input
           value={newWord}
@@ -362,25 +370,111 @@ function MutedWordsTab() {
         </Button>
       </div>
       <div className="space-y-2">
-        {mutedWords.map((word, index) => (
+        {mutedWords.map((word) => (
           <div
-            key={index}
-            className="flex items-center justify-between px-4 py-1 rounded-lg border"
+            key={word}
+            className="flex items-center justify-between px-4 py-2 rounded-lg border gap-2"
           >
-            <span>{word}</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => removeMutedWord(word)}
-              className="h-7 w-7"
-            >
-              <X className="size-3" />
-            </Button>
+            <div className="min-w-0">
+              <div className="truncate">{word}</div>
+              <div className="text-xs text-muted-foreground">
+                {isMutedWordPublic(word) ? t('May sync across clients') : t('Private on x21')}
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {!isMutedWordPublic(word) && (
+                <Button variant="outline" size="sm" onClick={() => makeMutedWordPublic(word)}>
+                  {t('Make public')}
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => removeMutedWord(word)}
+                className="h-7 w-7"
+              >
+                <X className="size-3" />
+              </Button>
+            </div>
           </div>
         ))}
         {mutedWords.length === 0 && (
           <div className="text-center text-muted-foreground py-8">
             {t('No muted words')}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function MutedHashtagsTab() {
+  const { t } = useTranslation()
+  const { getMutedTags, addMutedTag, removeMutedTag, isMutedTagPublic, makeMutedTagPublic } =
+    useMuteList()
+  const [newTag, setNewTag] = useState('')
+  const mutedTags = getMutedTags()
+
+  const handleAddTag = () => {
+    if (newTag.trim()) {
+      addMutedTag(newTag.trim())
+      setNewTag('')
+    }
+  }
+
+  return (
+    <div className="space-y-4 mt-4 px-4">
+      <div className="text-sm text-muted-foreground">
+        {t('Muted hashtags are private on x21 by default.')}
+      </div>
+      <div className="flex gap-2">
+        <Input
+          value={newTag}
+          onChange={(e) => setNewTag(e.target.value)}
+          placeholder={t('Add muted hashtag...')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              handleAddTag()
+            }
+          }}
+        />
+        <Button onClick={handleAddTag} size="icon">
+          <Plus />
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {mutedTags.map((tag) => (
+          <div
+            key={tag}
+            className="flex items-center justify-between px-4 py-2 rounded-lg border gap-2"
+          >
+            <div className="min-w-0">
+              <div className="truncate">#{tag}</div>
+              <div className="text-xs text-muted-foreground">
+                {isMutedTagPublic(tag) ? t('May sync across clients') : t('Private on x21')}
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {!isMutedTagPublic(tag) && (
+                <Button variant="outline" size="sm" onClick={() => makeMutedTagPublic(tag)}>
+                  {t('Make public')}
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => removeMutedTag(tag)}
+                className="h-7 w-7"
+              >
+                <X className="size-3" />
+              </Button>
+            </div>
+          </div>
+        ))}
+        {mutedTags.length === 0 && (
+          <div className="text-center text-muted-foreground py-8">
+            {t('No muted hashtags')}
           </div>
         )}
       </div>

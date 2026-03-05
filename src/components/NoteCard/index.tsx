@@ -1,5 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton'
-import { isMentioningMutedUsers, isFromMutedDomain } from '@/lib/event'
+import { hasMutedHashtag, isMentioningMutedUsers, isFromMutedDomain } from '@/lib/event'
 import { useContentPolicy } from '@/providers/ContentPolicyProvider'
 import { useMuteList } from '@/providers/MuteListProvider'
 import { useFetchProfile } from '@/hooks'
@@ -25,10 +25,11 @@ export default function NoteCard({
   onTagsChange?: () => void
   bookmarkId?: string
 }) {
-  const { mutePubkeySet, getMutedWords, getMutedDomains } = useMuteList()
+  const { mutePubkeySet, getMutedWords, getMutedDomains, getMutedTags } = useMuteList()
   const { hideContentMentioningMutedUsers } = useContentPolicy()
   const mutedWords = useMemo(() => getMutedWords(), [getMutedWords])
   const mutedDomains = useMemo(() => getMutedDomains(), [getMutedDomains])
+  const mutedTags = useMemo(() => getMutedTags(), [getMutedTags])
   const { profile, isFetching } = useFetchProfile(event?.pubkey)
 
   const shouldHide = useMemo(() => {
@@ -50,6 +51,10 @@ export default function NoteCard({
       return true
     }
 
+    if (filterMutedNotes && mutedTags.length > 0 && hasMutedHashtag(event, mutedTags)) {
+      return true
+    }
+
     // Check for muted words in content and username
     if (filterMutedNotes && mutedWords.length > 0) {
       const content = event.content.toLowerCase()
@@ -64,7 +69,7 @@ export default function NoteCard({
     }
 
     return false
-  }, [event, filterMutedNotes, mutePubkeySet, mutedWords, hideContentMentioningMutedUsers, profile, mutedDomains, isFetching])
+  }, [event, filterMutedNotes, mutePubkeySet, mutedWords, hideContentMentioningMutedUsers, profile, mutedDomains, mutedTags, isFetching])
 
   if (shouldHide) return null
 
