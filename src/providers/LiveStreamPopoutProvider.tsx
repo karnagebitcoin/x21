@@ -42,6 +42,7 @@ const DEFAULT_HEIGHT = 236
 const MIN_WIDTH = 300
 const MIN_HEIGHT = 170
 const EDGE_PADDING = 8
+const CONTROL_HIDE_DELAY = 2200
 
 const LiveStreamPopoutContext = createContext<LiveStreamPopoutContextValue | undefined>(undefined)
 
@@ -116,12 +117,36 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
   const [volume, setVolume] = useState(1)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
+  const [showControls, setShowControls] = useState(true)
   const layoutRef = useRef(layout)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const controlHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     layoutRef.current = layout
   }, [layout])
+
+  const clearControlHideTimeout = useCallback(() => {
+    if (!controlHideTimeoutRef.current) return
+    clearTimeout(controlHideTimeoutRef.current)
+    controlHideTimeoutRef.current = null
+  }, [])
+
+  const scheduleControlHide = useCallback(() => {
+    clearControlHideTimeout()
+    if (!isPlaying || isDragging || isResizing) {
+      return
+    }
+    controlHideTimeoutRef.current = setTimeout(() => {
+      setShowControls(false)
+      controlHideTimeoutRef.current = null
+    }, CONTROL_HIDE_DELAY)
+  }, [clearControlHideTimeout, isDragging, isPlaying, isResizing])
+
+  const revealControls = useCallback(() => {
+    setShowControls(true)
+    scheduleControlHide()
+  }, [scheduleControlHide])
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(layout))
@@ -136,6 +161,19 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  useEffect(() => {
+    if (!isOpen || !popout) {
+      clearControlHideTimeout()
+      return
+    }
+
+    setShowControls(true)
+    scheduleControlHide()
+    return () => {
+      clearControlHideTimeout()
+    }
+  }, [clearControlHideTimeout, isOpen, popout, scheduleControlHide])
+
   const openPopout = useCallback((payload: LiveStreamPopoutPayload) => {
     setPopout(payload)
     setIsOpen(true)
@@ -147,8 +185,9 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
     if (video && !video.paused) {
       video.pause()
     }
+    clearControlHideTimeout()
     setIsOpen(false)
-  }, [])
+  }, [clearControlHideTimeout])
 
   const isPopoutOpenForUrl = useCallback(
     (streamingUrl?: string) => {
@@ -320,6 +359,16 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
     }
   }, [enforceCustomControls, isOpen, popout])
 
+  useEffect(() => {
+    if (!isOpen) return
+    if (!isPlaying) {
+      clearControlHideTimeout()
+      setShowControls(true)
+      return
+    }
+    scheduleControlHide()
+  }, [clearControlHideTimeout, isOpen, isPlaying, scheduleControlHide])
+
   const contextValue = useMemo<LiveStreamPopoutContextValue>(
     () => ({
       popout,
@@ -338,35 +387,17 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
     ? createPortal(
         <div className="fixed inset-0 z-[80] pointer-events-none">
           <div
-            className="absolute pointer-events-auto overflow-hidden rounded-lg border border-border/80 bg-black shadow-2xl"
+            className="group absolute pointer-events-auto overflow-hidden rounded-lg border border-border/80 bg-black shadow-2xl"
             style={{
               width: layout.width,
               height: layout.height,
               transform: `translate3d(${layout.x}px, ${layout.y}px, 0)`
             }}
+            onPointerMove={revealControls}
+            onTouchStart={revealControls}
+            onMouseLeave={scheduleControlHide}
           >
-            <div
-              className={`flex h-9 items-center justify-between gap-2 border-b border-border/80 bg-black/95 px-2 text-white ${
-                isDragging ? 'cursor-grabbing' : 'cursor-move'
-              }`}
-              onPointerDown={handleDragStart}
-            >
-              <div className="flex min-w-0 items-center gap-2 pl-0.5">
-                <PictureInPicture2 className="h-4 w-4 shrink-0 text-white/70" />
-                <span className="truncate text-xs font-medium">{popout.title}</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-white/80 hover:bg-white/10 hover:text-white"
-                onClick={closePopout}
-                title="Close popout"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="relative h-[calc(100%-2.25rem)] w-full bg-black">
+            <div className="relative h-full w-full bg-black">
               <video
                 ref={videoRef}
                 src={popout.streamingUrl}
@@ -397,13 +428,47 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
                 }}
               />
 
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/65 to-transparent p-2">
+              <div
+                className={`pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-black/80 via-black/45 to-transparent px-2 py-1.5 transition-opacity duration-200 ${
+                  showControls || isDragging ? 'opacity-100' : 'opacity-0'
+                }`}
+              >
+                <div
+                  className={`pointer-events-auto flex h-8 items-center justify-between gap-2 rounded-md bg-black/45 px-2 text-white backdrop-blur-sm ${
+                    isDragging ? 'cursor-grabbing' : 'cursor-move'
+                  }`}
+                  onPointerDown={handleDragStart}
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <PictureInPicture2 className="h-3.5 w-3.5 shrink-0 text-white/70" />
+                    <span className="truncate text-xs font-medium">{popout.title}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-white/80 hover:bg-white/10 hover:text-white"
+                    onClick={closePopout}
+                    title="Close popout"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+
+              <div
+                className={`pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/65 to-transparent px-2 pb-2 pt-8 transition-opacity duration-200 ${
+                  showControls || !isPlaying || isResizing ? 'opacity-100' : 'opacity-0'
+                }`}
+              >
                 <div className="pointer-events-auto flex items-center gap-2 text-white">
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 shrink-0 text-white/85 hover:bg-white/10 hover:text-white"
-                    onClick={togglePlayback}
+                    onClick={() => {
+                      revealControls()
+                      togglePlayback()
+                    }}
                     title={isPlaying ? 'Pause' : 'Play'}
                   >
                     {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
@@ -418,7 +483,10 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
                         value={[Math.min(currentTime, duration)]}
                         max={duration}
                         step={1}
-                        onValueChange={handleSeek}
+                        onValueChange={(values) => {
+                          revealControls()
+                          handleSeek(values)
+                        }}
                         className="min-w-0 flex-1"
                       />
                       <span className="w-10 shrink-0 text-right text-[11px] tabular-nums text-white/75">
@@ -437,7 +505,10 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 shrink-0 text-white/85 hover:bg-white/10 hover:text-white"
-                    onClick={toggleMute}
+                    onClick={() => {
+                      revealControls()
+                      toggleMute()
+                    }}
                     title={isMuted ? 'Unmute' : 'Mute'}
                   >
                     {isMuted || volumeValue === 0 ? (
@@ -450,7 +521,10 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
                     value={[volumeValue]}
                     max={1}
                     step={0.01}
-                    onValueChange={handleVolumeChange}
+                    onValueChange={(values) => {
+                      revealControls()
+                      handleVolumeChange(values)
+                    }}
                     className="w-24 shrink-0"
                   />
                 </div>
@@ -459,10 +533,11 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
 
             <button
               type="button"
-              className={`absolute right-1.5 top-12 h-5 w-5 cursor-se-resize rounded bg-black/45 p-0.5 text-white/70 ${
-                isResizing ? 'scale-110' : ''
+              className={`absolute bottom-1.5 right-1.5 h-5 w-5 cursor-se-resize rounded bg-black/40 p-0.5 text-white/70 transition-opacity ${
+                showControls || isResizing ? 'opacity-100' : 'opacity-35 group-hover:opacity-65'
               }`}
               onPointerDown={handleResizeStart}
+              onPointerMove={revealControls}
               aria-label="Resize popout player"
               title="Resize"
             >
