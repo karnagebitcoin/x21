@@ -35,7 +35,23 @@ export default function HideUntrustedContentButton({
   const updateEnabled =
     type === 'interactions' ? updateHideUntrustedInteractions : updateHideUntrustedNotifications
 
-  const typeText = t(type)
+  const contentLabel = type === 'notifications' ? t('notifications') : t('activity')
+  const title = enabled
+    ? type === 'notifications'
+      ? t('Show all notifications?')
+      : t('Show all activity?')
+    : type === 'notifications'
+      ? t('Hide untrusted notifications?')
+      : t('Hide untrusted activity?')
+  const description = enabled
+    ? t(
+        'Right now, {{content}} from people outside your network is hidden. Trusted people are people you follow and people they follow. Continue to show all {{content}}.',
+        { content: contentLabel }
+      )
+    : t(
+        'Right now, you see all {{content}}. Trusted people are people you follow and people they follow. Continue to hide {{content}} from people outside your network.',
+        { content: contentLabel }
+      )
 
   return (
     <AlertDialog>
@@ -50,20 +66,8 @@ export default function HideUntrustedContentButton({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            {enabled
-              ? t('Show untrusted {type}', { type: typeText })
-              : t('Hide untrusted {type}', { type: typeText })}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {enabled
-              ? t('Currently hiding {type} from untrusted users.', { type: typeText })
-              : t('Currently showing all {type}.', { type: typeText })}{' '}
-            {t('Trusted users include people you follow and people they follow.')}{' '}
-            {enabled
-              ? t('Click continue to show all {type}.', { type: typeText })
-              : t('Click continue to hide {type} from untrusted users.', { type: typeText })}
-          </AlertDialogDescription>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
