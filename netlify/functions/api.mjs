@@ -14,7 +14,7 @@ let nip5SalesStore
 
 const TRANSLATION_LIGHTNING_ADDRESS =
   process.env.TRANSLATION_LIGHTNING_ADDRESS || 'translation@katvibes.com'
-const NIP5_LIGHTNING_ADDRESS = process.env.NIP5_LIGHTNING_ADDRESS || TRANSLATION_LIGHTNING_ADDRESS
+const NIP5_LIGHTNING_ADDRESS = 'vanity@katvibes.com'
 const NIP5_DOMAIN = (process.env.NIP5_DOMAIN || 'x21.social').trim().toLowerCase()
 const NIP5_CLAIM_SATS_DEFAULT = toSafeInt(process.env.NIP5_CLAIM_SATS, 2100, 1, 10_000_000)
 const NIP5_TERM_DAYS_DEFAULT = toSafeInt(process.env.NIP5_TERM_DAYS, 365, 1, 3650)
