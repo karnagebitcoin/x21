@@ -28,18 +28,45 @@ export default function LiveStreamWidget({
   const { hideWidgetTitles, unpinLiveStreamWidget } = useWidgets()
   const [isHovered, setIsHovered] = useState(false)
   const [isPlaying, setIsPlaying] = useState(true)
-  const [isMuted, setIsMuted] = useState(true)
+  const [isMuted, setIsMuted] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const sourceIdRef = useRef(`live-stream-widget-${widgetId}`)
+
+  const playVideo = async (video: HTMLVideoElement) => {
+    try {
+      await video.play()
+      return true
+    } catch {
+      try {
+        video.load()
+        await video.play()
+        return true
+      } catch {
+        return false
+      }
+    }
+  }
 
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
 
-    video.muted = true
-    setIsMuted(true)
-    video.play().catch(() => {
+    const synced = liveStreamSyncService.getState(streamingUrl)
+    const nextMuted = synced?.isMuted ?? false
+    const shouldPlay = synced?.isPlaying !== false
+
+    video.muted = nextMuted
+    setIsMuted(nextMuted)
+
+    if (!shouldPlay) {
+      video.pause()
       setIsPlaying(false)
+      return
+    }
+
+    playVideo(video).then((played) => {
+      setIsPlaying(played)
+      liveStreamSyncService.setState(streamingUrl, { isPlaying: played, isMuted: nextMuted })
     })
   }, [streamingUrl])
 
@@ -57,8 +84,9 @@ export default function LiveStreamWidget({
       if (!video) return
 
       if (command.action === 'play') {
-        video.play().catch(() => {
-          setIsPlaying(false)
+        playVideo(video).then((played) => {
+          setIsPlaying(played)
+          liveStreamSyncService.setState(streamingUrl, { isPlaying: played })
         })
         return
       }
@@ -69,6 +97,7 @@ export default function LiveStreamWidget({
       if (command.action === 'set-muted') {
         video.muted = !!command.muted
         setIsMuted(video.muted)
+        liveStreamSyncService.setState(streamingUrl, { isMuted: video.muted })
       }
     }
 
@@ -84,7 +113,9 @@ export default function LiveStreamWidget({
 
     try {
       if (video.paused) {
-        await video.play()
+        const played = await playVideo(video)
+        setIsPlaying(played)
+        if (!played) return
         liveStreamSyncService.dispatchCommand({
           streamingUrl,
           action: 'play',
@@ -108,6 +139,7 @@ export default function LiveStreamWidget({
     if (!video) return
     video.muted = !video.muted
     setIsMuted(video.muted)
+    liveStreamSyncService.setState(streamingUrl, { isMuted: video.muted })
     liveStreamSyncService.dispatchCommand({
       streamingUrl,
       action: 'set-muted',
@@ -157,11 +189,19 @@ export default function LiveStreamWidget({
               poster={image}
               autoPlay
               playsInline
-              muted
               className="w-full aspect-video bg-black object-contain"
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
-              onVolumeChange={(event) => setIsMuted(event.currentTarget.muted)}
+              onPlay={() => {
+                setIsPlaying(true)
+                liveStreamSyncService.setState(streamingUrl, { isPlaying: true })
+              }}
+              onPause={() => {
+                setIsPlaying(false)
+                liveStreamSyncService.setState(streamingUrl, { isPlaying: false })
+              }}
+              onVolumeChange={(event) => {
+                setIsMuted(event.currentTarget.muted)
+                liveStreamSyncService.setState(streamingUrl, { isMuted: event.currentTarget.muted })
+              }}
             />
           ) : (
             <div className="flex aspect-video w-full items-center justify-center text-xs text-muted-foreground">

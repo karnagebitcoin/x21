@@ -282,6 +282,7 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
     try {
       if (video.paused) {
         await video.play()
+        liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: true })
         liveStreamSyncService.dispatchCommand({
           streamingUrl: popout.streamingUrl,
           action: 'play',
@@ -289,6 +290,7 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
         })
       } else {
         video.pause()
+        liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: false })
         liveStreamSyncService.dispatchCommand({
           streamingUrl: popout.streamingUrl,
           action: 'pause',
@@ -306,6 +308,7 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
 
     video.muted = !video.muted
     setIsMuted(video.muted)
+    liveStreamSyncService.setState(popout.streamingUrl, { isMuted: video.muted })
     liveStreamSyncService.dispatchCommand({
       streamingUrl: popout.streamingUrl,
       action: 'set-muted',
@@ -401,19 +404,24 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
       if (!video) return
 
       if (command.action === 'play') {
-        video.play().catch(() => {
+        video.play().then(() => {
+          liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: true })
+        }).catch(() => {
           setIsPlaying(false)
+          liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: false })
         })
         return
       }
       if (command.action === 'pause') {
         video.pause()
         setIsPlaying(false)
+        liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: false })
         return
       }
       if (command.action === 'set-muted') {
         video.muted = !!command.muted
         setIsMuted(video.muted)
+        liveStreamSyncService.setState(popout.streamingUrl, { isMuted: video.muted })
       }
     }
 
@@ -461,15 +469,28 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
                 playsInline
                 className="popout-stream-video h-full w-full bg-black object-contain"
                 onClick={togglePlayback}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                onEnded={() => setIsPlaying(false)}
+                onPlay={() => {
+                  setIsPlaying(true)
+                  liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: true })
+                }}
+                onPause={() => {
+                  setIsPlaying(false)
+                  liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: false })
+                }}
+                onEnded={() => {
+                  setIsPlaying(false)
+                  liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: false })
+                }}
                 onLoadedMetadata={(event) => {
                   const nextDuration = event.currentTarget.duration
                   setDuration(Number.isFinite(nextDuration) ? nextDuration : 0)
                   setCurrentTime(event.currentTarget.currentTime)
                   setVolume(event.currentTarget.volume)
                   setIsMuted(event.currentTarget.muted)
+                  liveStreamSyncService.setState(popout.streamingUrl, {
+                    isPlaying: !event.currentTarget.paused,
+                    isMuted: event.currentTarget.muted
+                  })
                 }}
                 onDurationChange={(event) => {
                   const nextDuration = event.currentTarget.duration
@@ -479,6 +500,9 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
                 onVolumeChange={(event) => {
                   setVolume(event.currentTarget.volume)
                   setIsMuted(event.currentTarget.muted)
+                  liveStreamSyncService.setState(popout.streamingUrl, {
+                    isMuted: event.currentTarget.muted
+                  })
                 }}
               />
 

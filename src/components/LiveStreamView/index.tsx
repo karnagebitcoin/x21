@@ -478,6 +478,7 @@ export default function LiveStreamView({
     try {
       if (video.paused) {
         await video.play()
+        liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: true })
         liveStreamSyncService.dispatchCommand({
           streamingUrl: activeStreamingUrl,
           action: 'play',
@@ -485,6 +486,7 @@ export default function LiveStreamView({
         })
       } else {
         video.pause()
+        liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
         liveStreamSyncService.dispatchCommand({
           streamingUrl: activeStreamingUrl,
           action: 'pause',
@@ -501,6 +503,7 @@ export default function LiveStreamView({
     if (!video || !activeStreamingUrl) return
     video.muted = !video.muted
     setIsVideoMuted(video.muted)
+    liveStreamSyncService.setState(activeStreamingUrl, { isMuted: video.muted })
     liveStreamSyncService.dispatchCommand({
       streamingUrl: activeStreamingUrl,
       action: 'set-muted',
@@ -541,6 +544,7 @@ export default function LiveStreamView({
 
     if (!video.paused) {
       video.pause()
+      liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
       liveStreamSyncService.dispatchCommand({
         streamingUrl: activeStreamingUrl,
         action: 'pause',
@@ -565,19 +569,24 @@ export default function LiveStreamView({
 
       if (command.action === 'play') {
         if (isInPopout) return
-        video.play().catch(() => {
+        video.play().then(() => {
+          liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: true })
+        }).catch(() => {
           setIsVideoPlaying(false)
+          liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
         })
         return
       }
       if (command.action === 'pause') {
         video.pause()
         setIsVideoPlaying(false)
+        liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
         return
       }
       if (command.action === 'set-muted') {
         video.muted = !!command.muted
         setIsVideoMuted(video.muted)
+        liveStreamSyncService.setState(activeStreamingUrl, { isMuted: video.muted })
       }
     }
 
@@ -689,23 +698,52 @@ export default function LiveStreamView({
                     if (isInPopout) {
                       event.currentTarget.pause()
                       setIsVideoPlaying(false)
+                      if (activeStreamingUrl) {
+                        liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
+                      }
                       return
                     }
                     setIsVideoPlaying(true)
+                    if (activeStreamingUrl) {
+                      liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: true })
+                    }
                   }}
-                  onPause={() => setIsVideoPlaying(false)}
-                  onEnded={() => setIsVideoPlaying(false)}
+                  onPause={() => {
+                    setIsVideoPlaying(false)
+                    if (activeStreamingUrl) {
+                      liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
+                    }
+                  }}
+                  onEnded={() => {
+                    setIsVideoPlaying(false)
+                    if (activeStreamingUrl) {
+                      liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
+                    }
+                  }}
                   onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
                   onLoadedMetadata={(event) => {
                     const nextDuration = event.currentTarget.duration
                     setDuration(Number.isFinite(nextDuration) ? nextDuration : 0)
                     setIsVideoMuted(event.currentTarget.muted)
+                    if (activeStreamingUrl) {
+                      liveStreamSyncService.setState(activeStreamingUrl, {
+                        isMuted: event.currentTarget.muted,
+                        isPlaying: !event.currentTarget.paused
+                      })
+                    }
                   }}
                   onDurationChange={(event) => {
                     const nextDuration = event.currentTarget.duration
                     setDuration(Number.isFinite(nextDuration) ? nextDuration : 0)
                   }}
-                  onVolumeChange={(event) => setIsVideoMuted(event.currentTarget.muted)}
+                  onVolumeChange={(event) => {
+                    setIsVideoMuted(event.currentTarget.muted)
+                    if (activeStreamingUrl) {
+                      liveStreamSyncService.setState(activeStreamingUrl, {
+                        isMuted: event.currentTarget.muted
+                      })
+                    }
+                  }}
                 />
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent p-2">
                   <div className="pointer-events-auto flex min-w-0 items-center gap-1.5 overflow-hidden text-white/90">
@@ -764,6 +802,12 @@ export default function LiveStreamView({
                         onClick={() => {
                           if (!streamingUrl) return
                           const video = videoRef.current
+                          if (video) {
+                            liveStreamSyncService.setState(streamingUrl, {
+                              isMuted: video.muted,
+                              isPlaying: !video.paused
+                            })
+                          }
                           if (video && !video.paused) {
                             video.pause()
                             setIsVideoPlaying(false)
