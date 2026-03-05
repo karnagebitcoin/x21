@@ -1,5 +1,5 @@
 import { getStore } from '@netlify/blobs'
-import { randomBytes, createHash } from 'node:crypto'
+import { randomBytes, createHash, timingSafeEqual } from 'node:crypto'
 import { Invoice } from '@getalby/lightning-tools'
 import { kinds, verifyEvent } from 'nostr-tools'
 
@@ -7,10 +7,12 @@ const usersStore = getStore('translation-users')
 const apiKeyStore = getStore('translation-api-keys')
 const transactionStore = getStore('translation-transactions')
 const translationCacheStore = getStore('translation-cache')
+const adminConfigStore = getStore('translation-admin-config')
 
 const TRANSLATION_LIGHTNING_ADDRESS =
   process.env.TRANSLATION_LIGHTNING_ADDRESS || 'translation@katvibes.com'
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || ''
+const TRANSLATION_ADMIN_TOKEN = process.env.TRANSLATION_ADMIN_TOKEN || ''
 const OPENROUTER_MODEL =
   process.env.OPENROUTER_TRANSLATION_MODEL || 'google/gemini-2.0-flash-001'
 
@@ -42,6 +44,14 @@ let btcUsdCache = {
   source: 'fallback'
 }
 
+let openRouterKeyCache = {
+  fetchedAt: 0,
+  key: null,
+  source: 'none',
+  updatedAt: null
+}
+const OPENROUTER_KEY_CACHE_TTL_MS = 30 * 1000
+
 const headers = {
   'Content-Type': 'application/json'
 }
@@ -56,6 +66,49 @@ export default async (request) => {
     if (request.method === 'GET' && route === '/v1/transactions/quote') {
       const quote = await buildTopUpQuote()
       return json(200, quote)
+    }
+
+    if (request.method === 'GET' && route === '/v1/admin/translation/config') {
+      assertAdminRequest(request)
+      const keyState = await resolveOpenRouterKey()
+      return json(200, {
+        model: OPENROUTER_MODEL,
+        openrouterKey: {
+          configured: Boolean(keyState.key),
+          masked: maskSecret(keyState.key),
+          source: keyState.source,
+          updatedAt: keyState.updatedAt
+        }
+      })
+    }
+
+    if (request.method === 'POST' && route === '/v1/admin/translation/openrouter-key') {
+      assertAdminRequest(request)
+      const body = await parseJson(request)
+      const apiKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : ''
+      if (!apiKey) {
+        return json(400, { error: 'Missing OpenRouter API key' })
+      }
+      if (apiKey.length < 12) {
+        return json(400, { error: 'OpenRouter API key looks invalid' })
+      }
+
+      await adminConfigStore.setJSON('openrouter', {
+        apiKey,
+        updatedAt: Date.now()
+      })
+      invalidateOpenRouterCache()
+
+      const nextState = await resolveOpenRouterKey()
+      return json(200, {
+        ok: true,
+        openrouterKey: {
+          configured: Boolean(nextState.key),
+          masked: maskSecret(nextState.key),
+          source: nextState.source,
+          updatedAt: nextState.updatedAt
+        }
+      })
     }
 
     if (request.method === 'POST' && route === '/v1/transactions') {
@@ -241,7 +294,8 @@ async function settleTransaction(tx) {
 }
 
 async function translateWithBilling(user, body) {
-  if (!OPENROUTER_API_KEY) {
+  const openRouterConfig = await resolveOpenRouterKey()
+  if (!openRouterConfig.key) {
     return json(500, { error: 'Translation service not configured' })
   }
 
@@ -271,7 +325,7 @@ async function translateWithBilling(user, body) {
     })
   }
 
-  const translatedText = await callOpenRouterTranslate(text, target)
+  const translatedText = await callOpenRouterTranslate(text, target, openRouterConfig.key)
   const chargeCredits = Math.max(text.length, translatedText.length)
   if (Number(user.balance || 0) < chargeCredits) {
     return json(402, {
@@ -299,11 +353,11 @@ async function translateWithBilling(user, body) {
   return json(200, { translatedText })
 }
 
-async function callOpenRouterTranslate(text, target) {
+async function callOpenRouterTranslate(text, target, openRouterApiKey) {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${openRouterApiKey}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
@@ -335,6 +389,59 @@ async function callOpenRouterTranslate(text, target) {
   }
 
   return translated.trim()
+}
+
+async function resolveOpenRouterKey() {
+  if (
+    openRouterKeyCache.key !== null &&
+    Date.now() - openRouterKeyCache.fetchedAt < OPENROUTER_KEY_CACHE_TTL_MS
+  ) {
+    return openRouterKeyCache
+  }
+
+  const stored = await adminConfigStore.get('openrouter', { type: 'json' })
+  if (stored && typeof stored.apiKey === 'string' && stored.apiKey.trim()) {
+    openRouterKeyCache = {
+      fetchedAt: Date.now(),
+      key: stored.apiKey.trim(),
+      source: 'blob',
+      updatedAt: Number(stored.updatedAt || 0) || null
+    }
+    return openRouterKeyCache
+  }
+
+  openRouterKeyCache = {
+    fetchedAt: Date.now(),
+    key: OPENROUTER_API_KEY || '',
+    source: OPENROUTER_API_KEY ? 'env' : 'none',
+    updatedAt: null
+  }
+  return openRouterKeyCache
+}
+
+function invalidateOpenRouterCache() {
+  openRouterKeyCache = {
+    fetchedAt: 0,
+    key: null,
+    source: 'none',
+    updatedAt: null
+  }
+}
+
+function assertAdminRequest(request) {
+  if (!TRANSLATION_ADMIN_TOKEN) {
+    const err = new Error('Translation admin token not configured')
+    err.statusCode = 500
+    throw err
+  }
+  const authHeader = request.headers.get('authorization') || ''
+  if (!authHeader.startsWith('Bearer ')) {
+    throw authError()
+  }
+  const providedToken = authHeader.slice(7).trim()
+  if (!safeEqualConstantTime(providedToken, TRANSLATION_ADMIN_TOKEN)) {
+    throw authError()
+  }
 }
 
 async function authenticateRequest(request, routePath) {
@@ -706,6 +813,13 @@ function authError() {
   return err
 }
 
+function safeEqualConstantTime(a, b) {
+  const ab = Buffer.from(String(a))
+  const bb = Buffer.from(String(b))
+  if (ab.length !== bb.length) return false
+  return timingSafeEqual(ab, bb)
+}
+
 async function parseJson(request) {
   try {
     return await request.json()
@@ -731,6 +845,12 @@ function createId(prefix) {
 
 function createHashKey(input) {
   return createHash('sha256').update(input).digest('hex')
+}
+
+function maskSecret(value) {
+  if (!value) return null
+  if (value.length <= 8) return '********'
+  return `${value.slice(0, 4)}…${value.slice(-4)}`
 }
 
 function getTag(tags, name) {
