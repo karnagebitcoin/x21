@@ -36,6 +36,7 @@ import { normalizeUrl } from '@/lib/url'
 import { useLiveStreamPopout } from '@/providers/LiveStreamPopoutProvider'
 
 const DEFAULT_LIVE_RELAYS = ['wss://relay.damus.io/', 'wss://nos.lol/', 'wss://relay.nostr.band/']
+const FAST_LIVE_RELAYS = ['wss://relay.snort.social/', 'wss://relay.primal.net/', 'wss://nostr.wine/']
 const LIVE_STREAM_LOADING_TIMEOUT = 15_000
 
 type DecodedLiveAddress = {
@@ -69,6 +70,18 @@ function getAddressTag(decoded: DecodedLiveAddress): string {
   return `${decoded.kind}:${decoded.pubkey}:${decoded.identifier}`
 }
 
+function getEventTagValue(event: NostrEvent, tagName: string): string | undefined {
+  return event.tags.find((tag) => tag[0] === tagName)?.[1]
+}
+
+function isMatchingLiveAddress(event: NostrEvent, decoded: DecodedLiveAddress): boolean {
+  return (
+    event.kind === decoded.kind &&
+    event.pubkey === decoded.pubkey &&
+    getEventTagValue(event, 'd') === decoded.identifier
+  )
+}
+
 function getStreamRelays(decoded: DecodedLiveAddress): string[] {
   const relayCandidates = [
     ...(decoded.relays ?? []),
@@ -86,7 +99,29 @@ function getStreamRelays(decoded: DecodedLiveAddress): string[] {
   return Array.from(new Set(normalized))
 }
 
-export default function LiveStreamView({ naddr }: { naddr?: string }) {
+function getPrimaryStreamRelays(decoded: DecodedLiveAddress, initialEvent?: NostrEvent): string[] {
+  const eventRelayHints = initialEvent?.tags.find((tag) => tag[0] === 'relays')?.slice(1) ?? []
+  const relayCandidates = [
+    ...eventRelayHints,
+    ...(decoded.relays ?? []),
+    ...DEFAULT_LIVE_RELAYS,
+    ...FAST_LIVE_RELAYS
+  ]
+
+  const normalized = relayCandidates
+    .map((relay) => normalizeUrl(relay))
+    .filter((relay): relay is string => relay.length > 0)
+
+  return Array.from(new Set(normalized)).slice(0, 3)
+}
+
+export default function LiveStreamView({
+  naddr,
+  initialEvent
+}: {
+  naddr?: string
+  initialEvent?: NostrEvent
+}) {
   const { t } = useTranslation()
   const { pubkey, checkLogin, publish } = useNostr()
   const { openPopout, isPopoutOpenForUrl } = useLiveStreamPopout()
@@ -155,132 +190,173 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
     }
 
     const relays = getStreamRelays(decodedEvent)
+    const primaryRelays = getPrimaryStreamRelays(decodedEvent, initialEvent).filter((relay) =>
+      relays.includes(relay)
+    )
+    const seedRelays = primaryRelays.length > 0 ? primaryRelays : relays.slice(0, 3)
+    const fallbackRelays = relays.filter((relay) => !seedRelays.includes(relay))
     const addressTag = getAddressTag(decodedEvent)
+    const hydratedInitialEvent =
+      initialEvent && isMatchingLiveAddress(initialEvent, decodedEvent) ? initialEvent : null
+    const closers: Array<{ close: () => void }> = []
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null
+    let isDisposed = false
+    let hasLiveEvent = !!hydratedInitialEvent
 
     clearLoadingTimeout()
     clearSlowLoadingTimeout()
-    setIsLoading(true)
+    setIsLoading(!hydratedInitialEvent)
     setShowSlowLoading(false)
-    setLiveEvent(null)
+    setLiveEvent(hydratedInitialEvent)
     setChatMessages([])
     setZaps([])
     setCurrentTime(0)
     setDuration(0)
     setIsVideoPlaying(false)
 
-    // Keep loading state a bit longer to avoid false "not found" flashes on slow relays.
-    loadingTimeoutRef.current = setTimeout(() => {
-      setIsLoading(false)
-      loadingTimeoutRef.current = null
-    }, LIVE_STREAM_LOADING_TIMEOUT)
-    slowLoadingTimeoutRef.current = setTimeout(() => {
-      setShowSlowLoading(true)
-      slowLoadingTimeoutRef.current = null
-    }, 3500)
-
-    // Seed with one-shot query to improve first paint speed.
-    client
-      .querySync(relays, {
-        kinds: [decodedEvent.kind],
-        authors: [decodedEvent.pubkey],
-        '#d': [decodedEvent.identifier],
-        limit: 20
-      })
-      .then((events) => {
-        if (events.length === 0) return
-        const latest = events.sort((a, b) => b.created_at - a.created_at)[0]
-        if (!latest) return
-        setLiveEvent(latest)
+    if (!hydratedInitialEvent) {
+      // Keep loading state a bit longer to avoid false "not found" flashes on slow relays.
+      loadingTimeoutRef.current = setTimeout(() => {
         setIsLoading(false)
-        setShowSlowLoading(false)
-        clearLoadingTimeout()
-        clearSlowLoadingTimeout()
+        loadingTimeoutRef.current = null
+      }, LIVE_STREAM_LOADING_TIMEOUT)
+      slowLoadingTimeoutRef.current = setTimeout(() => {
+        setShowSlowLoading(true)
+        slowLoadingTimeoutRef.current = null
+      }, 3500)
+    }
+
+    const applyLiveEvent = (event: NostrEvent) => {
+      hasLiveEvent = true
+      setLiveEvent((previous) => {
+        if (!previous) return event
+        return event.created_at > previous.created_at ? event : previous
       })
-      .catch(() => {
-        // Ignore seed errors; live subscription handles retries/updates.
-      })
-
-    const liveSub = client.subscribe(
-      relays,
-      {
-        kinds: [decodedEvent.kind],
-        authors: [decodedEvent.pubkey],
-        '#d': [decodedEvent.identifier],
-        limit: 20
-      },
-      {
-        onevent: (event: NostrEvent) => {
-          setLiveEvent((previous) => {
-            if (!previous) return event
-            return event.created_at > previous.created_at ? event : previous
-          })
-          setIsLoading(false)
-          setShowSlowLoading(false)
-          clearLoadingTimeout()
-          clearSlowLoadingTimeout()
-        },
-        oneose: () => {
-          // Intentionally no-op: a quick EOSE should not immediately show "not found".
-        }
-      }
-    )
-
-    const chatSub = client.subscribe(
-      relays,
-      {
-        kinds: [1311],
-        '#a': [addressTag],
-        limit: 300
-      },
-      {
-        onevent: (event: NostrEvent) => {
-          setChatMessages((previous) => {
-            if (previous.some((item) => item.id === event.id)) return previous
-            return [...previous, event].sort((a, b) => a.created_at - b.created_at)
-          })
-        }
-      }
-    )
-
-    const zapsSub = client.subscribe(
-      relays,
-      {
-        kinds: [9735],
-        '#a': [addressTag],
-        limit: 100
-      },
-      {
-        onevent: (event: NostrEvent) => {
-          const zapInfo = getZapInfoFromEvent(event)
-          if (!zapInfo?.amount || !zapInfo.senderPubkey) return
-
-          const senderPubkey = zapInfo.senderPubkey
-          const amount = zapInfo.amount
-
-          setZaps((previous) => {
-            if (previous.some((item) => item.id === event.id)) return previous
-
-            const nextZap: LiveZap = {
-              id: event.id,
-              pubkey: senderPubkey,
-              amount,
-              created_at: event.created_at,
-              comment: zapInfo.comment
-            }
-            return [...previous, nextZap].sort((a, b) => b.created_at - a.created_at)
-          })
-        }
-      }
-    )
-
-    return () => {
+      setIsLoading(false)
+      setShowSlowLoading(false)
       clearLoadingTimeout()
       clearSlowLoadingTimeout()
-      liveSub.close()
-      chatSub.close()
-      zapsSub.close()
     }
-  }, [clearLoadingTimeout, clearSlowLoadingTimeout, decodedEvent, loadAttempt])
+
+    const subscribeToRelays = (targetRelays: string[]) => {
+      if (targetRelays.length === 0) return
+
+      const liveSub = client.subscribe(
+        targetRelays,
+        {
+          kinds: [decodedEvent.kind],
+          authors: [decodedEvent.pubkey],
+          '#d': [decodedEvent.identifier],
+          limit: 20
+        },
+        {
+          onevent: (event: NostrEvent) => {
+            applyLiveEvent(event)
+          },
+          oneose: () => {
+            // Intentionally no-op: a quick EOSE should not immediately show "not found".
+          }
+        }
+      )
+      closers.push(liveSub)
+
+      const chatSub = client.subscribe(
+        targetRelays,
+        {
+          kinds: [1311],
+          '#a': [addressTag],
+          limit: 300
+        },
+        {
+          onevent: (event: NostrEvent) => {
+            setChatMessages((previous) => {
+              if (previous.some((item) => item.id === event.id)) return previous
+              return [...previous, event].sort((a, b) => a.created_at - b.created_at)
+            })
+          }
+        }
+      )
+      closers.push(chatSub)
+
+      const zapsSub = client.subscribe(
+        targetRelays,
+        {
+          kinds: [9735],
+          '#a': [addressTag],
+          limit: 100
+        },
+        {
+          onevent: (event: NostrEvent) => {
+            const zapInfo = getZapInfoFromEvent(event)
+            if (!zapInfo?.amount || !zapInfo.senderPubkey) return
+
+            const senderPubkey = zapInfo.senderPubkey
+            const amount = zapInfo.amount
+
+            setZaps((previous) => {
+              if (previous.some((item) => item.id === event.id)) return previous
+
+              const nextZap: LiveZap = {
+                id: event.id,
+                pubkey: senderPubkey,
+                amount,
+                created_at: event.created_at,
+                comment: zapInfo.comment
+              }
+              return [...previous, nextZap].sort((a, b) => b.created_at - a.created_at)
+            })
+          }
+        }
+      )
+      closers.push(zapsSub)
+    }
+
+    const queryLiveEvent = (targetRelays: string[]) =>
+      client
+        .querySync(targetRelays, {
+          kinds: [decodedEvent.kind],
+          authors: [decodedEvent.pubkey],
+          '#d': [decodedEvent.identifier],
+          limit: 10
+        })
+        .then((events) => {
+          if (isDisposed || events.length === 0) return false
+          const latest = events.sort((a, b) => b.created_at - a.created_at)[0]
+          if (!latest) return false
+          applyLiveEvent(latest)
+          return true
+        })
+        .catch(() => false)
+
+    // Fast first: hit a small relay tier immediately for stream metadata/chat/zaps.
+    subscribeToRelays(seedRelays)
+    queryLiveEvent(seedRelays).then((found) => {
+      if (!found && fallbackRelays.length > 0) {
+        queryLiveEvent(fallbackRelays)
+      }
+    })
+
+    // Then widen to all stream relays for completeness.
+    if (fallbackRelays.length > 0) {
+      fallbackTimer = setTimeout(() => {
+        if (isDisposed) return
+        subscribeToRelays(fallbackRelays)
+        if (!hasLiveEvent) {
+          queryLiveEvent(fallbackRelays)
+        }
+      }, hydratedInitialEvent ? 2500 : 1200)
+    }
+
+    return () => {
+      isDisposed = true
+      clearLoadingTimeout()
+      clearSlowLoadingTimeout()
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer)
+      }
+      closers.forEach((closer) => closer.close())
+    }
+  }, [clearLoadingTimeout, clearSlowLoadingTimeout, decodedEvent, initialEvent, loadAttempt])
 
   const scrollChatToBottom = useCallback(() => {
     const container = chatContainerRef.current

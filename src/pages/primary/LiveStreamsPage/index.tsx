@@ -17,13 +17,13 @@ const LiveStreamsPage = forwardRef((_, ref) => {
   const layoutRef = useRef<TPageRef>(null)
   const liveEventListRef = useRef<TLiveEventListRef>(null)
   const supportTouch = useMemo(() => isTouchDevice(), [])
-  const [activeStream, setActiveStream] = useState<{ naddr: string; title: string } | null>(null)
+  const [activeStream, setActiveStream] = useState<{ naddr: string; title: string; event: NostrEvent } | null>(null)
 
   useImperativeHandle(ref, () => layoutRef.current)
 
   const handleOpenStream = (naddr: string, event: NostrEvent) => {
     const title = event.tags.find((tag) => tag[0] === 'title')?.[1] || t('Live Stream')
-    setActiveStream({ naddr, title })
+    setActiveStream({ naddr, title, event })
   }
 
   const handleCloseStream = () => {
@@ -46,7 +46,7 @@ const LiveStreamsPage = forwardRef((_, ref) => {
       hideScrollBar={!!activeStream}
     >
       {activeStream ? (
-        <LiveStreamView naddr={activeStream.naddr} />
+        <LiveStreamView naddr={activeStream.naddr} initialEvent={activeStream.event} />
       ) : (
         <LiveEventList ref={liveEventListRef} onOpenStream={handleOpenStream} />
       )}
