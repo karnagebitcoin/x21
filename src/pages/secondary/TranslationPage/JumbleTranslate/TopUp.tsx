@@ -44,6 +44,9 @@ export default function TopUp() {
   const [quote, setQuote] = useState<TTopUpQuote | null>(null)
   const [selectedCharacters, setSelectedCharacters] = useState<number | null>(null)
   const [latestTransactionId, setLatestTransactionId] = useState('')
+  const [latestInvoiceComment, setLatestInvoiceComment] = useState('')
+  const [paymentStatus, setPaymentStatus] = useState('')
+  const [canAutoVerifyPayment, setCanAutoVerifyPayment] = useState<boolean | null>(null)
   const [copiedTx, setCopiedTx] = useState(false)
 
   useEffect(() => {
@@ -84,16 +87,78 @@ export default function TopUp() {
     if (topUpLoading || !pubkey || !pkg) return
 
     setTopUpLoading(true)
+    setPaymentStatus('')
     try {
-      const { transactionId, invoiceId, sats, characters } = await transaction.createTransaction(
-        pubkey,
-        pkg.characters
-      )
+      const { transactionId, invoiceId, sats, characters, canVerify, invoiceComment } =
+        await transaction.createTransaction(pubkey, pkg.characters)
       setLatestTransactionId(transactionId)
+      setLatestInvoiceComment(invoiceComment || '')
+      setCanAutoVerifyPayment(canVerify)
+      setPaymentStatus(
+        t('Waiting for payment confirmation...', {
+          defaultValue: 'Waiting for payment confirmation...'
+        })
+      )
 
       let checkPaymentInterval: ReturnType<typeof setInterval> | undefined = undefined
+      let settled = false
+
+      const finalizeSettled = async () => {
+        if (settled) return
+        settled = true
+        clearInterval(checkPaymentInterval)
+        setTopUpLoading(false)
+        setPaymentStatus(
+          t('Payment received. Credits added.', {
+            defaultValue: 'Payment received. Credits added.'
+          })
+        )
+        await getAccount()
+        toast.success(
+          t('Top up successful: {{chars}} credits for {{sats}} sats', {
+            chars: characters.toLocaleString(),
+            sats: sats.toLocaleString(),
+            defaultValue: `Top up successful: ${characters.toLocaleString()} credits for ${sats.toLocaleString()} sats`
+          })
+        )
+      }
+
       const { setPaid } = launchPaymentModal({
         invoice: invoiceId,
+        paymentMethods: 'all',
+        onPaid: async (response) => {
+          try {
+            if (response?.preimage) {
+              const result = await transaction.confirmTransaction(transactionId, response.preimage)
+              if (result.state === 'settled') {
+                await finalizeSettled()
+                return
+              }
+            }
+
+            const result = await transaction.checkTransaction(transactionId)
+            if (result.state === 'settled') {
+              await finalizeSettled()
+              return
+            }
+
+            setCanAutoVerifyPayment(result.canVerify ?? canVerify)
+            setTopUpLoading(false)
+            setPaymentStatus(
+              t('Payment sent. Waiting for settlement confirmation...', {
+                defaultValue: 'Payment sent. Waiting for settlement confirmation...'
+              })
+            )
+          } catch (error) {
+            setTopUpLoading(false)
+            toast.error(
+              t('Payment received but confirmation failed. Refresh status.', {
+                defaultValue: 'Payment received but confirmation failed. Refresh status.'
+              })
+            )
+            console.error('payment confirm failed', error)
+          }
+        },
         onCancelled: () => {
           clearInterval(checkPaymentInterval)
           setTopUpLoading(false)
@@ -103,24 +168,20 @@ export default function TopUp() {
       let failedCount = 0
       checkPaymentInterval = setInterval(async () => {
         try {
-          const { state } = await transaction.checkTransaction(transactionId)
+          const { state, canVerify: nextCanVerify } = await transaction.checkTransaction(transactionId)
+          setCanAutoVerifyPayment(nextCanVerify ?? canVerify)
           if (state === 'pending') return
-
-          clearInterval(checkPaymentInterval)
-          setTopUpLoading(false)
 
           if (state === 'settled') {
             setPaid({ preimage: '' })
-            await getAccount()
-            toast.success(
-              t('Top up successful: {{chars}} credits for {{sats}} sats', {
-                chars: characters.toLocaleString(),
-                sats: sats.toLocaleString(),
-                defaultValue: `Top up successful: ${characters.toLocaleString()} credits for ${sats.toLocaleString()} sats`
-              })
-            )
+            await finalizeSettled()
           } else {
             closeModal()
+            clearInterval(checkPaymentInterval)
+            setTopUpLoading(false)
+            setPaymentStatus(
+              t('Payment failed or expired', { defaultValue: 'Payment failed or expired' })
+            )
             toast.error(t('The invoice has expired or the payment was not successful'))
           }
         } catch (err) {
@@ -129,6 +190,11 @@ export default function TopUp() {
 
           clearInterval(checkPaymentInterval)
           setTopUpLoading(false)
+          setPaymentStatus(
+            t('Unable to confirm payment automatically', {
+              defaultValue: 'Unable to confirm payment automatically'
+            })
+          )
           toast.error(
             'Top up failed: ' +
               (err instanceof Error ? err.message : 'An error occurred while topping up')
@@ -137,6 +203,7 @@ export default function TopUp() {
       }, 2000)
     } catch (err) {
       setTopUpLoading(false)
+      setPaymentStatus('')
       toast.error(
         'Top up failed: ' +
           (err instanceof Error ? err.message : 'An error occurred while topping up')
@@ -202,6 +269,23 @@ export default function TopUp() {
         </div>
       )}
 
+      {latestInvoiceComment && (
+        <p className="text-xs text-muted-foreground">
+          {t('Invoice memo', { defaultValue: 'Invoice memo' })}: {latestInvoiceComment}
+        </p>
+      )}
+
+      {paymentStatus && <p className="text-xs text-muted-foreground">{paymentStatus}</p>}
+
+      {canAutoVerifyPayment === false && (
+        <p className="text-xs text-amber-500/90">
+          {t('External QR payments may not auto-confirm with this lightning address. Connected wallet payment confirms instantly.', {
+            defaultValue:
+              'External QR payments may not auto-confirm with this lightning address. Connected wallet payment confirms instantly.'
+          })}
+        </p>
+      )}
+
       <Button
         className="w-full"
         disabled={topUpLoading || !selectedPackage}
@@ -209,7 +293,7 @@ export default function TopUp() {
       >
         {topUpLoading && <Loader className="animate-spin" />}
         {selectedPackage
-          ? t('Top up {{n}} sats', {
+          ? t('Top up {n} sats', {
               n: selectedPackage.sats.toLocaleString(),
               defaultValue: `Top up ${selectedPackage.sats.toLocaleString()} sats`
             })

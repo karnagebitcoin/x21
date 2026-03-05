@@ -1,5 +1,6 @@
 import { getStore } from '@netlify/blobs'
 import { randomBytes, createHash } from 'node:crypto'
+import { Invoice } from '@getalby/lightning-tools'
 import { kinds, verifyEvent } from 'nostr-tools'
 
 const usersStore = getStore('translation-users')
@@ -65,6 +66,16 @@ export default async (request) => {
     if (request.method === 'POST' && route.startsWith('/v1/transactions/') && route.endsWith('/check')) {
       const transactionId = route.replace('/v1/transactions/', '').replace('/check', '')
       return await checkTransaction(transactionId)
+    }
+
+    if (
+      request.method === 'POST' &&
+      route.startsWith('/v1/transactions/') &&
+      route.endsWith('/confirm')
+    ) {
+      const transactionId = route.replace('/v1/transactions/', '').replace('/confirm', '')
+      const body = await parseJson(request)
+      return await confirmTransaction(transactionId, body)
     }
 
     if (request.method === 'GET' && route === '/v1/translation/account') {
@@ -136,6 +147,7 @@ async function createTransaction(body) {
     state: 'pending',
     invoice: invoiceData.invoice,
     verify: invoiceData.verify ?? null,
+    paymentHash: getPaymentHashFromInvoice(invoiceData.invoice),
     lightningAddress: TRANSLATION_LIGHTNING_ADDRESS,
     invoiceComment,
     createdAt: Date.now(),
@@ -147,7 +159,9 @@ async function createTransaction(body) {
     transactionId,
     invoiceId: invoiceData.invoice,
     sats: pack.sats,
-    characters: pack.characters
+    characters: pack.characters,
+    canVerify: Boolean(invoiceData.verify),
+    invoiceComment
   })
 }
 
@@ -159,27 +173,71 @@ async function checkTransaction(transactionId) {
   }
 
   if (tx.state !== 'pending') {
-    return json(200, { state: tx.state })
+    return json(200, { state: tx.state, canVerify: Boolean(tx.verify) })
   }
 
   const nextState = await getTransactionState(tx)
-  if (nextState !== 'pending') {
-    tx.state = nextState
+  if (nextState === 'settled') {
+    await settleTransaction(tx)
+  } else if (nextState === 'failed') {
+    tx.state = 'failed'
     tx.updatedAt = Date.now()
-
-    if (nextState === 'settled') {
-      const user = await ensureUser(tx.pubkey)
-      user.balance = Number(user.balance || 0) + Number(tx.characters || 0)
-      user.purchasedCredits = Number(user.purchasedCredits || 0) + Number(tx.characters || 0)
-      user.totalSatsPaid = Number(user.totalSatsPaid || 0) + Number(tx.sats || 0)
-      user.updatedAt = Date.now()
-      await saveUser(user)
-    }
-
     await transactionStore.setJSON(txKey, tx)
   }
 
-  return json(200, { state: tx.state })
+  return json(200, { state: tx.state, canVerify: Boolean(tx.verify) })
+}
+
+async function confirmTransaction(transactionId, body) {
+  const txKey = `tx:${transactionId}`
+  const tx = await transactionStore.get(txKey, { type: 'json' })
+  if (!tx) {
+    return json(404, { error: 'Transaction not found' })
+  }
+
+  if (tx.state === 'settled') {
+    return json(200, { state: 'settled', canVerify: Boolean(tx.verify) })
+  }
+
+  const preimage =
+    typeof body?.preimage === 'string' ? body.preimage.trim().toLowerCase() : ''
+  if (!/^[0-9a-f]{64}$/i.test(preimage)) {
+    return json(400, { error: 'Invalid preimage' })
+  }
+
+  const expectedPaymentHash = tx.paymentHash || getPaymentHashFromInvoice(tx.invoice)
+  const providedPaymentHash = createHash('sha256').update(Buffer.from(preimage, 'hex')).digest('hex')
+
+  if (!expectedPaymentHash || expectedPaymentHash !== providedPaymentHash) {
+    return json(400, { error: 'Payment proof mismatch' })
+  }
+
+  tx.preimage = preimage
+  tx.paymentHash = expectedPaymentHash
+  await settleTransaction(tx)
+  return json(200, { state: 'settled', canVerify: Boolean(tx.verify) })
+}
+
+async function settleTransaction(tx) {
+  if (tx.state === 'settled') {
+    return
+  }
+
+  tx.state = 'settled'
+  tx.updatedAt = Date.now()
+  tx.settledAt = tx.settledAt || Date.now()
+
+  if (!tx.creditedAt) {
+    const user = await ensureUser(tx.pubkey)
+    user.balance = Number(user.balance || 0) + Number(tx.characters || 0)
+    user.purchasedCredits = Number(user.purchasedCredits || 0) + Number(tx.characters || 0)
+    user.totalSatsPaid = Number(user.totalSatsPaid || 0) + Number(tx.sats || 0)
+    user.updatedAt = Date.now()
+    await saveUser(user)
+    tx.creditedAt = Date.now()
+  }
+
+  await transactionStore.setJSON(`tx:${tx.id}`, tx)
 }
 
 async function translateWithBilling(user, body) {
@@ -507,7 +565,7 @@ async function createInvoiceForLightningAddress({ lightningAddress, sats, commen
 
 async function getTransactionState(tx) {
   if (!tx.verify) {
-    return 'pending'
+    return await getFallbackTransactionState(tx)
   }
 
   try {
@@ -533,6 +591,63 @@ async function getTransactionState(tx) {
   return 'pending'
 }
 
+async function getFallbackTransactionState(tx) {
+  const paymentHash = tx.paymentHash || getPaymentHashFromInvoice(tx.invoice)
+  if (!paymentHash) {
+    return 'pending'
+  }
+
+  const domains = new Set(['coinos.io'])
+  if (typeof tx.lightningAddress === 'string' && tx.lightningAddress.includes('@')) {
+    const domain = tx.lightningAddress.split('@')[1]?.trim().toLowerCase()
+    if (domain) {
+      domains.add(domain)
+    }
+  }
+
+  const statusUrls = Array.from(domains).flatMap((domain) => [
+    `https://${domain}/api/invoice/${paymentHash}`,
+    `https://${domain}/api/v1/invoice/${paymentHash}`
+  ])
+
+  for (const statusUrl of statusUrls) {
+    try {
+      const response = await fetch(statusUrl, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(2000)
+      })
+      const rawText = await response.text()
+      if (!rawText) continue
+
+      // Skip SPA/HTML fallback responses.
+      if (rawText.trim().toLowerCase().startsWith('<!doctype html')) {
+        continue
+      }
+
+      try {
+        const data = JSON.parse(rawText)
+        if (looksSettled(data)) return 'settled'
+        if (looksFailed(data)) return 'failed'
+      } catch {
+        const normalized = rawText.toLowerCase()
+        if (/invoice not found|not found|unknown invoice/.test(normalized)) {
+          continue
+        }
+        if (/\b(settled|paid|confirmed|complete)\b/.test(normalized)) {
+          return 'settled'
+        }
+        if (/\b(failed|expired|cancelled|canceled)\b/.test(normalized)) {
+          return 'failed'
+        }
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return 'pending'
+}
+
 function looksSettled(data) {
   return (
     data?.paid === true ||
@@ -552,6 +667,15 @@ function looksFailed(data) {
     data?.state === 'FAILED' ||
     data?.failed === true
   )
+}
+
+function getPaymentHashFromInvoice(invoice) {
+  try {
+    const parsed = new Invoice({ pr: invoice })
+    return parsed.paymentHash || null
+  } catch {
+    return null
+  }
 }
 
 function mapAccount(user) {

@@ -33,6 +33,8 @@ class TransactionService {
     invoiceId: string
     sats: number
     characters: number
+    canVerify: boolean
+    invoiceComment: string
   }> {
     const url = new URL('/v1/transactions', JUMBLE_API_BASE_URL).toString()
     const response = await fetch(url, {
@@ -67,6 +69,7 @@ class TransactionService {
 
   async checkTransaction(transactionId: string): Promise<{
     state: 'pending' | 'failed' | 'settled'
+    canVerify?: boolean
   }> {
     const url = new URL(`/v1/transactions/${transactionId}/check`, JUMBLE_API_BASE_URL).toString()
     const response = await fetch(url, {
@@ -75,6 +78,28 @@ class TransactionService {
     const data = await response.json()
     if (!response.ok) {
       throw new Error(data.error ?? 'Failed to complete transaction')
+    }
+    return data
+  }
+
+  async confirmTransaction(
+    transactionId: string,
+    preimage: string
+  ): Promise<{
+    state: 'pending' | 'failed' | 'settled'
+    canVerify?: boolean
+  }> {
+    const url = new URL(`/v1/transactions/${transactionId}/confirm`, JUMBLE_API_BASE_URL).toString()
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ preimage })
+    })
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error ?? 'Failed to confirm transaction')
     }
     return data
   }
