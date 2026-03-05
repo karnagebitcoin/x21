@@ -7,6 +7,7 @@ import {
   toBackupSettings,
   toContentPrivacySettings,
   toGeneralSettings,
+  toKeysSettings,
   toPostSettings,
   toRelaySettings,
   toTranslation,
@@ -18,10 +19,8 @@ import { useSecondaryPage } from '@/PageManager'
 import { useNostr } from '@/providers/NostrProvider'
 import {
   Bot,
-  Check,
   ChevronRight,
   Cloud,
-  Copy,
   Info,
   KeyRound,
   Languages,
@@ -64,11 +63,9 @@ function isSearchMatch(item: TSettingsSearchItem, query: string) {
 
 const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
   const { t } = useTranslation()
-  const { pubkey, nsec, ncryptsec } = useNostr()
+  const { pubkey } = useNostr()
   const { push } = useSecondaryPage()
   const [settingsQuery, setSettingsQuery] = useState('')
-  const [copiedNsec, setCopiedNsec] = useState(false)
-  const [copiedNcryptsec, setCopiedNcryptsec] = useState(false)
   const normalizedQuery = settingsQuery.trim()
 
   const searchItems = useMemo(() => {
@@ -87,6 +84,13 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
         subtitle: t('General'),
         route: `${toGeneralSettings()}?tab=interface`,
         keywords: ['language', 'payments', 'text only', 'slow connection', 'avatar', 'rtl', 'distraction free']
+      },
+      {
+        id: 'keys',
+        icon: <KeyRound />,
+        title: t('Keys'),
+        route: toKeysSettings(),
+        keywords: ['private key', 'public key', 'nsec', 'ncryptsec', 'npub', 'account security']
       },
       {
         id: 'general-display',
@@ -285,6 +289,10 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
             <Settings2 />
             {t('General')}
           </SettingItem>
+          <SettingItem className="clickable" onClick={() => push(toKeysSettings())}>
+            <KeyRound />
+            {t('Keys')}
+          </SettingItem>
           <SettingItem className="clickable" onClick={() => push(toContentPrivacySettings())}>
             <Shield />
             {t('Content & Privacy')}
@@ -327,34 +335,6 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
             <SettingItem className="clickable" onClick={() => push(toPostSettings())}>
               <PencilLine />
               {t('Post settings')}
-            </SettingItem>
-          )}
-          {!!nsec && (
-            <SettingItem
-              className="clickable"
-              onClick={() => {
-                navigator.clipboard.writeText(nsec)
-                setCopiedNsec(true)
-                setTimeout(() => setCopiedNsec(false), 2000)
-              }}
-              rightIcon={copiedNsec ? <Check /> : <Copy />}
-            >
-              <KeyRound />
-              {t('Copy private key')} (nsec)
-            </SettingItem>
-          )}
-          {!!ncryptsec && (
-            <SettingItem
-              className="clickable"
-              onClick={() => {
-                navigator.clipboard.writeText(ncryptsec)
-                setCopiedNcryptsec(true)
-                setTimeout(() => setCopiedNcryptsec(false), 2000)
-              }}
-              rightIcon={copiedNcryptsec ? <Check /> : <Copy />}
-            >
-              <KeyRound />
-              {t('Copy private key')} (ncryptsec)
             </SettingItem>
           )}
           <AboutInfoDialog>

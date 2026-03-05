@@ -75,6 +75,7 @@ export const toWidgetsSettings = () => '/settings/widgets'
 export const toTranslation = () => '/settings/translation'
 export const toAITools = () => '/settings/ai-tools'
 export const toBackupSettings = () => '/settings/backup'
+export const toKeysSettings = () => '/settings/keys'
 export const toProfileEditor = () => '/profile-editor'
 export const toRelay = (url: string) => `/relays/${encodeURIComponent(url)}`
 export const toRelayReviews = (url: string) => `/relays/${encodeURIComponent(url)}/reviews`

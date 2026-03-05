@@ -10,6 +10,7 @@ const BackupSettingsPage = lazy(() => import('./pages/secondary/BackupSettingsPa
 const ContentPrivacySettingsPage = lazy(() => import('./pages/secondary/ContentPrivacySettingsPage'))
 const FollowingListPage = lazy(() => import('./pages/secondary/FollowingListPage'))
 const GeneralSettingsPage = lazy(() => import('./pages/secondary/GeneralSettingsPage'))
+const KeysSettingsPage = lazy(() => import('./pages/secondary/KeysSettingsPage'))
 const MuteListPage = lazy(() => import('./pages/secondary/MuteListPage'))
 const NoteListPage = lazy(() => import('./pages/secondary/NoteListPage'))
 const NotePage = lazy(() => import('./pages/secondary/NotePage'))
@@ -66,6 +67,7 @@ const SuspendedBackupSettingsPage = withSuspense(BackupSettingsPage, 'BackupSett
 const SuspendedContentPrivacySettingsPage = withSuspense(ContentPrivacySettingsPage, 'ContentPrivacySettingsPage')
 const SuspendedFollowingListPage = withSuspense(FollowingListPage, 'FollowingListPage')
 const SuspendedGeneralSettingsPage = withSuspense(GeneralSettingsPage, 'GeneralSettingsPage')
+const SuspendedKeysSettingsPage = withSuspense(KeysSettingsPage, 'KeysSettingsPage')
 const SuspendedMuteListPage = withSuspense(MuteListPage, 'MuteListPage')
 const SuspendedNoteListPage = withSuspense(NoteListPage, 'NoteListPage')
 const SuspendedNotePage = withSuspense(NotePage, 'NotePage')
@@ -104,6 +106,7 @@ const ROUTES = [
   { path: '/settings/wallet', element: <SuspendedWalletPage /> },
   { path: '/settings/posts', element: <SuspendedPostSettingsPage /> },
   { path: '/settings/general', element: <SuspendedGeneralSettingsPage /> },
+  { path: '/settings/keys', element: <SuspendedKeysSettingsPage /> },
   { path: '/settings/content-privacy', element: <SuspendedContentPrivacySettingsPage /> },
   { path: '/settings/appearance', element: <SuspendedAppearanceSettingsPage /> },
   { path: '/settings/widgets', element: <SuspendedWidgetsSettingsPage /> },
