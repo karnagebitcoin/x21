@@ -1,4 +1,5 @@
 import { JUMBLE_API_BASE_URL } from '@/constants'
+import client from '@/services/client.service'
 
 type TTopUpQuotePackage = {
   characters: number
@@ -37,10 +38,21 @@ class TransactionService {
     invoiceComment: string
   }> {
     const url = new URL('/v1/transactions', JUMBLE_API_BASE_URL).toString()
+    let authHeader: string | undefined
+    try {
+      authHeader = await client.signHttpAuth(
+        url,
+        'POST',
+        'Authorize translation top-up transaction'
+      )
+    } catch {
+      authHeader = undefined
+    }
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...(authHeader ? { Authorization: authHeader } : {})
       },
       body: JSON.stringify({
         pubkey,

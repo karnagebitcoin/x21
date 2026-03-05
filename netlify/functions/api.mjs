@@ -8,6 +8,7 @@ const apiKeyStore = getStore('translation-api-keys')
 const transactionStore = getStore('translation-transactions')
 const translationCacheStore = getStore('translation-cache')
 const adminConfigStore = getStore('translation-admin-config')
+const adminAuditStore = getStore('translation-admin-audit')
 
 const TRANSLATION_LIGHTNING_ADDRESS =
   process.env.TRANSLATION_LIGHTNING_ADDRESS || 'translation@katvibes.com'
@@ -82,6 +83,76 @@ export default async (request) => {
       })
     }
 
+    if (request.method === 'GET' && route === '/v1/admin/translation/transactions') {
+      assertAdminRequest(request)
+      const url = new URL(request.url)
+      const state = url.searchParams.get('state') || ''
+      const pubkey = url.searchParams.get('pubkey') || ''
+      const limit = toSafeInt(url.searchParams.get('limit'), 100, 1, 500)
+      const data = await listTransactionsForAdmin({ state, pubkey, limit })
+      return json(200, data)
+    }
+
+    if (request.method === 'GET' && route === '/v1/admin/translation/users') {
+      assertAdminRequest(request)
+      const url = new URL(request.url)
+      const query = (url.searchParams.get('q') || '').toLowerCase().trim()
+      const limit = toSafeInt(url.searchParams.get('limit'), 100, 1, 500)
+      const data = await listUsersForAdmin({ query, limit })
+      return json(200, data)
+    }
+
+    const txReconcileMatch = route.match(
+      /^\/v1\/admin\/translation\/transactions\/([^/]+)\/reconcile$/
+    )
+    if (request.method === 'POST' && txReconcileMatch) {
+      assertAdminRequest(request)
+      const transactionId = txReconcileMatch[1]
+      const body = await parseJson(request)
+      const result = await adminReconcileTransaction(transactionId, body)
+      return json(200, result)
+    }
+
+    const txSettleMatch = route.match(/^\/v1\/admin\/translation\/transactions\/([^/]+)\/settle$/)
+    if (request.method === 'POST' && txSettleMatch) {
+      assertAdminRequest(request)
+      const transactionId = txSettleMatch[1]
+      const body = await parseJson(request)
+      const result = await adminForceSettleTransaction(transactionId, body)
+      return json(200, result)
+    }
+
+    const userReissueMatch = route.match(
+      /^\/v1\/admin\/translation\/users\/([0-9a-fA-F]{64})\/reissue-api-key$/
+    )
+    if (request.method === 'POST' && userReissueMatch) {
+      assertAdminRequest(request)
+      const userPubkey = userReissueMatch[1].toLowerCase()
+      const result = await adminReissueApiKey(userPubkey)
+      return json(200, result)
+    }
+
+    const userAdjustMatch = route.match(
+      /^\/v1\/admin\/translation\/users\/([0-9a-fA-F]{64})\/adjust$/
+    )
+    if (request.method === 'POST' && userAdjustMatch) {
+      assertAdminRequest(request)
+      const userPubkey = userAdjustMatch[1].toLowerCase()
+      const body = await parseJson(request)
+      const result = await adminAdjustUser(userPubkey, body)
+      return json(200, result)
+    }
+
+    const userDeleteMatch = route.match(
+      /^\/v1\/admin\/translation\/users\/([0-9a-fA-F]{64})$/
+    )
+    if (request.method === 'DELETE' && userDeleteMatch) {
+      assertAdminRequest(request)
+      const userPubkey = userDeleteMatch[1].toLowerCase()
+      const result = await adminDeleteUser(userPubkey)
+      return json(200, result)
+    }
+
     if (request.method === 'POST' && route === '/v1/admin/translation/openrouter-key') {
       assertAdminRequest(request)
       const body = await parseJson(request)
@@ -113,7 +184,7 @@ export default async (request) => {
 
     if (request.method === 'POST' && route === '/v1/transactions') {
       const body = await parseJson(request)
-      return await createTransaction(body)
+      return await createTransaction(request, body)
     }
 
     if (request.method === 'POST' && route.startsWith('/v1/transactions/') && route.endsWith('/check')) {
@@ -166,8 +237,13 @@ export default async (request) => {
   }
 }
 
-async function createTransaction(body) {
-  const pubkey = typeof body?.pubkey === 'string' ? body.pubkey : ''
+async function createTransaction(request, body) {
+  const signedPubkey = await authenticateOptionalNostrRequest(request, '/v1/transactions')
+  const providedPubkey = typeof body?.pubkey === 'string' ? body.pubkey.toLowerCase() : ''
+  if (signedPubkey && providedPubkey && signedPubkey !== providedPubkey) {
+    return json(400, { error: 'Signed pubkey does not match requested pubkey' })
+  }
+  const pubkey = signedPubkey || providedPubkey
   const requestedCharacters = Number(body?.characters ?? 0)
   if (!isHexPubkey(pubkey)) {
     return json(400, { error: 'Invalid pubkey' })
@@ -229,10 +305,13 @@ async function checkTransaction(transactionId) {
     return json(200, { state: tx.state, canVerify: Boolean(tx.verify) })
   }
 
-  const nextState = await getTransactionState(tx)
-  if (nextState === 'settled') {
+  const status = await getTransactionState(tx)
+  if (status.state === 'settled') {
+    if (status.preimage && !tx.preimage) {
+      tx.preimage = status.preimage
+    }
     await settleTransaction(tx)
-  } else if (nextState === 'failed') {
+  } else if (status.state === 'failed') {
     tx.state = 'failed'
     tx.updatedAt = Date.now()
     await transactionStore.setJSON(txKey, tx)
@@ -291,6 +370,224 @@ async function settleTransaction(tx) {
   }
 
   await transactionStore.setJSON(`tx:${tx.id}`, tx)
+}
+
+async function getInvoiceVerificationState(tx) {
+  try {
+    const invoice = new Invoice({
+      pr: tx.invoice,
+      verify: typeof tx.verify === 'string' && tx.verify ? tx.verify : undefined
+    })
+    const paid = await withTimeout(invoice.verifyPayment(), 4000, false)
+    if (paid) {
+      const preimage =
+        typeof invoice.preimage === 'string' && /^[0-9a-f]{64}$/i.test(invoice.preimage)
+          ? invoice.preimage.toLowerCase()
+          : undefined
+      return { state: 'settled', preimage }
+    }
+    if (invoice.hasExpired()) {
+      return { state: 'failed' }
+    }
+  } catch (error) {
+    console.warn('invoice verify failed', error)
+  }
+
+  return { state: 'pending' }
+}
+
+async function listTransactionsForAdmin({ state, pubkey, limit }) {
+  const transactions = await listJsonEntries(transactionStore, 'tx:', limit * 2)
+  const normalizedState = state.toLowerCase().trim()
+  const normalizedPubkey = pubkey.toLowerCase().trim()
+  const filtered = transactions
+    .filter((tx) =>
+      normalizedState ? String(tx.state || '').toLowerCase() === normalizedState : true
+    )
+    .filter((tx) =>
+      normalizedPubkey ? String(tx.pubkey || '').toLowerCase().includes(normalizedPubkey) : true
+    )
+    .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
+    .slice(0, limit)
+
+  const userMap = await getUsersMap(filtered.map((tx) => tx.pubkey))
+  const data = filtered.map((tx) => mapTransactionForAdmin(tx, userMap.get(tx.pubkey)))
+  return {
+    count: data.length,
+    transactions: data
+  }
+}
+
+async function listUsersForAdmin({ query, limit }) {
+  const users = await listJsonEntries(usersStore, 'user:', limit * 2)
+  const filtered = users
+    .filter((user) => {
+      if (!query) return true
+      const apiKey = typeof user.apiKey === 'string' ? user.apiKey : ''
+      return (
+        String(user.pubkey || '')
+          .toLowerCase()
+          .includes(query) || apiKey.toLowerCase().includes(query)
+      )
+    })
+    .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0))
+    .slice(0, limit)
+    .map((user) => mapUserForAdmin(user))
+
+  return {
+    count: filtered.length,
+    users: filtered
+  }
+}
+
+async function adminReconcileTransaction(transactionId, body) {
+  const tx = await getTransactionById(transactionId)
+  const preimage = typeof body?.preimage === 'string' ? body.preimage.trim().toLowerCase() : ''
+  if (preimage) {
+    const result = await confirmTransaction(transactionId, { preimage })
+    const payload = await result.json()
+    await writeAdminAudit('transaction.reconcile_with_preimage', {
+      transactionId,
+      state: payload.state
+    })
+    return payload
+  }
+
+  if (tx.state === 'settled') {
+    return {
+      state: 'settled',
+      canVerify: Boolean(tx.verify),
+      transaction: mapTransactionForAdmin(tx)
+    }
+  }
+
+  const status = await getTransactionState(tx)
+  if (status.state === 'settled') {
+    if (status.preimage && !tx.preimage) {
+      tx.preimage = status.preimage
+    }
+    await settleTransaction(tx)
+    await writeAdminAudit('transaction.reconcile_settled', { transactionId })
+    const latest = await getTransactionById(transactionId)
+    return {
+      state: 'settled',
+      canVerify: Boolean(latest.verify),
+      transaction: mapTransactionForAdmin(latest)
+    }
+  }
+
+  if (status.state === 'failed') {
+    tx.state = 'failed'
+    tx.updatedAt = Date.now()
+    await transactionStore.setJSON(`tx:${tx.id}`, tx)
+    await writeAdminAudit('transaction.reconcile_failed', { transactionId })
+  }
+
+  return {
+    state: tx.state,
+    canVerify: Boolean(tx.verify),
+    transaction: mapTransactionForAdmin(tx)
+  }
+}
+
+async function adminForceSettleTransaction(transactionId, body) {
+  const tx = await getTransactionById(transactionId)
+  if (tx.state !== 'settled') {
+    if (typeof body?.preimage === 'string' && /^[0-9a-f]{64}$/i.test(body.preimage.trim())) {
+      tx.preimage = body.preimage.trim().toLowerCase()
+    }
+    tx.manualSettled = true
+    tx.manualReason =
+      typeof body?.reason === 'string' && body.reason.trim() ? body.reason.trim() : 'manual_settle'
+    await settleTransaction(tx)
+  }
+
+  await writeAdminAudit('transaction.force_settle', {
+    transactionId,
+    reason: tx.manualReason || 'manual_settle'
+  })
+  const latest = await getTransactionById(transactionId)
+  return {
+    state: latest.state,
+    transaction: mapTransactionForAdmin(latest)
+  }
+}
+
+async function adminReissueApiKey(pubkey) {
+  const user = await ensureUser(pubkey)
+  const apiKey = createApiKey()
+  await setApiKeyForUser(user, apiKey)
+  await writeAdminAudit('user.reissue_api_key', { pubkey })
+  return { user: mapUserForAdmin(user), api_key: apiKey }
+}
+
+async function adminAdjustUser(pubkey, body) {
+  const user = await ensureUser(pubkey)
+  const balanceDelta = toFiniteNumber(body?.balanceDelta, 0)
+  const purchasedDelta = toFiniteNumber(body?.purchasedDelta, 0)
+  const spentDelta = toFiniteNumber(body?.spentDelta, 0)
+  const satsDelta = toFiniteNumber(body?.satsDelta, 0)
+  const reset = Boolean(body?.reset)
+  const reissueApiKey = Boolean(body?.reissueApiKey)
+
+  if (reset) {
+    user.balance = 0
+    user.purchasedCredits = 0
+    user.spentCredits = 0
+    user.totalSatsPaid = 0
+  }
+
+  user.balance = Math.max(0, Number(user.balance || 0) + balanceDelta)
+  user.purchasedCredits = Math.max(0, Number(user.purchasedCredits || 0) + purchasedDelta)
+  user.spentCredits = Math.max(0, Number(user.spentCredits || 0) + spentDelta)
+  user.totalSatsPaid = Math.max(0, Number(user.totalSatsPaid || 0) + satsDelta)
+  user.updatedAt = Date.now()
+
+  let nextApiKey = null
+  if (reissueApiKey) {
+    nextApiKey = createApiKey()
+    await setApiKeyForUser(user, nextApiKey)
+  } else {
+    await saveUser(user)
+  }
+
+  await writeAdminAudit('user.adjust', {
+    pubkey,
+    reset,
+    balanceDelta,
+    purchasedDelta,
+    spentDelta,
+    satsDelta,
+    reissueApiKey
+  })
+
+  return {
+    user: mapUserForAdmin(user),
+    api_key: nextApiKey
+  }
+}
+
+async function adminDeleteUser(pubkey) {
+  const user = await usersStore.get(`user:${pubkey}`, { type: 'json' })
+  if (!user) {
+    return { deleted: false, reason: 'not_found' }
+  }
+  if (user.apiKey) {
+    await apiKeyStore.delete(`api:${user.apiKey}`)
+  }
+  await usersStore.delete(`user:${pubkey}`)
+  await writeAdminAudit('user.delete', { pubkey })
+  return { deleted: true }
+}
+
+async function getTransactionById(transactionId) {
+  const tx = await transactionStore.get(`tx:${transactionId}`, { type: 'json' })
+  if (!tx) {
+    const err = new Error('Transaction not found')
+    err.statusCode = 404
+    throw err
+  }
+  return tx
 }
 
 async function translateWithBilling(user, body) {
@@ -503,6 +800,50 @@ async function authenticateRequest(request, routePath) {
   return { pubkey: event.pubkey, user }
 }
 
+async function authenticateOptionalNostrRequest(request, routePath) {
+  const authHeader = request.headers.get('authorization') || ''
+  if (!authHeader) return ''
+  if (!authHeader.startsWith('Nostr ')) {
+    const err = new Error('Unsupported authorization scheme')
+    err.statusCode = 400
+    throw err
+  }
+
+  let event
+  try {
+    event = JSON.parse(Buffer.from(authHeader.slice(6).trim(), 'base64').toString('utf8'))
+  } catch {
+    throw authError()
+  }
+
+  if (!event || !verifyEvent(event) || event.kind !== kinds.HTTPAuth) {
+    throw authError()
+  }
+
+  const methodTag = getTag(event.tags, 'method')
+  if (methodTag && methodTag.toUpperCase() !== request.method.toUpperCase()) {
+    throw authError()
+  }
+
+  const urlTag = getTag(event.tags, 'u')
+  if (urlTag) {
+    try {
+      const tagged = new URL(urlTag)
+      if (!tagged.pathname.endsWith(routePath)) {
+        throw authError()
+      }
+    } catch {
+      throw authError()
+    }
+  }
+
+  if (!isHexPubkey(event.pubkey)) {
+    throw authError()
+  }
+
+  return event.pubkey.toLowerCase()
+}
+
 async function ensureUser(pubkey) {
   const key = `user:${pubkey}`
   let user = await usersStore.get(key, { type: 'json' })
@@ -671,6 +1012,11 @@ async function createInvoiceForLightningAddress({ lightningAddress, sats, commen
 }
 
 async function getTransactionState(tx) {
+  const byInvoice = await getInvoiceVerificationState(tx)
+  if (byInvoice.state !== 'pending') {
+    return byInvoice
+  }
+
   if (!tx.verify) {
     return await getFallbackTransactionState(tx)
   }
@@ -681,27 +1027,27 @@ async function getTransactionState(tx) {
     })
     const data = await response.json()
     if (!response.ok) {
-      return 'pending'
+      return { state: 'pending' }
     }
 
     if (looksSettled(data)) {
-      return 'settled'
+      return { state: 'settled' }
     }
 
     if (looksFailed(data)) {
-      return 'failed'
+      return { state: 'failed' }
     }
   } catch (error) {
     console.warn('verify transaction failed', error)
   }
 
-  return 'pending'
+  return { state: 'pending' }
 }
 
 async function getFallbackTransactionState(tx) {
   const paymentHash = tx.paymentHash || getPaymentHashFromInvoice(tx.invoice)
   if (!paymentHash) {
-    return 'pending'
+    return { state: 'pending' }
   }
 
   const domains = new Set(['coinos.io'])
@@ -733,18 +1079,18 @@ async function getFallbackTransactionState(tx) {
 
       try {
         const data = JSON.parse(rawText)
-        if (looksSettled(data)) return 'settled'
-        if (looksFailed(data)) return 'failed'
+        if (looksSettled(data)) return { state: 'settled' }
+        if (looksFailed(data)) return { state: 'failed' }
       } catch {
         const normalized = rawText.toLowerCase()
         if (/invoice not found|not found|unknown invoice/.test(normalized)) {
           continue
         }
         if (/\b(settled|paid|confirmed|complete)\b/.test(normalized)) {
-          return 'settled'
+          return { state: 'settled' }
         }
         if (/\b(failed|expired|cancelled|canceled)\b/.test(normalized)) {
-          return 'failed'
+          return { state: 'failed' }
         }
       }
     } catch {
@@ -752,7 +1098,7 @@ async function getFallbackTransactionState(tx) {
     }
   }
 
-  return 'pending'
+  return { state: 'pending' }
 }
 
 function looksSettled(data) {
@@ -785,6 +1131,77 @@ function getPaymentHashFromInvoice(invoice) {
   }
 }
 
+async function listJsonEntries(store, prefix, limit = 200) {
+  const out = []
+  outer: for await (const page of store.list({ prefix, paginate: true })) {
+    const keys = page.blobs.map((item) => item.key)
+    const values = await Promise.all(keys.map((key) => store.get(key, { type: 'json' })))
+    for (const value of values) {
+      if (!value) continue
+      out.push(value)
+      if (out.length >= limit) break outer
+    }
+  }
+  return out
+}
+
+async function getUsersMap(pubkeys) {
+  const uniquePubkeys = Array.from(new Set(pubkeys.filter((value) => isHexPubkey(value))))
+  const entries = await Promise.all(
+    uniquePubkeys.map(async (pubkey) => {
+      const user = await usersStore.get(`user:${pubkey}`, { type: 'json' })
+      return [pubkey, user]
+    })
+  )
+  return new Map(entries.filter(([, user]) => !!user))
+}
+
+function mapTransactionForAdmin(tx, user) {
+  return {
+    id: tx.id,
+    pubkey: tx.pubkey,
+    state: tx.state,
+    sats: Number(tx.sats || 0),
+    characters: Number(tx.characters || 0),
+    invoiceComment: tx.invoiceComment || '',
+    paymentHash: tx.paymentHash || null,
+    canVerify: Boolean(tx.verify),
+    verifyUrl: tx.verify || null,
+    createdAt: Number(tx.createdAt || 0),
+    updatedAt: Number(tx.updatedAt || 0),
+    settledAt: Number(tx.settledAt || 0) || null,
+    creditedAt: Number(tx.creditedAt || 0) || null,
+    preimage: tx.preimage || null,
+    manualSettled: Boolean(tx.manualSettled),
+    manualReason: tx.manualReason || null,
+    user: user ? mapUserForAdmin(user) : null
+  }
+}
+
+function mapUserForAdmin(user) {
+  return {
+    pubkey: user.pubkey,
+    api_key: user.apiKey || null,
+    api_key_masked: maskSecret(user.apiKey || ''),
+    balance: Number(user.balance || 0),
+    purchased_credits: Number(user.purchasedCredits || 0),
+    spent_credits: Number(user.spentCredits || 0),
+    total_sats_paid: Number(user.totalSatsPaid || 0),
+    createdAt: Number(user.createdAt || 0),
+    updatedAt: Number(user.updatedAt || 0)
+  }
+}
+
+async function writeAdminAudit(action, payload = {}) {
+  const id = `${Date.now()}_${randomBytes(5).toString('hex')}`
+  await adminAuditStore.setJSON(`audit:${id}`, {
+    id,
+    action,
+    payload,
+    createdAt: Date.now()
+  })
+}
+
 function mapAccount(user) {
   return {
     pubkey: user.pubkey,
@@ -811,6 +1228,12 @@ function authError() {
   err.statusCode = 401
   err.code = '00403'
   return err
+}
+
+function toFiniteNumber(value, fallback) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return fallback
+  return number
 }
 
 function safeEqualConstantTime(a, b) {
@@ -869,7 +1292,23 @@ function toPositiveNumber(value, fallback) {
   return number
 }
 
+function toSafeInt(value, fallback, min, max) {
+  const number = Number.parseInt(String(value ?? ''), 10)
+  if (!Number.isFinite(number)) return fallback
+  return Math.max(min, Math.min(max, number))
+}
+
 function round(value, digits) {
   const factor = 10 ** digits
   return Math.round(value * factor) / factor
+}
+
+async function withTimeout(promise, timeoutMs, fallbackValue) {
+  let timeoutId
+  const timeoutPromise = new Promise((resolve) => {
+    timeoutId = setTimeout(() => resolve(fallbackValue), timeoutMs)
+  })
+  const result = await Promise.race([promise, timeoutPromise])
+  clearTimeout(timeoutId)
+  return result
 }
