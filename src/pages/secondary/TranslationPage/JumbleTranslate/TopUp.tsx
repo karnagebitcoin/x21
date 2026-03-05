@@ -24,6 +24,17 @@ type TTopUpQuote = {
   packages: TTopUpPackage[]
 }
 
+function formatCompactChars(value: number) {
+  if (value >= 1_000_000) {
+    const millions = value / 1_000_000
+    return `${Number.isInteger(millions) ? millions : millions.toFixed(1)}m`
+  }
+  if (value >= 1000) {
+    return `${Math.round(value / 1000)}k`
+  }
+  return value.toString()
+}
+
 export default function TopUp() {
   const { t } = useTranslation()
   const { pubkey } = useNostr()
@@ -134,27 +145,12 @@ export default function TopUp() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="space-y-1">
-        <p className="font-medium">{t('Top up')}</p>
-        {quote && (
-          <p className="text-xs text-muted-foreground">
-            {t('Pricing updates with live BTC price. Model: {{model}}', {
-              model: quote.model,
-              defaultValue: `Pricing updates with live BTC price. Model: ${quote.model}`
-            })}{' '}
-            {t('BTC: ${{price}} ({{source}})', {
-              price: quote.btcUsd.toLocaleString(undefined, { maximumFractionDigits: 2 }),
-              source: quote.priceSource,
-              defaultValue: `BTC: $${quote.btcUsd.toLocaleString(undefined, {
-                maximumFractionDigits: 2
-              })} (${quote.priceSource})`
-            })}
-          </p>
-        )}
+        <p className="font-medium">{t('Top up', { defaultValue: 'Top up' })}</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-1.5">
         {quoteLoading && (
           <div className="col-span-2 flex items-center gap-2 text-sm text-muted-foreground">
             <Loader className="h-4 w-4 animate-spin" />
@@ -169,23 +165,24 @@ export default function TopUp() {
               variant="outline"
               onClick={() => setSelectedCharacters(item.characters)}
               className={cn(
-                'flex flex-col h-auto py-3 hover:bg-primary/10',
+                'flex flex-col h-auto rounded-xl py-2.5 px-2 hover:bg-primary/10',
                 selectedCharacters === item.characters && 'border border-primary bg-primary/10'
               )}
             >
-              <span className="text-lg font-semibold">
-                {item.sats.toLocaleString()} {t('sats')}
+              <span className="text-base font-semibold leading-tight">
+                {item.sats.toLocaleString()} {t('sats', { defaultValue: 'sats' })}
               </span>
-              <span className="text-sm text-muted-foreground">
-                {item.characters.toLocaleString()} {t('characters')}
+              <span className="text-xs text-muted-foreground">
+                {formatCompactChars(item.characters)}{' '}
+                {t('characters', { defaultValue: 'characters' })}
               </span>
             </Button>
           ))}
       </div>
 
       {latestTransactionId && (
-        <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
-          <div className="text-xs text-muted-foreground uppercase tracking-wide">
+        <div className="rounded-lg border bg-muted/20 p-2.5 space-y-1.5">
+          <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
             {t('Latest transaction', { defaultValue: 'Latest transaction' })}
           </div>
           <div className="flex items-center gap-2">
@@ -212,8 +209,9 @@ export default function TopUp() {
       >
         {topUpLoading && <Loader className="animate-spin" />}
         {selectedPackage
-          ? t('Top up {n} sats', {
-              n: selectedPackage.sats.toLocaleString()
+          ? t('Top up {{n}} sats', {
+              n: selectedPackage.sats.toLocaleString(),
+              defaultValue: `Top up ${selectedPackage.sats.toLocaleString()} sats`
             })
           : t('Select a package', { defaultValue: 'Select a package' })}
       </Button>

@@ -30,39 +30,48 @@ export function AccountInfo() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Balance display in characters */}
-      <div className="space-y-2">
-        <p className="font-medium">{t('Balance')}</p>
-        <div className="flex items-baseline gap-2">
-          <p className="text-3xl font-bold">{account?.balance.toLocaleString() ?? '0'}</p>
-          <p className="text-muted-foreground">{t('credits', { defaultValue: 'credits' })}</p>
+    <div className="space-y-5">
+      <div className="rounded-xl border bg-muted/15 p-3 space-y-3">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-sm text-muted-foreground">{t('Balance', { defaultValue: 'Balance' })}</p>
+            <p className="text-2xl font-bold leading-none">
+              {(account?.balance ?? 0).toLocaleString()}
+              <span className="ml-2 text-base font-medium text-muted-foreground">
+                {t('credits', { defaultValue: 'credits' })}
+              </span>
+            </p>
+          </div>
         </div>
-        <div className="text-xs text-muted-foreground space-y-1">
-          <p>
-            {t('Credits bought', { defaultValue: 'Credits bought' })}:{' '}
-            {(account?.purchased_credits ?? 0).toLocaleString()}
-          </p>
-          <p>
-            {t('Credits used', { defaultValue: 'Credits used' })}:{' '}
-            {(account?.spent_credits ?? 0).toLocaleString()}
-          </p>
-          <p>
-            {t('Total sats paid', { defaultValue: 'Total sats paid' })}:{' '}
-            {(account?.total_sats_paid ?? 0).toLocaleString()}
-          </p>
+
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-lg border bg-background/50 p-2">
+            <p className="text-[11px] text-muted-foreground">
+              {t('Bought', { defaultValue: 'Bought' })}
+            </p>
+            <p className="text-sm font-semibold">{(account?.purchased_credits ?? 0).toLocaleString()}</p>
+          </div>
+          <div className="rounded-lg border bg-background/50 p-2">
+            <p className="text-[11px] text-muted-foreground">{t('Used', { defaultValue: 'Used' })}</p>
+            <p className="text-sm font-semibold">{(account?.spent_credits ?? 0).toLocaleString()}</p>
+          </div>
+          <div className="rounded-lg border bg-background/50 p-2">
+            <p className="text-[11px] text-muted-foreground">
+              {t('Sats paid', { defaultValue: 'Sats paid' })}
+            </p>
+            <p className="text-sm font-semibold">{(account?.total_sats_paid ?? 0).toLocaleString()}</p>
+          </div>
         </div>
       </div>
 
-      {/* API Key section with visibility toggle and copy functionality */}
       <div className="space-y-2">
-        <p className="font-medium">API key</p>
+        <p className="font-medium">{t('X21 API key', { defaultValue: 'X21 API key' })}</p>
         <div className="flex items-center gap-2">
           <Input
             type={showApiKey ? 'text' : 'password'}
             value={account?.api_key ?? ''}
             readOnly
-            className="font-mono flex-1 max-w-fit"
+            className="font-mono flex-1"
           />
           <Button variant="outline" onClick={() => setShowApiKey(!showApiKey)}>
             {showApiKey ? <Eye /> : <EyeOff />}
@@ -82,18 +91,19 @@ export function AccountInfo() {
           <RegenerateApiKeyButton />
         </div>
         <p className="text-sm text-muted-foreground select-text">
-          {t('jumbleTranslateApiKeyDescription', {
-            serviceUrl: new URL('/v1/translation', JUMBLE_API_BASE_URL).toString()
+          {t('x21TranslateApiKeyDescription', {
+            serviceUrl: new URL('/v1/translation', JUMBLE_API_BASE_URL).toString(),
+            defaultValue:
+              'Use this key for the X21 translation API endpoint: {{serviceUrl}}'
           })}
         </p>
       </div>
       <TopUp />
 
-      {/* Auto-translate toggle */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="auto-translate" className="text-base font-medium">
-            Auto-translate notes
+            {t('Auto-translate notes', { defaultValue: 'Auto-translate notes' })}
           </Label>
           <Switch
             id="auto-translate"
@@ -107,11 +117,11 @@ export function AccountInfo() {
           />
         </div>
         <p className="text-sm text-muted-foreground">
-          Automatically translate notes in foreign languages to English
+          {t('Automatically translate notes in foreign languages to your app language', {
+            defaultValue: 'Automatically translate notes in foreign languages to your app language'
+          })}
         </p>
       </div>
-
-      <div className="h-40" />
     </div>
   )
 }
