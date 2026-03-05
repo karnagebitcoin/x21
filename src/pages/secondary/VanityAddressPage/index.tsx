@@ -10,7 +10,6 @@ import { toast } from 'sonner'
 
 type TVanityAccountState = {
   domain: string
-  claimable: boolean
   eligibility?: {
     eligible: boolean
     source?: string | null
@@ -187,10 +186,6 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
       startLogin()
       return
     }
-    if (!account?.claimable) {
-      toast.error('Only x21-created accounts can claim a vanity address right now')
-      return
-    }
     if (!normalizedHandle || validationError) return
     if (!isRenew && availability && !availability.available) {
       toast.error(availability.reason || 'That handle is not available')
@@ -283,12 +278,6 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
           </p>
         </div>
 
-        {!account?.claimable ? (
-          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
-            Vanity addresses are currently available to accounts created through x21 signup.
-          </div>
-        ) : null}
-
         <div className="space-y-2">
           <label className="text-sm font-medium">Choose your handle</label>
           <div className="flex items-center rounded-lg border px-3 py-2">
@@ -326,7 +315,6 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
           disabled={
             loading ||
             claiming ||
-            !account?.claimable ||
             !normalizedHandle ||
             Boolean(validationError) ||
             (!isRenew && availability?.available === false)

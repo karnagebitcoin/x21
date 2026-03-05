@@ -18,7 +18,7 @@ const NIP5_LIGHTNING_ADDRESS = process.env.NIP5_LIGHTNING_ADDRESS || TRANSLATION
 const NIP5_DOMAIN = (process.env.NIP5_DOMAIN || 'x21.social').trim().toLowerCase()
 const NIP5_CLAIM_SATS_DEFAULT = toSafeInt(process.env.NIP5_CLAIM_SATS, 2100, 1, 10_000_000)
 const NIP5_TERM_DAYS_DEFAULT = toSafeInt(process.env.NIP5_TERM_DAYS, 365, 1, 3650)
-const NIP5_REQUIRE_SIGNUP_DEFAULT = process.env.NIP5_REQUIRE_SIGNUP !== 'false'
+const NIP5_REQUIRE_SIGNUP_DEFAULT = false
 const NIP5_DEFAULT_RESERVED_NAMES = [
   'admin',
   'administrator',
@@ -611,8 +611,7 @@ async function resolveNip5Config() {
   const reservedNames = parseReservedNames(stored.reservedNames, NIP5_RESERVED_NAMES_ENV)
   const priceTiers = normalizeNip5PriceTiers(stored.priceTiers, NIP5_DEFAULT_PRICE_TIERS)
   const termDays = toSafeInt(stored.termDays, NIP5_TERM_DAYS_DEFAULT, 1, 3650)
-  const requireSignup =
-    typeof stored.requireSignup === 'boolean' ? stored.requireSignup : NIP5_REQUIRE_SIGNUP_DEFAULT
+  const requireSignup = false
   const updatedAt = Number(stored.updatedAt || 0) || null
 
   return {
@@ -691,17 +690,10 @@ async function registerNip5Eligibility(user, body) {
 }
 
 async function getNip5Eligibility(pubkey) {
-  const config = await resolveNip5Config()
-  if (!config.requireSignup) {
-    return {
-      eligible: true,
-      source: 'disabled'
-    }
-  }
   const eligibility = await nip5Store.get(`eligibility:${pubkey}`, { type: 'json' })
   return {
-    eligible: Boolean(eligibility?.eligible),
-    source: eligibility?.source || null,
+    eligible: true,
+    source: eligibility?.source || 'open',
     markedAt: Number(eligibility?.markedAt || 0) || null
   }
 }
@@ -738,12 +730,6 @@ async function getNip5Account(user) {
 
 async function createNip5Claim(user, body) {
   const config = await resolveNip5Config()
-  const eligibility = await getNip5Eligibility(user.pubkey)
-  if (!eligibility.eligible) {
-    const err = new Error('Vanity address claims are currently limited to accounts created on x21')
-    err.statusCode = 403
-    throw err
-  }
 
   const name = normalizeNip5Name(body?.name || '')
   const validationError = validateNip5Name(name)
