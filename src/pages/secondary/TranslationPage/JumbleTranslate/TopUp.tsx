@@ -1,54 +1,84 @@
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useNostr } from '@/providers/NostrProvider'
 import transaction from '@/services/transaction.service'
 import { closeModal, launchPaymentModal } from '@getalby/bitcoin-connect-react'
-import { Loader } from 'lucide-react'
-import { useState } from 'react'
+import { Check, Copy, Loader } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useJumbleTranslateAccount } from './JumbleTranslateAccountProvider'
 import { useTranslation } from 'react-i18next'
+
+type TTopUpPackage = {
+  characters: number
+  sats: number
+  estimatedUsdCost: number
+}
+
+type TTopUpQuote = {
+  model: string
+  priceSource: 'coingecko' | 'fallback'
+  btcUsd: number
+  fallbackBtcUsd: number
+  marginMultiplier: number
+  packages: TTopUpPackage[]
+}
 
 export default function TopUp() {
   const { t } = useTranslation()
   const { pubkey } = useNostr()
   const { getAccount } = useJumbleTranslateAccount()
   const [topUpLoading, setTopUpLoading] = useState(false)
-  const [topUpAmount, setTopUpAmount] = useState(1000)
-  const [selectedAmount, setSelectedAmount] = useState<number | null>(1000)
+  const [quoteLoading, setQuoteLoading] = useState(true)
+  const [quote, setQuote] = useState<TTopUpQuote | null>(null)
+  const [selectedCharacters, setSelectedCharacters] = useState<number | null>(null)
+  const [latestTransactionId, setLatestTransactionId] = useState('')
+  const [copiedTx, setCopiedTx] = useState(false)
 
-  const presetAmounts = [
-    { amount: 1_000, text: '1k' },
-    { amount: 5_000, text: '5k' },
-    { amount: 10_000, text: '10k' },
-    { amount: 25_000, text: '25k' },
-    { amount: 50_000, text: '50k' },
-    { amount: 100_000, text: '100k' }
-  ]
-  const charactersPerUnit = 100 // 1 unit = 100 characters
+  useEffect(() => {
+    let mounted = true
+    setQuoteLoading(true)
 
-  const calculateCharacters = (amount: number) => {
-    return amount * charactersPerUnit
-  }
+    transaction.getTranslationTopUpQuote()
+      .then((data) => {
+        if (!mounted) return
+        setQuote(data)
+        setSelectedCharacters(data.packages[0]?.characters ?? null)
+      })
+      .catch((error) => {
+        if (!mounted) return
+        toast.error(
+          t('Failed to load top-up pricing: {{error}}', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            defaultValue: `Failed to load top-up pricing: ${
+              error instanceof Error ? error.message : 'Unknown error'
+            }`
+          })
+        )
+      })
+      .finally(() => {
+        if (!mounted) return
+        setQuoteLoading(false)
+      })
 
-  const handlePresetClick = (amount: number) => {
-    setSelectedAmount(amount)
-    setTopUpAmount(amount)
-  }
+    return () => {
+      mounted = false
+    }
+  }, [])
 
-  const handleInputChange = (value: string) => {
-    const numValue = parseInt(value) || 0
-    setTopUpAmount(numValue)
-    setSelectedAmount(numValue >= 1000 ? numValue : null)
-  }
+  const selectedPackage =
+    quote?.packages.find((item) => item.characters === selectedCharacters) ?? null
 
-  const handleTopUp = async (amount: number | null) => {
-    if (topUpLoading || !pubkey || !amount || amount < 1000) return
+  const handleTopUp = async (pkg: TTopUpPackage | null) => {
+    if (topUpLoading || !pubkey || !pkg) return
 
     setTopUpLoading(true)
     try {
-      const { transactionId, invoiceId } = await transaction.createTransaction(pubkey, amount)
+      const { transactionId, invoiceId, sats, characters } = await transaction.createTransaction(
+        pubkey,
+        pkg.characters
+      )
+      setLatestTransactionId(transactionId)
 
       let checkPaymentInterval: ReturnType<typeof setInterval> | undefined = undefined
       const { setPaid } = launchPaymentModal({
@@ -69,11 +99,18 @@ export default function TopUp() {
           setTopUpLoading(false)
 
           if (state === 'settled') {
-            setPaid({ preimage: '' }) // Preimage is not returned, but we can assume payment is successful
-            getAccount() // Refresh account balance
+            setPaid({ preimage: '' })
+            await getAccount()
+            toast.success(
+              t('Top up successful: {{chars}} credits for {{sats}} sats', {
+                chars: characters.toLocaleString(),
+                sats: sats.toLocaleString(),
+                defaultValue: `Top up successful: ${characters.toLocaleString()} credits for ${sats.toLocaleString()} sats`
+              })
+            )
           } else {
             closeModal()
-            toast.error('The invoice has expired or the payment was not successful')
+            toast.error(t('The invoice has expired or the payment was not successful'))
           }
         } catch (err) {
           failedCount++
@@ -98,66 +135,87 @@ export default function TopUp() {
 
   return (
     <div className="space-y-4">
-      <p className="font-medium">{t('Top up')}</p>
-
-      {/* Preset amounts */}
-      <div className="grid grid-cols-2 gap-2">
-        {presetAmounts.map(({ amount, text }) => (
-          <Button
-            key={amount}
-            variant="outline"
-            onClick={() => handlePresetClick(amount)}
-            className={cn(
-              'flex flex-col h-auto py-3 hover:bg-primary/10',
-              selectedAmount === amount && 'border border-primary bg-primary/10'
-            )}
-          >
-            <span className="text-lg font-semibold">
-              {text} {t('sats')}
-            </span>
-            <span className="text-sm text-muted-foreground">
-              {calculateCharacters(amount).toLocaleString()} {t('characters')}
-            </span>
-          </Button>
-        ))}
-      </div>
-
-      {/* Custom amount input */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            placeholder="Custom amount"
-            value={topUpAmount}
-            onChange={(e) => handleInputChange(e.target.value)}
-            min={1000}
-            step={1000}
-            className="w-40"
-          />
-          <span className="text-sm text-muted-foreground">{t('sats')}</span>
-        </div>
-        {selectedAmount && selectedAmount >= 1000 && (
-          <p className="text-sm text-muted-foreground">
-            {t('Will receive: {n} characters', {
-              n: calculateCharacters(selectedAmount).toLocaleString()
+      <div className="space-y-1">
+        <p className="font-medium">{t('Top up')}</p>
+        {quote && (
+          <p className="text-xs text-muted-foreground">
+            {t('Pricing updates with live BTC price. Model: {{model}}', {
+              model: quote.model,
+              defaultValue: `Pricing updates with live BTC price. Model: ${quote.model}`
+            })}{' '}
+            {t('BTC: ${{price}} ({{source}})', {
+              price: quote.btcUsd.toLocaleString(undefined, { maximumFractionDigits: 2 }),
+              source: quote.priceSource,
+              defaultValue: `BTC: $${quote.btcUsd.toLocaleString(undefined, {
+                maximumFractionDigits: 2
+              })} (${quote.priceSource})`
             })}
           </p>
         )}
       </div>
 
+      <div className="grid grid-cols-2 gap-2">
+        {quoteLoading && (
+          <div className="col-span-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader className="h-4 w-4 animate-spin" />
+            {t('Loading pricing...', { defaultValue: 'Loading pricing...' })}
+          </div>
+        )}
+
+        {!quoteLoading &&
+          quote?.packages.map((item) => (
+            <Button
+              key={item.characters}
+              variant="outline"
+              onClick={() => setSelectedCharacters(item.characters)}
+              className={cn(
+                'flex flex-col h-auto py-3 hover:bg-primary/10',
+                selectedCharacters === item.characters && 'border border-primary bg-primary/10'
+              )}
+            >
+              <span className="text-lg font-semibold">
+                {item.sats.toLocaleString()} {t('sats')}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {item.characters.toLocaleString()} {t('characters')}
+              </span>
+            </Button>
+          ))}
+      </div>
+
+      {latestTransactionId && (
+        <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+          <div className="text-xs text-muted-foreground uppercase tracking-wide">
+            {t('Latest transaction', { defaultValue: 'Latest transaction' })}
+          </div>
+          <div className="flex items-center gap-2">
+            <code className="text-xs break-all">{latestTransactionId}</code>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => {
+                navigator.clipboard.writeText(latestTransactionId)
+                setCopiedTx(true)
+                setTimeout(() => setCopiedTx(false), 2000)
+              }}
+            >
+              {copiedTx ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Button
         className="w-full"
-        disabled={topUpLoading || !selectedAmount || selectedAmount < 1000}
-        onClick={() => handleTopUp(selectedAmount)}
+        disabled={topUpLoading || !selectedPackage}
+        onClick={() => handleTopUp(selectedPackage)}
       >
         {topUpLoading && <Loader className="animate-spin" />}
-        {selectedAmount && selectedAmount >= 1000
+        {selectedPackage
           ? t('Top up {n} sats', {
-              n: selectedAmount?.toLocaleString()
+              n: selectedPackage.sats.toLocaleString()
             })
-          : t('Minimum top up is {n} sats', {
-              n: new Number(1000).toLocaleString()
-            })}
+          : t('Select a package', { defaultValue: 'Select a package' })}
       </Button>
     </div>
   )

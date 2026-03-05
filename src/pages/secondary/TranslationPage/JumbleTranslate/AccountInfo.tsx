@@ -36,7 +36,21 @@ export function AccountInfo() {
         <p className="font-medium">{t('Balance')}</p>
         <div className="flex items-baseline gap-2">
           <p className="text-3xl font-bold">{account?.balance.toLocaleString() ?? '0'}</p>
-          <p className="text-muted-foreground">{t('characters')}</p>
+          <p className="text-muted-foreground">{t('credits', { defaultValue: 'credits' })}</p>
+        </div>
+        <div className="text-xs text-muted-foreground space-y-1">
+          <p>
+            {t('Credits bought', { defaultValue: 'Credits bought' })}:{' '}
+            {(account?.purchased_credits ?? 0).toLocaleString()}
+          </p>
+          <p>
+            {t('Credits used', { defaultValue: 'Credits used' })}:{' '}
+            {(account?.spent_credits ?? 0).toLocaleString()}
+          </p>
+          <p>
+            {t('Total sats paid', { defaultValue: 'Total sats paid' })}:{' '}
+            {(account?.total_sats_paid ?? 0).toLocaleString()}
+          </p>
         </div>
       </div>
 

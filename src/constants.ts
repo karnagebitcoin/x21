@@ -1,6 +1,11 @@
 import { kinds } from 'nostr-tools'
 
-export const JUMBLE_API_BASE_URL = 'https://api.jumble.social'
+const DEFAULT_TRANSLATION_API_BASE_URL =
+  typeof window !== 'undefined' ? window.location.origin : 'https://x21.social'
+
+export const JUMBLE_API_BASE_URL =
+  import.meta.env.VITE_TRANSLATION_API_BASE_URL ||
+  (import.meta.env.DEV ? 'https://api.jumble.social' : DEFAULT_TRANSLATION_API_BASE_URL)
 
 export const DEFAULT_FAVORITE_RELAYS = [
   'wss://nostr.wine/',

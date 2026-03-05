@@ -1,5 +1,20 @@
 import { JUMBLE_API_BASE_URL } from '@/constants'
 
+type TTopUpQuotePackage = {
+  characters: number
+  sats: number
+  estimatedUsdCost: number
+}
+
+type TTopUpQuote = {
+  model: string
+  priceSource: 'coingecko' | 'fallback'
+  btcUsd: number
+  fallbackBtcUsd: number
+  marginMultiplier: number
+  packages: TTopUpQuotePackage[]
+}
+
 class TransactionService {
   static instance: TransactionService
 
@@ -12,10 +27,12 @@ class TransactionService {
 
   async createTransaction(
     pubkey: string,
-    amount: number
+    characters: number
   ): Promise<{
     transactionId: string
     invoiceId: string
+    sats: number
+    characters: number
   }> {
     const url = new URL('/v1/transactions', JUMBLE_API_BASE_URL).toString()
     const response = await fetch(url, {
@@ -25,13 +42,25 @@ class TransactionService {
       },
       body: JSON.stringify({
         pubkey,
-        amount,
+        characters,
         purpose: 'translation'
       })
     })
     const data = await response.json()
     if (!response.ok) {
       throw new Error(data.error ?? 'Failed to create transaction')
+    }
+    return data
+  }
+
+  async getTranslationTopUpQuote(): Promise<TTopUpQuote> {
+    const url = new URL('/v1/transactions/quote', JUMBLE_API_BASE_URL).toString()
+    const response = await fetch(url, {
+      method: 'GET'
+    })
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error ?? 'Failed to fetch top-up quote')
     }
     return data
   }

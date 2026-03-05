@@ -218,6 +218,9 @@ export type TTranslationAccount = {
   pubkey: string
   api_key: string
   balance: number
+  purchased_credits?: number
+  spent_credits?: number
+  total_sats_paid?: number
 }
 
 export type TTranslationServiceConfig =
