@@ -220,6 +220,7 @@ export type TTranslationAccount = {
   balance: number
   purchased_credits?: number
   spent_credits?: number
+  cached_characters?: number
   total_sats_paid?: number
 }
 

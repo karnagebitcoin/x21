@@ -63,6 +63,19 @@ let openRouterKeyCache = {
   updatedAt: null
 }
 const OPENROUTER_KEY_CACHE_TTL_MS = 30 * 1000
+const OPENROUTER_STATUS_CACHE_TTL_MS = 60 * 1000
+let openRouterStatusCache = {
+  fetchedAt: 0,
+  keyHash: '',
+  status: {
+    state: 'unknown',
+    message: 'Not checked yet',
+    checkedAt: 0,
+    remainingCredits: null,
+    totalCredits: null,
+    totalUsage: null
+  }
+}
 
 const headers = {
   'Content-Type': 'application/json'
@@ -115,6 +128,7 @@ export default async (request) => {
     if (request.method === 'GET' && route === '/v1/admin/translation/config') {
       assertAdminRequest(request)
       const keyState = await resolveOpenRouterKey()
+      const keyStatus = await getOpenRouterKeyStatus(keyState)
       const receiptPublisher = getReceiptPublisherStatus()
       return json(200, {
         model: OPENROUTER_MODEL,
@@ -124,6 +138,7 @@ export default async (request) => {
           source: keyState.source,
           updatedAt: keyState.updatedAt
         },
+        openrouterStatus: keyStatus,
         receiptPublisher: {
           configured: receiptPublisher.configured,
           pubkey: receiptPublisher.pubkey,
@@ -850,6 +865,12 @@ async function translateWithBilling(user, body) {
   const cacheKey = createHashKey(`${user.pubkey}|${target}|${text}`)
   const cache = await translationCacheStore.get(`cache:${cacheKey}`, { type: 'json' })
   if (cache?.translatedText) {
+    const cachedCharacters = Number(cache.chargedCredits || cache.sourceLength || text.length || 0)
+    if (cachedCharacters > 0) {
+      user.cachedCharacters = Number(user.cachedCharacters || 0) + cachedCharacters
+      user.updatedAt = Date.now()
+      await saveUser(user)
+    }
     return json(200, { translatedText: cache.translatedText, cached: true })
   }
 
@@ -962,6 +983,128 @@ function invalidateOpenRouterCache() {
     source: 'none',
     updatedAt: null
   }
+  openRouterStatusCache = {
+    fetchedAt: 0,
+    keyHash: '',
+    status: {
+      state: 'unknown',
+      message: 'Not checked yet',
+      checkedAt: 0,
+      remainingCredits: null,
+      totalCredits: null,
+      totalUsage: null
+    }
+  }
+}
+
+async function getOpenRouterKeyStatus(keyState) {
+  if (!keyState?.key) {
+    return {
+      state: 'missing',
+      message: 'No OpenRouter key configured',
+      checkedAt: Date.now(),
+      remainingCredits: null,
+      totalCredits: null,
+      totalUsage: null
+    }
+  }
+
+  const keyHash = createHashKey(keyState.key).slice(0, 16)
+  if (
+    openRouterStatusCache.keyHash === keyHash &&
+    Date.now() - openRouterStatusCache.fetchedAt < OPENROUTER_STATUS_CACHE_TTL_MS
+  ) {
+    return openRouterStatusCache.status
+  }
+
+  let nextStatus = {
+    state: 'unknown',
+    message: 'Could not verify OpenRouter key status',
+    checkedAt: Date.now(),
+    remainingCredits: null,
+    totalCredits: null,
+    totalUsage: null
+  }
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/credits', {
+      headers: {
+        Authorization: `Bearer ${keyState.key}`,
+        Accept: 'application/json'
+      },
+      signal: AbortSignal.timeout(5000)
+    })
+    const rawText = await response.text()
+    let data = {}
+    try {
+      data = rawText ? JSON.parse(rawText) : {}
+    } catch {
+      data = {}
+    }
+
+    if (!response.ok) {
+      const message =
+        data?.error?.message ||
+        data?.message ||
+        data?.error ||
+        `OpenRouter responded with ${response.status}`
+      const normalized = String(message).toLowerCase()
+      const isCreditIssue =
+        normalized.includes('credit') ||
+        normalized.includes('quota') ||
+        normalized.includes('insufficient')
+      nextStatus = {
+        state: isCreditIssue ? 'depleted' : response.status === 401 ? 'invalid' : 'error',
+        message: String(message),
+        checkedAt: Date.now(),
+        remainingCredits: null,
+        totalCredits: null,
+        totalUsage: null
+      }
+    } else {
+      const payload = data?.data && typeof data.data === 'object' ? data.data : data
+      const remainingCredits = pickFiniteNumber([
+        payload?.remaining_credits,
+        payload?.credits_remaining
+      ])
+      const totalCredits = pickFiniteNumber([payload?.total_credits, payload?.credits])
+      const totalUsage = pickFiniteNumber([payload?.total_usage, payload?.usage])
+      const computedRemaining =
+        remainingCredits ??
+        (Number.isFinite(totalCredits) && Number.isFinite(totalUsage)
+          ? totalCredits - totalUsage
+          : null)
+
+      const depleted = Number.isFinite(computedRemaining) && computedRemaining <= 0
+      nextStatus = {
+        state: depleted ? 'depleted' : 'ok',
+        message: depleted
+          ? 'OpenRouter key has no remaining credits'
+          : 'OpenRouter key is active',
+        checkedAt: Date.now(),
+        remainingCredits: Number.isFinite(computedRemaining) ? computedRemaining : null,
+        totalCredits: Number.isFinite(totalCredits) ? totalCredits : null,
+        totalUsage: Number.isFinite(totalUsage) ? totalUsage : null
+      }
+    }
+  } catch (error) {
+    nextStatus = {
+      state: 'error',
+      message:
+        error instanceof Error ? error.message : 'Failed to check OpenRouter key status',
+      checkedAt: Date.now(),
+      remainingCredits: null,
+      totalCredits: null,
+      totalUsage: null
+    }
+  }
+
+  openRouterStatusCache = {
+    fetchedAt: Date.now(),
+    keyHash,
+    status: nextStatus
+  }
+  return nextStatus
 }
 
 function assertAdminRequest(request) {
@@ -1101,6 +1244,7 @@ async function ensureUser(pubkey) {
     balance: 0,
     purchasedCredits: 0,
     spentCredits: 0,
+    cachedCharacters: 0,
     totalSatsPaid: 0,
     createdAt: Date.now(),
     updatedAt: Date.now()
@@ -1503,6 +1647,7 @@ function mapUserForAdmin(user) {
     balance: Number(user.balance || 0),
     purchased_credits: Number(user.purchasedCredits || 0),
     spent_credits: Number(user.spentCredits || 0),
+    cached_characters: Number(user.cachedCharacters || 0),
     total_sats_paid: Number(user.totalSatsPaid || 0),
     createdAt: Number(user.createdAt || 0),
     updatedAt: Number(user.updatedAt || 0)
@@ -1528,6 +1673,7 @@ function mapAccount(user) {
     balance: Number(user.balance || 0),
     purchased_credits: Number(user.purchasedCredits || 0),
     spent_credits: Number(user.spentCredits || 0),
+    cached_characters: Number(user.cachedCharacters || 0),
     total_sats_paid: Number(user.totalSatsPaid || 0)
   }
 }
@@ -1553,6 +1699,14 @@ function toFiniteNumber(value, fallback) {
   const number = Number(value)
   if (!Number.isFinite(number)) return fallback
   return number
+}
+
+function pickFiniteNumber(values) {
+  for (const value of values) {
+    const number = Number(value)
+    if (Number.isFinite(number)) return number
+  }
+  return null
 }
 
 function safeEqualConstantTime(a, b) {

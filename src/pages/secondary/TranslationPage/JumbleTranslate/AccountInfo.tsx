@@ -57,11 +57,19 @@ export function AccountInfo() {
           </div>
           <div className="rounded-lg border bg-background/50 p-2">
             <p className="text-[11px] text-muted-foreground">
-              {t('Sats paid', { defaultValue: 'Sats paid' })}
+              {t('Cached', { defaultValue: 'Cached' })}
             </p>
-            <p className="text-sm font-semibold">{(account?.total_sats_paid ?? 0).toLocaleString()}</p>
+            <p className="text-sm font-semibold">
+              {(account?.cached_characters ?? 0).toLocaleString()}
+            </p>
           </div>
         </div>
+        <p className="text-xs text-muted-foreground">
+          {t('Cached characters are served from memory and do not consume additional credits.', {
+            defaultValue:
+              'Cached characters are served from memory and do not consume additional credits.'
+          })}
+        </p>
       </div>
 
       <div className="space-y-2">
