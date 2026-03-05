@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 import SecondaryPageLayout from '@/layouts/SecondaryPageLayout'
 import { toBackupSettings } from '@/lib/link'
 import { pubkeyToNpub } from '@/lib/pubkey'
@@ -57,27 +58,24 @@ const KeysSettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
 
   return (
     <SecondaryPageLayout ref={ref} index={index} title={t('Keys')}>
-      <div className="px-4 pt-3 pb-6 space-y-3">
-        <Card>
-          <CardHeader className="pb-2 pt-4">
-            <div className="flex items-center gap-2">
-              <KeyRound className="w-5 h-5" />
-              <CardTitle className="text-lg">{t('Keys')}</CardTitle>
+      <div className="px-4 pt-3 pb-6 space-y-4">
+        <div className="rounded-xl border bg-card/60 px-4 py-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-full bg-primary/10 p-2 text-primary">
+              <KeyRound className="w-4 h-4" />
             </div>
-            <CardDescription>
-              {t('Your public key is like your username. Your private key is like your password.')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 pb-4">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-muted-foreground">{t('Sign-in method')}</span>
-              <Badge variant="secondary">{t(getSignerTypeLabel(account?.signerType))}</Badge>
+            <div className="flex-1 min-w-0 space-y-2">
+              <h2 className="text-base font-semibold">{t('Keys')}</h2>
+              <p className="text-sm text-muted-foreground">
+                {t('Your public key is like your username. Your private key is like your password.')}
+              </p>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-muted-foreground">{t('Sign-in method')}</span>
+                <Badge variant="secondary">{t(getSignerTypeLabel(account?.signerType))}</Badge>
+              </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {t('Never share your private key. Anyone with it can control your account.')}
-            </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {!pubkey ? (
           <Card>
@@ -86,16 +84,14 @@ const KeysSettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
             </CardContent>
           </Card>
         ) : (
-          <>
-            <Card>
-              <CardHeader className="pb-2 pt-4">
-                <div className="flex items-center gap-2">
-                  <UserRound className="w-5 h-5" />
-                  <CardTitle className="text-lg">{t('Public Key')}</CardTitle>
+          <Card>
+            <CardContent className="pt-4 pb-4 space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <UserRound className="w-4 h-4" />
+                  {t('Public Key')}
                 </div>
-                <CardDescription>{t('Safe to share with others.')}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 pb-4">
+                <p className="text-sm text-muted-foreground">{t('Safe to share with others.')}</p>
                 <div className="rounded-md border px-3 py-2 text-sm break-all">{npub}</div>
                 <Button
                   variant="secondary"
@@ -105,18 +101,18 @@ const KeysSettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
                   {copiedField === 'public' ? <Check /> : <Copy />}
                   {copiedField === 'public' ? t('Copied!') : t('Copy public key')}
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
 
-            <Card>
-              <CardHeader className="pb-2 pt-4">
-                <div className="flex items-center gap-2">
-                  <ShieldAlert className="w-5 h-5" />
-                  <CardTitle className="text-lg">{t('Private Key')}</CardTitle>
+              <Separator />
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <ShieldAlert className="w-4 h-4" />
+                  {t('Private Key')}
                 </div>
-                <CardDescription>{t('Keep this secret. Do not share it.')}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 pb-4">
+                <p className="text-sm text-muted-foreground">
+                  {t('Never share your private key. Anyone with it can control your account.')}
+                </p>
                 {!!nsec && (
                   <Button
                     variant="secondary"
@@ -144,26 +140,24 @@ const KeysSettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
                     {t(getUnavailablePrivateKeyReason(account?.signerType))}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
 
-            <Card>
-              <CardHeader className="pb-2 pt-4">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5" />
-                  <CardTitle className="text-lg">{t('Recovery')}</CardTitle>
+              <Separator />
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <ShieldCheck className="w-4 h-4" />
+                  {t('Recovery')}
                 </div>
-                <CardDescription>
+                <p className="text-sm text-muted-foreground">
                   {t('Keep a backup so you can recover your account if you lose access.')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pb-4">
+                </p>
                 <Button variant="outline" className="w-full" onClick={() => push(toBackupSettings())}>
                   {t('Open Backup & Sync')}
                 </Button>
-              </CardContent>
-            </Card>
-          </>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </SecondaryPageLayout>
