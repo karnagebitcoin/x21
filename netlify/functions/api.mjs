@@ -1,7 +1,7 @@
 import { getStore } from '@netlify/blobs'
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto'
 import { Invoice } from '@getalby/lightning-tools'
-import { kinds, verifyEvent } from 'nostr-tools'
+import { SimplePool, finalizeEvent, getPublicKey, kinds, nip19, verifyEvent } from 'nostr-tools'
 
 const usersStore = getStore('translation-users')
 const apiKeyStore = getStore('translation-api-keys')
@@ -16,6 +16,17 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || ''
 const TRANSLATION_ADMIN_TOKEN = process.env.TRANSLATION_ADMIN_TOKEN || ''
 const OPENROUTER_MODEL =
   process.env.OPENROUTER_TRANSLATION_MODEL || 'google/gemini-2.0-flash-001'
+const TRANSLATION_RECEIPT_NSEC = process.env.TRANSLATION_RECEIPT_NSEC || ''
+const TRANSLATION_RECEIPT_EVENT_KIND = toSafeInt(
+  process.env.TRANSLATION_RECEIPT_EVENT_KIND,
+  15750,
+  10_000,
+  39_999
+)
+const TRANSLATION_RECEIPT_RELAYS = parseRelayList(
+  process.env.TRANSLATION_RECEIPT_RELAYS,
+  ['wss://relay.damus.io', 'wss://relay.primal.net', 'wss://relay.nostr.band']
+)
 
 const MODEL_INPUT_RATE_USD_PER_M = toPositiveNumber(
   process.env.TRANSLATION_INPUT_RATE_USD_PER_M,
@@ -72,6 +83,7 @@ export default async (request) => {
     if (request.method === 'GET' && route === '/v1/admin/translation/config') {
       assertAdminRequest(request)
       const keyState = await resolveOpenRouterKey()
+      const receiptPublisher = getReceiptPublisherStatus()
       return json(200, {
         model: OPENROUTER_MODEL,
         openrouterKey: {
@@ -79,6 +91,12 @@ export default async (request) => {
           masked: maskSecret(keyState.key),
           source: keyState.source,
           updatedAt: keyState.updatedAt
+        },
+        receiptPublisher: {
+          configured: receiptPublisher.configured,
+          pubkey: receiptPublisher.pubkey,
+          relayCount: TRANSLATION_RECEIPT_RELAYS.length,
+          eventKind: TRANSLATION_RECEIPT_EVENT_KIND
         }
       })
     }
@@ -119,6 +137,16 @@ export default async (request) => {
       const transactionId = txSettleMatch[1]
       const body = await parseJson(request)
       const result = await adminForceSettleTransaction(transactionId, body)
+      return json(200, result)
+    }
+
+    const txPublishReceiptMatch = route.match(
+      /^\/v1\/admin\/translation\/transactions\/([^/]+)\/publish-receipt$/
+    )
+    if (request.method === 'POST' && txPublishReceiptMatch) {
+      assertAdminRequest(request)
+      const transactionId = txPublishReceiptMatch[1]
+      const result = await adminPublishTransactionReceipt(transactionId)
       return json(200, result)
     }
 
@@ -358,9 +386,10 @@ async function settleTransaction(tx) {
   tx.state = 'settled'
   tx.updatedAt = Date.now()
   tx.settledAt = tx.settledAt || Date.now()
+  let user = null
 
   if (!tx.creditedAt) {
-    const user = await ensureUser(tx.pubkey)
+    user = await ensureUser(tx.pubkey)
     user.balance = Number(user.balance || 0) + Number(tx.characters || 0)
     user.purchasedCredits = Number(user.purchasedCredits || 0) + Number(tx.characters || 0)
     user.totalSatsPaid = Number(user.totalSatsPaid || 0) + Number(tx.sats || 0)
@@ -369,7 +398,122 @@ async function settleTransaction(tx) {
     tx.creditedAt = Date.now()
   }
 
+  if (!user) {
+    user = await ensureUser(tx.pubkey)
+  }
+  await publishTranslationReceipt(tx, user)
   await transactionStore.setJSON(`tx:${tx.id}`, tx)
+}
+
+async function publishTranslationReceipt(tx, user, options = {}) {
+  const force = Boolean(options.force)
+  if (!force && tx.receiptEventId) {
+    return { ok: true, eventId: tx.receiptEventId }
+  }
+
+  const publisher = getReceiptPublisherStatus()
+  if (!publisher.configured) {
+    tx.receiptStatus = 'disabled'
+    tx.receiptError = 'Receipt publisher key is not configured'
+    tx.receiptUpdatedAt = Date.now()
+    return { ok: false, error: tx.receiptError }
+  }
+
+  if (!TRANSLATION_RECEIPT_RELAYS.length) {
+    tx.receiptStatus = 'disabled'
+    tx.receiptError = 'No receipt relays configured'
+    tx.receiptUpdatedAt = Date.now()
+    return { ok: false, error: tx.receiptError }
+  }
+
+  const apiKeyFingerprint = createApiKeyFingerprint(user.apiKey || '') || ''
+  const payerNpub = toNpub(tx.pubkey) || ''
+  const event = finalizeEvent(
+    {
+      kind: TRANSLATION_RECEIPT_EVENT_KIND,
+      created_at: Math.floor((tx.settledAt || Date.now()) / 1000),
+      tags: [
+        ['t', 'x21_translation_payment'],
+        ['service', 'x21.translation'],
+        ['tx', tx.id],
+        ['p', tx.pubkey],
+        ['amount', String(Number(tx.sats || 0) * 1000)],
+        ['unit', 'msats'],
+        ['chars', String(Number(tx.characters || 0))],
+        ['hash', tx.paymentHash || ''],
+        ['invoice_comment', tx.invoiceComment || ''],
+        ['api_key_fingerprint', apiKeyFingerprint],
+        ['payer_npub', payerNpub]
+      ],
+      content: JSON.stringify({
+        v: 1,
+        type: 'x21.translation.payment.receipt',
+        txId: tx.id,
+        payerPubkey: tx.pubkey,
+        payerNpub: payerNpub || null,
+        sats: Number(tx.sats || 0),
+        characters: Number(tx.characters || 0),
+        paymentHash: tx.paymentHash || null,
+        invoiceComment: tx.invoiceComment || '',
+        apiKeyFingerprint: apiKeyFingerprint || null,
+        manualSettled: Boolean(tx.manualSettled),
+        settledAt: Number(tx.settledAt || Date.now())
+      })
+    },
+    publisher.secretKeyBytes
+  )
+
+  const pool = new SimplePool()
+  try {
+    const results = await Promise.allSettled(pool.publish(TRANSLATION_RECEIPT_RELAYS, event))
+    const publishedTo = results.filter((result) => result.status === 'fulfilled').length
+    if (!publishedTo) {
+      const failedReasons = results
+        .filter((result) => result.status === 'rejected')
+        .map((result) => String(result.reason))
+        .slice(0, 2)
+      throw new Error(
+        failedReasons[0] || 'Failed to publish translation receipt event to configured relays'
+      )
+    }
+
+    tx.receiptStatus = 'published'
+    tx.receiptEventId = event.id
+    tx.receiptEventKind = TRANSLATION_RECEIPT_EVENT_KIND
+    tx.receiptPublishedAt = Date.now()
+    tx.receiptPublishedTo = publishedTo
+    tx.receiptRelayCount = TRANSLATION_RECEIPT_RELAYS.length
+    tx.receiptError = null
+    tx.receiptUpdatedAt = Date.now()
+    return { ok: true, eventId: event.id }
+  } catch (error) {
+    tx.receiptStatus = 'failed'
+    tx.receiptError = error instanceof Error ? error.message : 'Failed to publish receipt event'
+    tx.receiptUpdatedAt = Date.now()
+    return { ok: false, error: tx.receiptError }
+  } finally {
+    try {
+      pool.close(TRANSLATION_RECEIPT_RELAYS)
+    } catch {
+      // no-op
+    }
+  }
+}
+
+function getReceiptPublisherStatus() {
+  const secretKeyBytes = decodeNostrPrivateKey(TRANSLATION_RECEIPT_NSEC)
+  if (!secretKeyBytes) {
+    return {
+      configured: false,
+      pubkey: null,
+      secretKeyBytes: null
+    }
+  }
+  return {
+    configured: true,
+    pubkey: getPublicKey(secretKeyBytes),
+    secretKeyBytes
+  }
 }
 
 async function getInvoiceVerificationState(tx) {
@@ -514,6 +658,29 @@ async function adminForceSettleTransaction(transactionId, body) {
   return {
     state: latest.state,
     transaction: mapTransactionForAdmin(latest)
+  }
+}
+
+async function adminPublishTransactionReceipt(transactionId) {
+  const tx = await getTransactionById(transactionId)
+  if (tx.state !== 'settled') {
+    const err = new Error('Transaction must be settled before publishing a receipt event')
+    err.statusCode = 400
+    throw err
+  }
+  const user = await ensureUser(tx.pubkey)
+  const receiptResult = await publishTranslationReceipt(tx, user, { force: true })
+  tx.updatedAt = Date.now()
+  await transactionStore.setJSON(`tx:${tx.id}`, tx)
+  await writeAdminAudit('transaction.publish_receipt', {
+    transactionId,
+    ok: receiptResult.ok,
+    eventId: receiptResult.eventId || null,
+    error: receiptResult.error || null
+  })
+  return {
+    ok: receiptResult.ok,
+    transaction: mapTransactionForAdmin(tx)
   }
 }
 
@@ -1035,7 +1202,13 @@ async function getTransactionState(tx) {
     }
 
     if (looksSettled(data)) {
-      return { state: 'settled' }
+      return {
+        state: 'settled',
+        preimage:
+          typeof data?.preimage === 'string' && /^[0-9a-f]{64}$/i.test(data.preimage)
+            ? data.preimage.toLowerCase()
+            : undefined
+      }
     }
 
     if (looksFailed(data)) {
@@ -1085,7 +1258,15 @@ async function getFallbackTransactionState(tx) {
 
       try {
         const data = JSON.parse(rawText)
-        if (looksSettled(data)) return { state: 'settled' }
+        if (looksSettled(data)) {
+          return {
+            state: 'settled',
+            preimage:
+              typeof data?.preimage === 'string' && /^[0-9a-f]{64}$/i.test(data.preimage)
+                ? data.preimage.toLowerCase()
+                : undefined
+          }
+        }
         if (looksFailed(data)) return { state: 'failed' }
       } catch {
         const normalized = rawText.toLowerCase()
@@ -1184,6 +1365,7 @@ function mapTransactionForAdmin(tx, user) {
   return {
     id: tx.id,
     pubkey: tx.pubkey,
+    npub: toNpub(tx.pubkey),
     state: tx.state,
     sats: Number(tx.sats || 0),
     characters: Number(tx.characters || 0),
@@ -1198,9 +1380,17 @@ function mapTransactionForAdmin(tx, user) {
     preimage: tx.preimage || null,
     manualSettled: Boolean(tx.manualSettled),
     manualReason: tx.manualReason || null,
+    receiptStatus: tx.receiptStatus || null,
+    receiptEventId: tx.receiptEventId || null,
+    receiptEventKind: Number(tx.receiptEventKind || 0) || null,
+    receiptPublishedAt: Number(tx.receiptPublishedAt || 0) || null,
+    receiptPublishedTo: Number(tx.receiptPublishedTo || 0) || 0,
+    receiptRelayCount: Number(tx.receiptRelayCount || 0) || 0,
+    receiptError: tx.receiptError || null,
     user: user
       ? {
           pubkey: user.pubkey,
+          npub: toNpub(user.pubkey),
           api_key_masked: maskSecret(user.apiKey || ''),
           balance: Number(user.balance || 0),
           purchased_credits: Number(user.purchasedCredits || 0),
@@ -1214,8 +1404,10 @@ function mapTransactionForAdmin(tx, user) {
 function mapUserForAdmin(user) {
   return {
     pubkey: user.pubkey,
+    npub: toNpub(user.pubkey),
     api_key: user.apiKey || null,
     api_key_masked: maskSecret(user.apiKey || ''),
+    api_key_fingerprint: createApiKeyFingerprint(user.apiKey || ''),
     balance: Number(user.balance || 0),
     purchased_credits: Number(user.purchasedCredits || 0),
     spent_credits: Number(user.spentCredits || 0),
@@ -1238,7 +1430,9 @@ async function writeAdminAudit(action, payload = {}) {
 function mapAccount(user) {
   return {
     pubkey: user.pubkey,
+    npub: toNpub(user.pubkey),
     api_key: user.apiKey,
+    api_key_fingerprint: createApiKeyFingerprint(user.apiKey || ''),
     balance: Number(user.balance || 0),
     purchased_credits: Number(user.purchasedCredits || 0),
     spent_credits: Number(user.spentCredits || 0),
@@ -1317,6 +1511,63 @@ function getTag(tags, name) {
 
 function isHexPubkey(value) {
   return typeof value === 'string' && /^[0-9a-f]{64}$/i.test(value)
+}
+
+function parseRelayList(value, fallbackRelays) {
+  const input = typeof value === 'string' ? value : ''
+  const parsed = input
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map(normalizeRelayUrl)
+    .filter(Boolean)
+  const relays = parsed.length ? parsed : fallbackRelays.map(normalizeRelayUrl).filter(Boolean)
+  return Array.from(new Set(relays))
+}
+
+function normalizeRelayUrl(value) {
+  try {
+    const url = new URL(value)
+    if (!['ws:', 'wss:'].includes(url.protocol)) return ''
+    return `${url.protocol}//${url.host}${url.pathname}`.replace(/\/+$/, '')
+  } catch {
+    return ''
+  }
+}
+
+function decodeNostrPrivateKey(secret) {
+  if (typeof secret !== 'string' || !secret.trim()) return null
+  const trimmed = secret.trim()
+  if (/^[0-9a-f]{64}$/i.test(trimmed)) {
+    return Buffer.from(trimmed, 'hex')
+  }
+
+  if (trimmed.startsWith('nsec1')) {
+    try {
+      const decoded = nip19.decode(trimmed)
+      if (decoded.type !== 'nsec') return null
+      return decoded.data
+    } catch {
+      return null
+    }
+  }
+
+  return null
+}
+
+function toNpub(pubkey) {
+  if (!isHexPubkey(pubkey)) return null
+  try {
+    return nip19.npubEncode(pubkey)
+  } catch {
+    return null
+  }
+}
+
+function createApiKeyFingerprint(apiKey) {
+  if (!apiKey) return null
+  const digest = createHash('sha256').update(apiKey).digest('hex')
+  return `ak_${digest.slice(0, 16)}`
 }
 
 function toPositiveNumber(value, fallback) {
