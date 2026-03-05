@@ -821,6 +821,8 @@ async function checkNip5Claim(claimId) {
     claim.state = 'failed'
     claim.updatedAt = Date.now()
     await nip5Store.setJSON(key, claim)
+  } else {
+    await reconcilePendingNip5Claim(claim, key)
   }
 
   return json(200, {
@@ -830,6 +832,46 @@ async function checkNip5Claim(claimId) {
     sats: Number(claim.sats || 0),
     expiresAt: Number(claim.expiresAt || 0) || null
   })
+}
+
+async function reconcilePendingNip5Claim(claim, key) {
+  const now = Date.now()
+  const name = normalizeNip5Name(claim?.name || '')
+  const claimPubkey = String(claim?.pubkey || '').toLowerCase()
+  if (!name || !claimPubkey) return
+
+  const handle = await nip5Store.get(`handle:${name}`, { type: 'json' })
+  const handlePubkey = String(handle?.pubkey || '').toLowerCase()
+  const handleExpiry = Number(handle?.expiresAt || 0)
+  if (!handle || !handlePubkey || handlePubkey !== claimPubkey || handleExpiry <= now) {
+    return
+  }
+
+  claim.state = 'settled'
+  claim.updatedAt = now
+  claim.settledAt = claim.settledAt || now
+  claim.expiresAt = handleExpiry
+  claim.address = `${name}@${claim.domain || NIP5_DOMAIN}`
+  await nip5Store.setJSON(key, claim)
+
+  const existingSale = await nip5SalesStore.get(`sale:${claim.id}`, { type: 'json' })
+  if (!existingSale) {
+    const sale = {
+      id: claim.id,
+      claimId: claim.id,
+      pubkey: claimPubkey,
+      npub: toNpub(claimPubkey),
+      name,
+      address: `${name}@${claim.domain || NIP5_DOMAIN}`,
+      sats: Number(claim.sats || 0),
+      action: claim.action || 'claim',
+      state: 'settled',
+      createdAt: Number(claim.createdAt || now),
+      settledAt: Number(claim.settledAt || now),
+      expiresAt: handleExpiry
+    }
+    await nip5SalesStore.setJSON(`sale:${sale.id}`, sale)
+  }
 }
 
 async function getCurrentNip5Assignment(pubkey) {
@@ -2119,38 +2161,41 @@ async function getTransactionState(tx) {
     return { ...byInvoice, source: 'invoice.verifyPayment' }
   }
 
-  if (!tx.verify) {
-    return await getFallbackTransactionState(tx)
-  }
+  let verifyResult = { state: 'pending', source: 'verify.url' }
+  if (tx.verify) {
+    try {
+      const response = await fetch(tx.verify, {
+        headers: { Accept: 'application/json' }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        if (looksSettled(data)) {
+          return {
+            state: 'settled',
+            source: 'verify.url',
+            preimage:
+              typeof data?.preimage === 'string' && /^[0-9a-f]{64}$/i.test(data.preimage)
+                ? data.preimage.toLowerCase()
+                : undefined
+          }
+        }
 
-  try {
-    const response = await fetch(tx.verify, {
-      headers: { Accept: 'application/json' }
-    })
-    const data = await response.json()
-    if (!response.ok) {
-      return { state: 'pending' }
-    }
-
-    if (looksSettled(data)) {
-      return {
-        state: 'settled',
-        source: 'verify.url',
-        preimage:
-          typeof data?.preimage === 'string' && /^[0-9a-f]{64}$/i.test(data.preimage)
-            ? data.preimage.toLowerCase()
-            : undefined
+        if (looksFailed(data)) {
+          return { state: 'failed', source: 'verify.url' }
+        }
       }
+    } catch (error) {
+      console.warn('verify transaction failed', error)
+      verifyResult = { state: 'pending', source: 'verify.url:error' }
     }
-
-    if (looksFailed(data)) {
-      return { state: 'failed', source: 'verify.url' }
-    }
-  } catch (error) {
-    console.warn('verify transaction failed', error)
   }
 
-  return { state: 'pending', source: 'verify.url' }
+  const fallback = await getFallbackTransactionState(tx)
+  if (fallback.state !== 'pending') {
+    return fallback
+  }
+
+  return tx.verify ? verifyResult : fallback
 }
 
 async function getFallbackTransactionState(tx) {
