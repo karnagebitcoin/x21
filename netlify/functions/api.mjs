@@ -401,7 +401,7 @@ async function getInvoiceVerificationState(tx) {
 }
 
 async function listTransactionsForAdmin({ state, pubkey, limit }) {
-  const transactions = await listJsonEntries(transactionStore, 'tx:', limit * 2)
+  const transactions = await listJsonEntries(transactionStore, 'tx:', 5000)
   const normalizedState = state.toLowerCase().trim()
   const normalizedPubkey = pubkey.toLowerCase().trim()
   const filtered = transactions
@@ -423,7 +423,7 @@ async function listTransactionsForAdmin({ state, pubkey, limit }) {
 }
 
 async function listUsersForAdmin({ query, limit }) {
-  const users = await listJsonEntries(usersStore, 'user:', limit * 2)
+  const users = await listJsonEntries(usersStore, 'user:', 5000)
   const filtered = users
     .filter((user) => {
       if (!query) return true
