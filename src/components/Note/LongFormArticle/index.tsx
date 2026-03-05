@@ -4,7 +4,7 @@ import { getLongFormArticleMetadataFromEvent } from '@/lib/event-metadata'
 import { toNote, toNoteList, toProfile } from '@/lib/link'
 import { ExternalLink } from 'lucide-react'
 import { Event, kinds } from 'nostr-tools'
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import NostrNode from './NostrNode'
@@ -25,12 +25,7 @@ export default function LongFormArticle({
   const { textOnlyMode } = useTextOnlyMode()
   const { mediaStyle } = useMediaStyle()
   const isFullWidth = mediaStyle === MEDIA_STYLE.FULL_WIDTH
-  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
   const metadata = useMemo(() => getLongFormArticleMetadataFromEvent(event), [event])
-
-  const handleLoadImage = useCallback((url: string) => {
-    setLoadedImages((prev) => new Set(prev).add(url))
-  }, [])
 
   const components = useMemo(
     () =>
@@ -95,29 +90,9 @@ export default function LongFormArticle({
         img: function ImageComponent(props) {
           const imageUrl = props.src || ''
           if (textOnlyMode) {
-            const isLoaded = loadedImages.has(imageUrl)
-            if (isLoaded) {
-              return (
-                <ImageWithLightbox
-                  image={{ url: imageUrl, pubkey: event.pubkey }}
-                  className={isFullWidth ? 'object-contain my-0' : 'max-h-[80vh] sm:max-h-[50vh] object-contain my-0'}
-                  classNames={{
-                    wrapper: isFullWidth ? 'w-full' : 'w-fit max-w-full'
-                  }}
-                />
-              )
-            }
             return (
-              <span className="inline-block my-2">
-                [image: <button
-                  onClick={(e) => {
-                    e.preventDefault()
-                    handleLoadImage(imageUrl)
-                  }}
-                  className="text-primary hover:underline"
-                >
-                  load
-                </button>]
+              <span className="inline-flex items-center rounded-full border border-border/60 text-muted-foreground text-xs px-2 py-0.5 my-2">
+                Image hidden
               </span>
             )
           }
@@ -132,7 +107,7 @@ export default function LongFormArticle({
           )
         }
       }) as Components,
-    [event.pubkey, textOnlyMode, loadedImages, handleLoadImage, isFullWidth]
+    [event.pubkey, textOnlyMode, isFullWidth]
   )
 
   return (

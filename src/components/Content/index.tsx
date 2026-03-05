@@ -15,7 +15,7 @@ import { cn, detectLanguage } from '@/lib/utils'
 import mediaUpload from '@/services/media-upload.service'
 import { TImetaInfo } from '@/types'
 import { Event } from 'nostr-tools'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import {
   EmbeddedHashtag,
   EmbeddedLNInvoice,
@@ -51,14 +51,9 @@ export default function Content({
   compactMedia?: boolean
 }) {
   const { textOnlyMode } = useTextOnlyMode()
-  const [loadedMedia, setLoadedMedia] = useState<Set<string>>(new Set())
   const translatedEvent = useTranslatedEvent(event?.id)
   const { autoTranslateEvent, shouldAutoTranslate } = useTranslationService()
   const { i18n } = useTranslation()
-
-  const handleLoadMedia = (url: string) => {
-    setLoadedMedia((prev) => new Set(prev).add(url))
-  }
 
   // Auto-translate effect
   useEffect(() => {
@@ -169,37 +164,13 @@ export default function Content({
           imageIndex = end
 
           if (textOnlyMode) {
-            const urls = Array.isArray(node.data) ? node.data : [node.data]
-            return urls.map((url, i) => {
-              const isLoaded = loadedMedia.has(url)
-              if (isLoaded) {
-                const imageIndex = allImages.findIndex(img => img.url === url)
-                if (imageIndex >= 0) {
-                  return (
-                    <ImageGallery
-                      className="mt-2"
-                      key={`${index}-${i}`}
-                      images={[allImages[imageIndex]]}
-                      start={0}
-                      end={1}
-                      mustLoad={true}
-                      compactMedia={compactMedia}
-                      isSingleMedia={totalMediaCount <= 2}
-                    />
-                  )
-                }
-              }
-              return (
-                <span key={`${index}-${i}`} className="inline-block mt-1">
-                  [image: <button
-                    onClick={() => handleLoadMedia(url)}
-                    className="text-primary hover:underline"
-                  >
-                    load
-                  </button>]
-                </span>
-              )
-            })
+            const mediaCount = Array.isArray(node.data) ? node.data.length : 1
+            return (
+              <HiddenMediaChip
+                key={index}
+                label={mediaCount > 1 ? `${mediaCount} media hidden` : 'Image hidden'}
+              />
+            )
           }
 
           return (
@@ -217,22 +188,7 @@ export default function Content({
         }
         if (node.type === 'media') {
           if (textOnlyMode) {
-            const isLoaded = loadedMedia.has(node.data)
-            if (isLoaded) {
-              return (
-                <MediaPlayer className="mt-2" key={index} src={node.data} pubkey={event?.pubkey} mustLoad={true} compactMedia={compactMedia} isSingleMedia={totalMediaCount <= 2} />
-              )
-            }
-            return (
-              <span key={index} className="inline-block mt-1">
-                [video: <button
-                  onClick={() => handleLoadMedia(node.data)}
-                  className="text-primary hover:underline"
-                >
-                  load
-                </button>]
-              </span>
-            )
+            return <HiddenMediaChip key={index} label="Video hidden" />
           }
           return (
             <MediaPlayer className="mt-2" key={index} src={node.data} pubkey={event?.pubkey} mustLoad={mustLoadMedia} compactMedia={compactMedia} isSingleMedia={totalMediaCount <= 2} />
@@ -265,29 +221,7 @@ export default function Content({
         }
         if (node.type === 'youtube') {
           if (textOnlyMode) {
-            const isLoaded = loadedMedia.has(node.data)
-            if (isLoaded) {
-              return (
-                <YoutubeEmbeddedPlayer
-                  key={index}
-                  url={node.data}
-                  pubkey={event?.pubkey}
-                  className="mt-2"
-                  mustLoad={true}
-                  isSingleMedia={totalMediaCount <= 2}
-                />
-              )
-            }
-            return (
-              <span key={index} className="inline-block mt-1">
-                [video: <button
-                  onClick={() => handleLoadMedia(node.data)}
-                  className="text-primary hover:underline"
-                >
-                  load
-                </button>]
-              </span>
-            )
+            return <HiddenMediaChip key={index} label="Video hidden" />
           }
           return (
             <YoutubeEmbeddedPlayer
@@ -304,5 +238,13 @@ export default function Content({
       })}
       {!textOnlyMode && lastNormalUrl && <WebPreview className="mt-2" url={lastNormalUrl} pubkey={event?.pubkey} />}
     </div>
+  )
+}
+
+function HiddenMediaChip({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center rounded-full border border-border/60 text-muted-foreground text-xs px-2 py-0.5 mt-1">
+      {label}
+    </span>
   )
 }
