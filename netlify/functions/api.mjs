@@ -1,14 +1,14 @@
-import { getStore } from '@netlify/blobs'
+import { connectLambda, getStore } from '@netlify/blobs'
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto'
 import { Invoice } from '@getalby/lightning-tools'
 import { SimplePool, finalizeEvent, getPublicKey, kinds, nip19, verifyEvent } from 'nostr-tools'
 
-const usersStore = getStore('translation-users')
-const apiKeyStore = getStore('translation-api-keys')
-const transactionStore = getStore('translation-transactions')
-const translationCacheStore = getStore('translation-cache')
-const adminConfigStore = getStore('translation-admin-config')
-const adminAuditStore = getStore('translation-admin-audit')
+let usersStore
+let apiKeyStore
+let transactionStore
+let translationCacheStore
+let adminConfigStore
+let adminAuditStore
 
 const TRANSLATION_LIGHTNING_ADDRESS =
   process.env.TRANSLATION_LIGHTNING_ADDRESS || 'translation@katvibes.com'
@@ -68,8 +68,40 @@ const headers = {
   'Content-Type': 'application/json'
 }
 
+function refreshBlobStoresForRequest(request) {
+  const blobsToken = request && typeof request.blobs === 'string' ? request.blobs : ''
+  if (blobsToken) {
+    const lambdaHeaders = {}
+    if (request.headers && typeof request.headers.forEach === 'function') {
+      request.headers.forEach((value, key) => {
+        lambdaHeaders[key] = value
+      })
+    } else if (request.headers && typeof request.headers === 'object') {
+      for (const [key, value] of Object.entries(request.headers)) {
+        if (typeof value === 'string') lambdaHeaders[key] = value
+      }
+    }
+
+    connectLambda({
+      blobs: blobsToken,
+      headers: lambdaHeaders
+    })
+  }
+
+  // Important: stores must be created per request so they don't keep an expired blobs token
+  // from a warm function instance.
+  usersStore = getStore('translation-users')
+  apiKeyStore = getStore('translation-api-keys')
+  transactionStore = getStore('translation-transactions')
+  translationCacheStore = getStore('translation-cache')
+  adminConfigStore = getStore('translation-admin-config')
+  adminAuditStore = getStore('translation-admin-audit')
+}
+
 export default async (request) => {
   try {
+    refreshBlobStoresForRequest(request)
+
     const route = extractRoute(request.url)
     if (!route.startsWith('/v1/')) {
       return json(404, { error: 'Not found' })
