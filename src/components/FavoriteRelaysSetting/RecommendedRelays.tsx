@@ -3,7 +3,7 @@ import { useFavoriteRelays } from '@/providers/FavoriteRelaysProvider'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import RelayIcon from '../RelayIcon'
-import { Languages, Plus } from 'lucide-react'
+import { Compass, Languages, Plus } from 'lucide-react'
 
 // Map browser language codes to lang.relays.land relays
 const LANGUAGE_RELAY_MAP: Record<string, string> = {
@@ -161,6 +161,21 @@ const LANGUAGE_NAMES: Record<string, string> = {
   zu: 'isiZulu (Zulu)'
 }
 
+const REGIONAL_RELAY_MAP: Record<string, Array<{ url: string; label: string }>> = {
+  americas: [
+    { url: 'wss://relay.primal.net', label: 'Americas profile' },
+    { url: 'wss://nos.lol', label: 'Americas profile' }
+  ],
+  europe_africa: [
+    { url: 'wss://relay.nostr.band', label: 'Europe/Africa profile' },
+    { url: 'wss://relay.snort.social', label: 'Europe/Africa profile' }
+  ],
+  asia_pacific: [
+    { url: 'wss://relay.damus.io', label: 'Asia-Pacific profile' },
+    { url: 'wss://nostr.wine', label: 'Asia-Pacific profile' }
+  ]
+}
+
 function getBrowserLanguages(): string[] {
   const languages: string[] = []
   
@@ -182,66 +197,124 @@ function getBrowserLanguages(): string[] {
   return languages
 }
 
+function getRegionKeyFromTimezone() {
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone?.toLowerCase() || ''
+
+  if (timezone.startsWith('america/')) return 'americas'
+  if (timezone.startsWith('europe/') || timezone.startsWith('africa/')) return 'europe_africa'
+  return 'asia_pacific'
+}
+
 export default function RecommendedRelays() {
   const { t } = useTranslation()
   const { favoriteRelays, addFavoriteRelays } = useFavoriteRelays()
-  const [recommendedRelays, setRecommendedRelays] = useState<Array<{ url: string; langCode: string }>>([])
+  const [languageRecommendations, setLanguageRecommendations] = useState<
+    Array<{ url: string; langCode: string }>
+  >([])
+  const [regionRecommendations, setRegionRecommendations] = useState<
+    Array<{ url: string; label: string }>
+  >([])
 
   useEffect(() => {
     const browserLangs = getBrowserLanguages()
-    const recommended: Array<{ url: string; langCode: string }> = []
-    
+    const languageSuggested: Array<{ url: string; langCode: string }> = []
+
     for (const langCode of browserLangs) {
       const relayUrl = LANGUAGE_RELAY_MAP[langCode]
       if (relayUrl && !favoriteRelays.includes(relayUrl)) {
-        recommended.push({ url: relayUrl, langCode })
+        languageSuggested.push({ url: relayUrl, langCode })
       }
     }
-    
-    setRecommendedRelays(recommended)
+
+    const regionKey = getRegionKeyFromTimezone()
+    const regionSuggested = (REGIONAL_RELAY_MAP[regionKey] ?? []).filter(
+      ({ url }) =>
+        !favoriteRelays.includes(url) && !languageSuggested.some((relay) => relay.url === url)
+    )
+
+    setLanguageRecommendations(languageSuggested)
+    setRegionRecommendations(regionSuggested)
   }, [favoriteRelays])
 
   const handleAddRelay = async (url: string) => {
     await addFavoriteRelays([url])
   }
 
-  if (recommendedRelays.length === 0) {
+  if (languageRecommendations.length === 0 && regionRecommendations.length === 0) {
     return null
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 text-muted-foreground font-semibold select-none">
-        <Languages className="size-4" />
-        <span>{t('Recommended')}</span>
-      </div>
-      <div className="grid gap-2">
-        {recommendedRelays.map(({ url, langCode }) => (
-          <div
-            key={url}
-            className="flex gap-2 border rounded-lg p-2 pr-2.5 items-center justify-between bg-muted/30"
-          >
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <RelayIcon url={url} />
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold truncate">{url}</div>
-                <div className="text-sm text-muted-foreground truncate">
-                  {LANGUAGE_NAMES[langCode] || langCode}
-                </div>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => handleAddRelay(url)}
-              className="shrink-0"
-            >
-              <Plus className="size-4 mr-1" />
-              {t('Add')}
-            </Button>
+    <div className="space-y-3">
+      {languageRecommendations.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-muted-foreground font-semibold select-none">
+            <Languages className="size-4" />
+            <span>{t('Language-based')}</span>
           </div>
-        ))}
-      </div>
+          <div className="grid gap-2">
+            {languageRecommendations.map(({ url, langCode }) => (
+              <div
+                key={url}
+                className="flex gap-2 border rounded-lg p-2 pr-2.5 items-center justify-between bg-muted/30"
+              >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <RelayIcon url={url} />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold truncate">{url}</div>
+                    <div className="text-sm text-muted-foreground truncate">
+                      {LANGUAGE_NAMES[langCode] || langCode}
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleAddRelay(url)}
+                  className="shrink-0"
+                >
+                  <Plus className="size-4 mr-1" />
+                  {t('Add')}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {regionRecommendations.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-muted-foreground font-semibold select-none">
+            <Compass className="size-4" />
+            <span>{t('Region-based')}</span>
+          </div>
+          <div className="grid gap-2">
+            {regionRecommendations.map(({ url, label }) => (
+              <div
+                key={url}
+                className="flex gap-2 border rounded-lg p-2 pr-2.5 items-center justify-between bg-muted/30"
+              >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <RelayIcon url={url} />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold truncate">{url}</div>
+                    <div className="text-sm text-muted-foreground truncate">{t(label)}</div>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleAddRelay(url)}
+                  className="shrink-0"
+                >
+                  <Plus className="size-4 mr-1" />
+                  {t('Add')}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -62,13 +62,13 @@ export default function MailboxRelay({
           value={mailboxRelay.scope}
           onValueChange={(v: TMailboxRelayScope) => changeMailboxRelayScope(mailboxRelay.url, v)}
         >
-          <SelectTrigger className="w-24 shrink-0">
+          <SelectTrigger className="w-40 shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="both">{t('R & W')}</SelectItem>
-            <SelectItem value="read">{t('Read')}</SelectItem>
-            <SelectItem value="write">{t('Write')}</SelectItem>
+            <SelectItem value="both">{t('Receive + Publish')}</SelectItem>
+            <SelectItem value="read">{t('Receive only')}</SelectItem>
+            <SelectItem value="write">{t('Publish only')}</SelectItem>
           </SelectContent>
         </Select>
         <CircleX

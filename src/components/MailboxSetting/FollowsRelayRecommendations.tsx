@@ -13,9 +13,16 @@ import { useTranslation } from 'react-i18next'
 type Props = {
   existingRelayUrls: string[]
   onAddRelay: (url: string) => void
+  title?: string
+  description?: string
 }
 
-export default function FollowsRelayRecommendations({ existingRelayUrls, onAddRelay }: Props) {
+export default function FollowsRelayRecommendations({
+  existingRelayUrls,
+  onAddRelay,
+  title,
+  description
+}: Props) {
   const { t } = useTranslation()
   const { pubkey } = useNostr()
   const [recommendations, setRecommendations] = useState<TRelayRecommendation[]>([])
@@ -81,10 +88,10 @@ export default function FollowsRelayRecommendations({ existingRelayUrls, onAddRe
     <div className="space-y-3">
       <div className="flex items-center gap-2 font-semibold">
         <Users className="w-4 h-4" />
-        <span>{t('Recommended from follows')}</span>
+        <span>{title ?? t('Recommended from follows')}</span>
       </div>
       <p className="text-sm text-muted-foreground">
-        {t('Relays where people you follow publish. Add fast ones as read relays.')}
+        {description ?? t('Relays where people you follow publish. Add fast ones as read relays.')}
       </p>
       <div className="space-y-2">
         {topRecommendations.map((rec) => (

@@ -38,11 +38,10 @@ export default function NewMailboxRelayInput({
       <div className="flex gap-4">
         <Input
           className={newRelayUrlError ? 'border-destructive' : ''}
-          placeholder={t('Add a new relay')}
+          placeholder={t('Add relay URL (wss://...)')}
           value={newRelayUrl}
           onKeyDown={handleRelayUrlInputKeyDown}
           onChange={handleRelayUrlInputChange}
-          onBlur={save}
         />
         <Button onClick={save}>{t('Add')}</Button>
       </div>

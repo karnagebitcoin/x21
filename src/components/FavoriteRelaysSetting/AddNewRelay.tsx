@@ -42,7 +42,7 @@ export default function AddNewRelay() {
     <div className="space-y-1">
       <div className="flex gap-2 items-center">
         <Input
-          placeholder={t('Add a new relay')}
+          placeholder={t('Add relay source URL (wss://...)')}
           value={input}
           onChange={handleNewRelayInputChange}
           onKeyDown={handleNewRelayInputKeyDown}

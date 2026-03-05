@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next'
 import PullRelaySetsButton from './PullRelaySetsButton'
 import RelaySet from './RelaySet'
 
-export default function RelaySetList() {
+export default function RelaySetList({ hideTitle = false }: { hideTitle?: boolean }) {
   const { t } = useTranslation()
   const { relaySets, reorderRelaySets } = useFavoriteRelays()
 
@@ -44,12 +44,18 @@ export default function RelaySetList() {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-muted-foreground font-semibold select-none shrink-0">
-          {t('Relay sets')}
+      {!hideTitle ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-muted-foreground font-semibold select-none shrink-0">
+            {t('Relay sets')}
+          </div>
+          <PullRelaySetsButton />
         </div>
-        <PullRelaySetsButton />
-      </div>
+      ) : (
+        <div className="flex justify-end">
+          <PullRelaySetsButton />
+        </div>
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}

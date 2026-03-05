@@ -18,7 +18,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import RelayItem from './RelayItem'
 
-export default function FavoriteRelayList() {
+export default function FavoriteRelayList({ hideTitle = false }: { hideTitle?: boolean }) {
   const { t } = useTranslation()
   const { favoriteRelays, reorderFavoriteRelays } = useFavoriteRelays()
 
@@ -43,7 +43,7 @@ export default function FavoriteRelayList() {
 
   return (
     <div className="space-y-2">
-      <div className="text-muted-foreground font-semibold select-none">{t('Relays')}</div>
+      {!hideTitle && <div className="text-muted-foreground font-semibold select-none">{t('Relays')}</div>}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
