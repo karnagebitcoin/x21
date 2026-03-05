@@ -13,6 +13,7 @@ import { getPublicKey } from 'nostr-tools'
 import { createProfileDraftEvent } from '@/lib/draft-event'
 import Uploader from '@/components/PostEditor/Uploader'
 import { generateImageByPubkey } from '@/lib/pubkey'
+import vanityAddress from '@/services/vanity-address.service'
 
 export default function SignupProfile({
   back,
@@ -51,6 +52,9 @@ export default function SignupProfile({
       // Login immediately so avatar upload will work
       try {
         await nsecLogin(nsec, '', true)
+        await vanityAddress.registerSignupEligibility().catch((error) => {
+          console.warn('Failed to register vanity eligibility during signup:', error)
+        })
         setIsLoggedIn(true)
       } catch (error) {
         console.error('Failed to login during signup:', error)

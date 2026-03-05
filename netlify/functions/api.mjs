@@ -9,9 +9,23 @@ let transactionStore
 let translationCacheStore
 let adminConfigStore
 let adminAuditStore
+let nip5Store
+let nip5SalesStore
 
 const TRANSLATION_LIGHTNING_ADDRESS =
   process.env.TRANSLATION_LIGHTNING_ADDRESS || 'translation@katvibes.com'
+const NIP5_LIGHTNING_ADDRESS = process.env.NIP5_LIGHTNING_ADDRESS || TRANSLATION_LIGHTNING_ADDRESS
+const NIP5_DOMAIN = (process.env.NIP5_DOMAIN || 'x21.social').trim().toLowerCase()
+const NIP5_CLAIM_SATS = toSafeInt(process.env.NIP5_CLAIM_SATS, 2100, 1, 10_000_000)
+const NIP5_TERM_DAYS = toSafeInt(process.env.NIP5_TERM_DAYS, 365, 1, 3650)
+const NIP5_REQUIRE_SIGNUP = process.env.NIP5_REQUIRE_SIGNUP !== 'false'
+const NIP5_RESERVED_NAMES = parseReservedNames(
+  process.env.NIP5_RESERVED_NAMES,
+  ['admin', 'support', 'help', 'wallet', 'api', 'www', 'root', 'owner', 'x21']
+)
+const NIP5_NAME_MIN_LENGTH = 3
+const NIP5_NAME_MAX_LENGTH = 20
+const NIP5_NAME_REGEX = /^[a-z0-9_]+$/
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || ''
 const OPENROUTER_LOW_CREDIT_WARNING_THRESHOLD_DEFAULT = toNonNegativeNumber(
   process.env.OPENROUTER_LOW_CREDIT_WARNING_THRESHOLD,
@@ -113,6 +127,8 @@ function refreshBlobStoresForRequest(request) {
   translationCacheStore = getStore('translation-cache')
   adminConfigStore = getStore('translation-admin-config')
   adminAuditStore = getStore('translation-admin-audit')
+  nip5Store = getStore('nip5-registry')
+  nip5SalesStore = getStore('nip5-sales')
 }
 
 export default async (request) => {
@@ -120,6 +136,9 @@ export default async (request) => {
     refreshBlobStoresForRequest(request)
 
     const route = extractRoute(request.url)
+    if (request.method === 'GET' && route.endsWith('/.well-known/nostr.json')) {
+      return await handleNip5WellKnown(request)
+    }
     if (!route.startsWith('/v1/')) {
       return json(404, { error: 'Not found' })
     }
@@ -295,6 +314,39 @@ export default async (request) => {
       return await createTransaction(request, body)
     }
 
+    if (request.method === 'GET' && route === '/v1/nip5/availability') {
+      return await getNip5Availability(request)
+    }
+
+    if (request.method === 'POST' && route === '/v1/nip5/eligibility/register') {
+      const auth = await authenticateRequest(request, route)
+      const body = await parseJson(request)
+      return await registerNip5Eligibility(auth.user, body)
+    }
+
+    if (request.method === 'GET' && route === '/v1/nip5/account') {
+      const auth = await authenticateRequest(request, route)
+      return await getNip5Account(auth.user)
+    }
+
+    if (request.method === 'POST' && route === '/v1/nip5/claims') {
+      const auth = await authenticateRequest(request, route)
+      const body = await parseJson(request)
+      return await createNip5Claim(auth.user, body)
+    }
+
+    const nip5CheckMatch = route.match(/^\/v1\/nip5\/claims\/([^/]+)\/check$/)
+    if (request.method === 'POST' && nip5CheckMatch) {
+      return await checkNip5Claim(nip5CheckMatch[1])
+    }
+
+    if (request.method === 'GET' && route === '/v1/admin/nip5/sales') {
+      assertAdminRequest(request)
+      const url = new URL(request.url)
+      const limit = toSafeInt(url.searchParams.get('limit'), 100, 1, 1000)
+      return await getNip5SalesForAdmin(limit)
+    }
+
     if (request.method === 'POST' && route.startsWith('/v1/transactions/') && route.endsWith('/check')) {
       const transactionId = route.replace('/v1/transactions/', '').replace('/check', '')
       return await checkTransaction(transactionId)
@@ -400,6 +452,365 @@ async function createTransaction(request, body) {
     canVerify: Boolean(invoiceData.verify),
     invoiceComment
   })
+}
+
+function normalizeNip5Name(input) {
+  if (typeof input !== 'string') return ''
+  return input.trim().toLowerCase()
+}
+
+function validateNip5Name(name) {
+  if (!name) return 'Handle is required'
+  if (name.length < NIP5_NAME_MIN_LENGTH || name.length > NIP5_NAME_MAX_LENGTH) {
+    return `Handle must be ${NIP5_NAME_MIN_LENGTH}-${NIP5_NAME_MAX_LENGTH} characters`
+  }
+  if (!NIP5_NAME_REGEX.test(name)) {
+    return 'Use lowercase letters, numbers, and underscores only'
+  }
+  if (NIP5_RESERVED_NAMES.has(name)) {
+    return 'That handle is reserved'
+  }
+  return ''
+}
+
+async function getNip5Availability(request) {
+  const url = new URL(request.url)
+  const name = normalizeNip5Name(url.searchParams.get('name') || '')
+  const validationError = validateNip5Name(name)
+  if (validationError) {
+    return json(400, { available: false, name, reason: validationError })
+  }
+
+  const now = Date.now()
+  const existing = await nip5Store.get(`handle:${name}`, { type: 'json' })
+  if (!existing || Number(existing.expiresAt || 0) <= now) {
+    return json(200, { available: true, name, domain: NIP5_DOMAIN })
+  }
+
+  return json(200, {
+    available: false,
+    name,
+    domain: NIP5_DOMAIN,
+    reason: 'Already claimed',
+    ownerPubkey: existing.pubkey || null,
+    expiresAt: Number(existing.expiresAt || 0) || null
+  })
+}
+
+async function registerNip5Eligibility(user, body) {
+  const source =
+    typeof body?.source === 'string' && body.source.trim() ? body.source.trim() : 'x21_signup'
+  const eligibility = {
+    pubkey: user.pubkey,
+    eligible: true,
+    source,
+    markedAt: Date.now(),
+    updatedAt: Date.now()
+  }
+  await nip5Store.setJSON(`eligibility:${user.pubkey}`, eligibility)
+  return json(200, {
+    ok: true,
+    eligibility
+  })
+}
+
+async function getNip5Eligibility(pubkey) {
+  if (!NIP5_REQUIRE_SIGNUP) {
+    return {
+      eligible: true,
+      source: 'disabled'
+    }
+  }
+  const eligibility = await nip5Store.get(`eligibility:${pubkey}`, { type: 'json' })
+  return {
+    eligible: Boolean(eligibility?.eligible),
+    source: eligibility?.source || null,
+    markedAt: Number(eligibility?.markedAt || 0) || null
+  }
+}
+
+async function getNip5Account(user) {
+  const account = await getCurrentNip5Assignment(user.pubkey)
+  const eligibility = await getNip5Eligibility(user.pubkey)
+  return json(200, {
+    domain: NIP5_DOMAIN,
+    eligibility,
+    claimable: eligibility.eligible,
+    address: account?.name ? `${account.name}@${NIP5_DOMAIN}` : null,
+    assignment: account
+      ? {
+          name: account.name,
+          expiresAt: Number(account.expiresAt || 0) || null,
+          createdAt: Number(account.createdAt || 0) || null,
+          updatedAt: Number(account.updatedAt || 0) || null
+        }
+      : null,
+    pricing: {
+      sats: NIP5_CLAIM_SATS,
+      termDays: NIP5_TERM_DAYS
+    }
+  })
+}
+
+async function createNip5Claim(user, body) {
+  const eligibility = await getNip5Eligibility(user.pubkey)
+  if (!eligibility.eligible) {
+    const err = new Error('Vanity address claims are currently limited to accounts created on x21')
+    err.statusCode = 403
+    throw err
+  }
+
+  const name = normalizeNip5Name(body?.name || '')
+  const validationError = validateNip5Name(name)
+  if (validationError) {
+    return json(400, { error: validationError })
+  }
+
+  const now = Date.now()
+  const existingHandle = await nip5Store.get(`handle:${name}`, { type: 'json' })
+  if (
+    existingHandle &&
+    Number(existingHandle.expiresAt || 0) > now &&
+    String(existingHandle.pubkey || '').toLowerCase() !== user.pubkey
+  ) {
+    return json(409, { error: 'That handle is already claimed' })
+  }
+
+  const assignment = await getCurrentNip5Assignment(user.pubkey)
+  const action = assignment?.name === name ? 'renew' : assignment?.name ? 'change' : 'claim'
+
+  const claimId = createId('nip5')
+  const invoiceComment = `x21 nip5 ${action} ${name}@${NIP5_DOMAIN} ${claimId}`
+  const invoiceData = await createInvoiceForLightningAddress({
+    lightningAddress: NIP5_LIGHTNING_ADDRESS,
+    sats: NIP5_CLAIM_SATS,
+    comment: invoiceComment
+  })
+
+  const claim = {
+    id: claimId,
+    pubkey: user.pubkey,
+    name,
+    domain: NIP5_DOMAIN,
+    action,
+    sats: NIP5_CLAIM_SATS,
+    termDays: NIP5_TERM_DAYS,
+    state: 'pending',
+    invoice: invoiceData.invoice,
+    verify: invoiceData.verify ?? null,
+    paymentHash: getPaymentHashFromInvoice(invoiceData.invoice),
+    invoiceComment,
+    lightningAddress: NIP5_LIGHTNING_ADDRESS,
+    createdAt: now,
+    updatedAt: now
+  }
+
+  await nip5Store.setJSON(`claim:${claimId}`, claim)
+  return json(200, {
+    claimId,
+    transactionId: claimId,
+    state: claim.state,
+    handle: `${name}@${NIP5_DOMAIN}`,
+    sats: claim.sats,
+    termDays: claim.termDays,
+    invoiceId: claim.invoice,
+    canVerify: Boolean(claim.verify),
+    invoiceComment
+  })
+}
+
+async function checkNip5Claim(claimId) {
+  const key = `claim:${claimId}`
+  const claim = await nip5Store.get(key, { type: 'json' })
+  if (!claim) {
+    return json(404, { error: 'Claim not found' })
+  }
+
+  if (claim.state !== 'pending') {
+    return json(200, {
+      state: claim.state,
+      claimId: claim.id,
+      handle: `${claim.name}@${claim.domain || NIP5_DOMAIN}`,
+      sats: Number(claim.sats || 0),
+      expiresAt: Number(claim.expiresAt || 0) || null
+    })
+  }
+
+  const status = await getTransactionState(claim)
+  if (status.state === 'settled') {
+    if (status.preimage && !claim.preimage) {
+      claim.preimage = status.preimage
+    }
+    await settleNip5Claim(claim)
+  } else if (status.state === 'failed') {
+    claim.state = 'failed'
+    claim.updatedAt = Date.now()
+    await nip5Store.setJSON(key, claim)
+  }
+
+  return json(200, {
+    state: claim.state,
+    claimId: claim.id,
+    handle: `${claim.name}@${claim.domain || NIP5_DOMAIN}`,
+    sats: Number(claim.sats || 0),
+    expiresAt: Number(claim.expiresAt || 0) || null
+  })
+}
+
+async function getCurrentNip5Assignment(pubkey) {
+  const key = `pubkey:${pubkey}`
+  const now = Date.now()
+  const assignment = await nip5Store.get(key, { type: 'json' })
+  if (!assignment) return null
+  if (Number(assignment.expiresAt || 0) > now) return assignment
+
+  await nip5Store.delete(key)
+  if (assignment.name) {
+    const handleEntry = await nip5Store.get(`handle:${assignment.name}`, { type: 'json' })
+    if (handleEntry && String(handleEntry.pubkey || '').toLowerCase() === pubkey) {
+      await nip5Store.delete(`handle:${assignment.name}`)
+    }
+  }
+  return null
+}
+
+async function settleNip5Claim(claim) {
+  if (claim.state === 'settled') return
+
+  const now = Date.now()
+  const pubkey = String(claim.pubkey || '').toLowerCase()
+  const name = normalizeNip5Name(claim.name || '')
+  const existingHandle = await nip5Store.get(`handle:${name}`, { type: 'json' })
+  if (
+    existingHandle &&
+    Number(existingHandle.expiresAt || 0) > now &&
+    String(existingHandle.pubkey || '').toLowerCase() !== pubkey
+  ) {
+    const err = new Error('Handle was claimed by another user before settlement')
+    err.statusCode = 409
+    throw err
+  }
+
+  const previousAssignment = await getCurrentNip5Assignment(pubkey)
+  if (previousAssignment?.name && previousAssignment.name !== name) {
+    await nip5Store.delete(`handle:${previousAssignment.name}`)
+  }
+
+  const baseExpiry = Math.max(
+    now,
+    String(existingHandle?.pubkey || '').toLowerCase() === pubkey
+      ? Number(existingHandle?.expiresAt || 0)
+      : 0
+  )
+  const nextExpiry = baseExpiry + NIP5_TERM_DAYS * 24 * 60 * 60 * 1000
+
+  const handleRecord = {
+    name,
+    domain: NIP5_DOMAIN,
+    pubkey,
+    npub: toNpub(pubkey),
+    createdAt:
+      String(existingHandle?.pubkey || '').toLowerCase() === pubkey
+        ? Number(existingHandle.createdAt || now)
+        : now,
+    updatedAt: now,
+    expiresAt: nextExpiry,
+    lastSaleId: claim.id
+  }
+
+  const pubkeyRecord = {
+    pubkey,
+    npub: toNpub(pubkey),
+    name,
+    domain: NIP5_DOMAIN,
+    createdAt:
+      previousAssignment?.name === name
+        ? Number(previousAssignment.createdAt || now)
+        : now,
+    updatedAt: now,
+    expiresAt: nextExpiry
+  }
+
+  claim.state = 'settled'
+  claim.updatedAt = now
+  claim.settledAt = claim.settledAt || now
+  claim.expiresAt = nextExpiry
+  claim.address = `${name}@${NIP5_DOMAIN}`
+  await nip5Store.setJSON(`handle:${name}`, handleRecord)
+  await nip5Store.setJSON(`pubkey:${pubkey}`, pubkeyRecord)
+  await nip5Store.setJSON(`claim:${claim.id}`, claim)
+
+  const sale = {
+    id: claim.id,
+    claimId: claim.id,
+    pubkey,
+    npub: toNpub(pubkey),
+    name,
+    address: `${name}@${NIP5_DOMAIN}`,
+    sats: Number(claim.sats || 0),
+    action: claim.action || 'claim',
+    state: 'settled',
+    createdAt: Number(claim.createdAt || now),
+    settledAt: Number(claim.settledAt || now),
+    expiresAt: nextExpiry
+  }
+  await nip5SalesStore.setJSON(`sale:${sale.id}`, sale)
+}
+
+async function getNip5SalesForAdmin(limit) {
+  const sales = await listJsonEntries(nip5SalesStore, 'sale:', 5000)
+  const rows = sales
+    .sort((a, b) => Number(b.settledAt || b.createdAt || 0) - Number(a.settledAt || a.createdAt || 0))
+    .slice(0, limit)
+    .map((sale) => ({
+      id: sale.id,
+      claimId: sale.claimId || sale.id,
+      pubkey: sale.pubkey,
+      npub: sale.npub || toNpub(sale.pubkey),
+      name: sale.name,
+      address: sale.address || `${sale.name}@${NIP5_DOMAIN}`,
+      sats: Number(sale.sats || 0),
+      action: sale.action || 'claim',
+      state: sale.state || 'settled',
+      createdAt: Number(sale.createdAt || 0),
+      settledAt: Number(sale.settledAt || 0),
+      expiresAt: Number(sale.expiresAt || 0) || null
+    }))
+
+  const totals = rows.reduce(
+    (acc, row) => {
+      acc.salesCount += 1
+      acc.totalSats += Number(row.sats || 0)
+      acc.lastSaleAt = Math.max(acc.lastSaleAt, Number(row.settledAt || row.createdAt || 0))
+      return acc
+    },
+    { salesCount: 0, totalSats: 0, lastSaleAt: 0 }
+  )
+
+  return json(200, {
+    totals: {
+      salesCount: totals.salesCount,
+      totalSats: totals.totalSats,
+      lastSaleAt: totals.lastSaleAt || null
+    },
+    count: rows.length,
+    sales: rows
+  })
+}
+
+async function handleNip5WellKnown(request) {
+  const url = new URL(request.url)
+  const queryName = normalizeNip5Name(url.searchParams.get('name') || '')
+  const names = {}
+  const relays = {}
+  if (queryName) {
+    const assignment = await nip5Store.get(`handle:${queryName}`, { type: 'json' })
+    if (assignment && Number(assignment.expiresAt || 0) > Date.now() && isHexPubkey(assignment.pubkey)) {
+      names[queryName] = assignment.pubkey.toLowerCase()
+      relays[assignment.pubkey.toLowerCase()] = []
+    }
+  }
+  return json(200, { names, relays })
 }
 
 async function checkTransaction(transactionId) {
@@ -1828,6 +2239,14 @@ function parseRelayList(value, fallbackRelays) {
     .filter(Boolean)
   const relays = parsed.length ? parsed : fallbackRelays.map(normalizeRelayUrl).filter(Boolean)
   return Array.from(new Set(relays))
+}
+
+function parseReservedNames(value, fallbackNames) {
+  const input = typeof value === 'string' ? value : ''
+  const names = (input ? input.split(',') : fallbackNames)
+    .map((item) => String(item || '').trim().toLowerCase())
+    .filter(Boolean)
+  return new Set(names)
 }
 
 function normalizeRelayUrl(value) {

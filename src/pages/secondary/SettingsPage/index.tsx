@@ -11,6 +11,7 @@ import {
   toPostSettings,
   toRelaySettings,
   toTranslation,
+  toVanityAddressSettings,
   toWallet,
   toWidgetsSettings
 } from '@/lib/link'
@@ -19,6 +20,7 @@ import { useSecondaryPage } from '@/PageManager'
 import { useNostr } from '@/providers/NostrProvider'
 import {
   Bot,
+  AtSign,
   ChevronRight,
   Cloud,
   Info,
@@ -233,6 +235,13 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
           keywords: ['zap', 'lightning', 'payments']
         },
         {
+          id: 'vanity-address',
+          icon: <AtSign />,
+          title: t('Vanity Address', { defaultValue: 'Vanity Address' }),
+          route: toVanityAddressSettings(),
+          keywords: ['nip5', 'nip-5', 'handle', 'address', 'x21.social']
+        },
+        {
           id: 'posts',
           icon: <PencilLine />,
           title: t('Post settings'),
@@ -329,6 +338,12 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
             <SettingItem className="clickable" onClick={() => push(toWallet())}>
               <Wallet />
               {t('Wallet')}
+            </SettingItem>
+          )}
+          {!!pubkey && (
+            <SettingItem className="clickable" onClick={() => push(toVanityAddressSettings())}>
+              <AtSign />
+              {t('Vanity Address', { defaultValue: 'Vanity Address' })}
             </SettingItem>
           )}
           {!!pubkey && (

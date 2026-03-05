@@ -9,3 +9,8 @@ directory = "netlify/functions"
 from = "/v1/*"
 to = "/.netlify/functions/api/:splat"
 status = 200
+
+[[redirects]]
+from = "/.well-known/nostr.json"
+to = "/.netlify/functions/api/.well-known/nostr.json"
+status = 200
