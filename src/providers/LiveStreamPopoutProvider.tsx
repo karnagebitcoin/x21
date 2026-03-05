@@ -279,6 +279,16 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
     setCurrentTime(nextTime)
   }, [])
 
+  const enforceCustomControls = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    if (video.controls) {
+      video.controls = false
+    }
+    video.removeAttribute('controls')
+  }, [])
+
   useEffect(() => {
     if (!isOpen || !popout) return
 
@@ -287,7 +297,28 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
 
     video.volume = volume
     video.muted = isMuted
-  }, [isMuted, isOpen, popout, volume])
+    enforceCustomControls()
+  }, [enforceCustomControls, isMuted, isOpen, popout, volume])
+
+  useEffect(() => {
+    if (!isOpen || !popout) return
+
+    const video = videoRef.current
+    if (!video) return
+
+    enforceCustomControls()
+
+    const events: Array<keyof HTMLMediaElementEventMap> = ['loadedmetadata', 'canplay', 'play', 'emptied']
+    events.forEach((eventName) => video.addEventListener(eventName, enforceCustomControls))
+
+    const mutationObserver = new MutationObserver(() => enforceCustomControls())
+    mutationObserver.observe(video, { attributes: true, attributeFilter: ['controls'] })
+
+    return () => {
+      events.forEach((eventName) => video.removeEventListener(eventName, enforceCustomControls))
+      mutationObserver.disconnect()
+    }
+  }, [enforceCustomControls, isOpen, popout])
 
   const contextValue = useMemo<LiveStreamPopoutContextValue>(
     () => ({
@@ -341,8 +372,9 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
                 src={popout.streamingUrl}
                 poster={popout.image}
                 autoPlay
+                controls={false}
                 playsInline
-                className="h-full w-full bg-black object-contain"
+                className="popout-stream-video h-full w-full bg-black object-contain"
                 onClick={togglePlayback}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}

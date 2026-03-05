@@ -106,6 +106,16 @@
     display: none; /* Safari and Chrome */
   }
 
+  /* Keep popout stream player on custom controls only */
+  .popout-stream-video::-webkit-media-controls,
+  .popout-stream-video::-webkit-media-controls-enclosure,
+  .popout-stream-video::-webkit-media-controls-panel,
+  .popout-stream-video::-webkit-media-controls-overlay-play-button,
+  .popout-stream-video::-webkit-media-controls-start-playback-button {
+    display: none !important;
+    -webkit-appearance: none;
+  }
+
   /* Custom scrollbar styling for webkit browsers */
   ::-webkit-scrollbar {
     width: 10px;
