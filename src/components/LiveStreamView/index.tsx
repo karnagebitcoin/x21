@@ -116,6 +116,11 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const slowLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [showTimelineLabels, setShowTimelineLabels] = useState(false)
+  const activeStreamingUrl = useMemo(
+    () => liveEvent?.tags.find((tag) => tag[0] === 'streaming')?.[1],
+    [liveEvent]
+  )
+  const isInPopout = isPopoutOpenForUrl(activeStreamingUrl)
 
   const clearLoadingTimeout = useCallback(() => {
     if (!loadingTimeoutRef.current) return
@@ -383,6 +388,8 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   }, [liveEvent])
 
   const toggleVideoPlayback = useCallback(async () => {
+    if (isInPopout) return
+
     const video = videoRef.current
     if (!video) return
 
@@ -395,7 +402,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
     } catch (error) {
       console.error('Failed to toggle video playback:', error)
     }
-  }, [])
+  }, [isInPopout])
 
   const toggleVideoMute = useCallback(() => {
     const video = videoRef.current
@@ -427,6 +434,18 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
       console.error('Failed to toggle fullscreen:', error)
     }
   }, [])
+
+  useEffect(() => {
+    if (!isInPopout) return
+
+    const video = videoRef.current
+    if (!video) return
+
+    if (!video.paused) {
+      video.pause()
+    }
+    setIsVideoPlaying(false)
+  }, [activeStreamingUrl, isInPopout])
 
   if (isLoading) {
     if (showSlowLoading) {
@@ -464,11 +483,10 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const title = liveEvent.tags.find((tag) => tag[0] === 'title')?.[1] || t('Untitled Live Stream')
   const summary = liveEvent.tags.find((tag) => tag[0] === 'summary')?.[1]
   const image = liveEvent.tags.find((tag) => tag[0] === 'image')?.[1]
-  const streamingUrl = liveEvent.tags.find((tag) => tag[0] === 'streaming')?.[1]
+  const streamingUrl = activeStreamingUrl
   const currentParticipants = liveEvent.tags.find((tag) => tag[0] === 'current_participants')?.[1]
   const status = liveEvent.tags.find((tag) => tag[0] === 'status')?.[1]
   const hasDuration = Number.isFinite(duration) && duration > 0
-  const isInPopout = isPopoutOpenForUrl(streamingUrl)
   const handleChatScroll = () => {
     const container = chatContainerRef.current
     if (!container) return
@@ -527,7 +545,14 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
                   autoPlay
                   playsInline
                   className="w-full h-full object-contain"
-                  onPlay={() => setIsVideoPlaying(true)}
+                  onPlay={(event) => {
+                    if (isInPopout) {
+                      event.currentTarget.pause()
+                      setIsVideoPlaying(false)
+                      return
+                    }
+                    setIsVideoPlaying(true)
+                  }}
                   onPause={() => setIsVideoPlaying(false)}
                   onEnded={() => setIsVideoPlaying(false)}
                   onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
@@ -598,6 +623,11 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
                         }`}
                         onClick={() => {
                           if (!streamingUrl) return
+                          const video = videoRef.current
+                          if (video && !video.paused) {
+                            video.pause()
+                            setIsVideoPlaying(false)
+                          }
                           openPopout({
                             streamingUrl,
                             title,
