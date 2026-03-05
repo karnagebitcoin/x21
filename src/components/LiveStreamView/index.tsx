@@ -115,6 +115,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const slowLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [loadAttempt, setLoadAttempt] = useState(0)
+  const [showTimelineLabels, setShowTimelineLabels] = useState(false)
 
   const clearLoadingTimeout = useCallback(() => {
     if (!loadingTimeoutRef.current) return
@@ -330,6 +331,20 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
     }
   }, [])
 
+  useEffect(() => {
+    const container = videoContainerRef.current
+    if (!container || typeof ResizeObserver === 'undefined') return
+
+    const update = () => {
+      setShowTimelineLabels(container.clientWidth >= 700)
+    }
+
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
   const sendMessage = useCallback(async () => {
     if (!message.trim() || !decodedEvent || !pubkey) {
       await checkLogin()
@@ -462,7 +477,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   }
 
   return (
-    <div className="h-[calc(100dvh-4rem)] w-full min-w-0 max-w-full flex flex-col overflow-hidden">
+    <div className="h-[calc(100dvh-4rem)] w-full min-w-0 max-w-full flex flex-col overflow-hidden overflow-x-hidden">
       <div className="shrink-0 border-b px-3 py-1.5 bg-background">
         <div className="flex items-center gap-2 min-w-0">
           <UserAvatar userId={liveEvent.pubkey} size="small" />
@@ -498,11 +513,14 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
         {summary && isAboutOpen && <p className="mt-2 text-sm text-muted-foreground">{summary}</p>}
       </div>
 
-      <div className="flex-1 min-h-0 grid grid-rows-[minmax(220px,42vh)_minmax(0,1fr)]">
-        <div className="min-h-0 bg-black border-b flex flex-col">
+      <div className="flex-1 min-h-0 min-w-0 grid grid-rows-[minmax(220px,42vh)_minmax(0,1fr)]">
+        <div className="min-h-0 min-w-0 bg-black border-b flex flex-col overflow-x-hidden">
           {streamingUrl ? (
             <>
-              <div ref={videoContainerRef} className="relative flex-1 min-h-0 min-w-0 bg-black">
+              <div
+                ref={videoContainerRef}
+                className="relative flex-1 min-h-0 min-w-0 bg-black overflow-hidden"
+              >
                 <video
                   ref={videoRef}
                   src={streamingUrl}
@@ -525,7 +543,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
                   onVolumeChange={(event) => setIsVideoMuted(event.currentTarget.muted)}
                 />
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent p-2">
-                  <div className="pointer-events-auto flex items-center gap-1.5 text-white/90">
+                  <div className="pointer-events-auto flex min-w-0 items-center gap-1.5 overflow-hidden text-white/90">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -547,7 +565,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
                     <div className="flex min-w-0 flex-1 items-center gap-1.5">
                       {hasDuration ? (
                         <>
-                          {!isSmallScreen && (
+                          {showTimelineLabels && (
                             <span className="w-11 shrink-0 text-[11px] tabular-nums text-white/70">
                               {formatMediaTime(currentTime)}
                             </span>
@@ -560,7 +578,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
                             hideThumb
                             className="flex-1 min-w-0"
                           />
-                          {!isSmallScreen && (
+                          {showTimelineLabels && (
                             <span className="w-11 shrink-0 text-[11px] tabular-nums text-white/70 text-right">
                               {formatMediaTime(duration)}
                             </span>
@@ -619,7 +637,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
           )}
         </div>
 
-        <div className="min-h-0 flex flex-col">
+        <div className="min-h-0 min-w-0 flex flex-col overflow-x-hidden">
           {zaps.length > 0 && (
             <div className="shrink-0 border-b px-2 py-1">
               <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-thin">
@@ -643,7 +661,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
           <div
             ref={chatContainerRef}
             onScroll={handleChatScroll}
-            className="flex-1 min-h-0 overflow-y-auto px-2 py-1.5 space-y-0.5 scrollbar-thin"
+            className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden px-2 py-1.5 space-y-0.5 scrollbar-thin"
           >
             {chatMessages.map((msg) => (
               <ChatMessage key={msg.id} event={msg} isSmallScreen={isSmallScreen} />
@@ -713,7 +731,7 @@ function ChatMessage({
   const { push } = useSecondaryPage()
 
   return (
-    <div className="flex gap-1.5 group hover:bg-accent/50 px-1.5 py-1 rounded-md transition-colors">
+    <div className="flex w-full min-w-0 gap-1.5 group hover:bg-accent/50 px-1.5 py-1 rounded-md transition-colors">
       <button
         type="button"
         className="shrink-0 mt-0.5 cursor-pointer leading-none"
@@ -725,10 +743,10 @@ function ChatMessage({
         <div className="flex items-baseline gap-1.5 flex-wrap">
           <button
             type="button"
-            className="text-xs font-semibold cursor-pointer hover:underline leading-tight"
+            className="min-w-0 max-w-full truncate text-xs font-semibold cursor-pointer hover:underline leading-tight"
             onClick={() => push(`/users/${nip19.npubEncode(event.pubkey)}`)}
           >
-            <Username userId={event.pubkey} noLink />
+            <Username userId={event.pubkey} noLink className="truncate" />
           </button>
           <FormattedTimestamp
             timestamp={event.created_at}
@@ -736,7 +754,7 @@ function ChatMessage({
             short={isSmallScreen}
           />
         </div>
-        <Content content={event.content} className="text-xs mt-0.5 leading-snug" />
+        <Content content={event.content} className="text-xs mt-0.5 leading-snug overflow-hidden" />
       </div>
     </div>
   )

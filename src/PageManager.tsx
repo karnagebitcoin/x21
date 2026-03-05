@@ -431,7 +431,7 @@ export function PageManager({ maxStackSize = 5 }: { maxStackSize?: number }) {
                 )}>
                   <div
                     className={cn(
-                      "bg-card overflow-hidden",
+                      "bg-card min-w-0 overflow-hidden",
                       pageTheme === 'pure-black' && "border border-neutral-900",
                       pageTheme === 'white' ? "border border-border" : "shadow-lg"
                     )}
@@ -642,7 +642,7 @@ function DeckLayout({
         {/* Main column */}
         <div
           className={cn(
-            "bg-background overflow-hidden w-full",
+            "bg-background min-w-0 overflow-hidden w-full",
             pageTheme === 'pure-black' && "border border-neutral-900",
             pageTheme === 'white' ? "border border-border" : "shadow-lg"
           )}
