@@ -491,8 +491,8 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
               {t('About')} {isAboutOpen ? '−' : '+'}
             </Button>
           )}
-          <Button onClick={zapLiveEvent} size="sm" variant="outline" className="shrink-0">
-            <ZapIcon className="w-4 h-4 text-yellow-500" />
+          <Button onClick={zapLiveEvent} size="icon" className="h-8 w-8 shrink-0" title={t('Zap this stream')}>
+            <ZapIcon className="w-4 h-4" />
           </Button>
         </div>
         {summary && isAboutOpen && <p className="mt-2 text-sm text-muted-foreground">{summary}</p>}
@@ -529,7 +529,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+                      className="h-8 w-8 shrink-0 text-white/80 hover:text-white hover:bg-white/10"
                       onClick={toggleVideoPlayback}
                     >
                       {isVideoPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -538,66 +538,74 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
+                      className="h-8 w-8 shrink-0 text-white/80 hover:text-white hover:bg-white/10"
                       onClick={toggleVideoMute}
                     >
                       {isVideoMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                     </Button>
 
-                    {hasDuration ? (
-                      <>
-                        <span className="w-11 shrink-0 text-[11px] tabular-nums text-white/70">
-                          {formatMediaTime(currentTime)}
-                        </span>
-                        <Slider
-                          value={[Math.min(currentTime, duration)]}
-                          max={duration}
-                          step={1}
-                          onValueChange={handleSeek}
-                          hideThumb
-                          className="flex-1"
-                        />
-                        <span className="w-11 shrink-0 text-[11px] tabular-nums text-white/70 text-right">
-                          {formatMediaTime(duration)}
-                        </span>
-                      </>
-                    ) : (
-                      <div className="flex-1" />
-                    )}
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={`h-8 w-8 text-white/80 hover:text-white hover:bg-white/10 ${
-                        isInPopout ? 'bg-white/20 text-white' : ''
-                      }`}
-                      onClick={() => {
-                        if (!streamingUrl) return
-                        openPopout({
-                          streamingUrl,
-                          title,
-                          image,
-                          naddr
-                        })
-                      }}
-                      disabled={!streamingUrl}
-                      title={isInPopout ? 'Popout player active' : 'Open popout player'}
-                    >
-                      <PictureInPicture2 className="w-4 h-4" />
-                    </Button>
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/10"
-                      onClick={toggleFullscreen}
-                    >
-                      {isFullscreen ? (
-                        <Minimize2 className="w-4 h-4" />
+                    <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                      {hasDuration ? (
+                        <>
+                          {!isSmallScreen && (
+                            <span className="w-11 shrink-0 text-[11px] tabular-nums text-white/70">
+                              {formatMediaTime(currentTime)}
+                            </span>
+                          )}
+                          <Slider
+                            value={[Math.min(currentTime, duration)]}
+                            max={duration}
+                            step={1}
+                            onValueChange={handleSeek}
+                            hideThumb
+                            className="flex-1 min-w-0"
+                          />
+                          {!isSmallScreen && (
+                            <span className="w-11 shrink-0 text-[11px] tabular-nums text-white/70 text-right">
+                              {formatMediaTime(duration)}
+                            </span>
+                          )}
+                        </>
                       ) : (
-                        <Maximize2 className="w-4 h-4" />
+                        <div className="flex-1" />
                       )}
-                    </Button>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-8 w-8 shrink-0 text-white/80 hover:text-white hover:bg-white/10 ${
+                          isInPopout ? 'bg-white/20 text-white' : ''
+                        }`}
+                        onClick={() => {
+                          if (!streamingUrl) return
+                          openPopout({
+                            streamingUrl,
+                            title,
+                            image,
+                            naddr
+                          })
+                        }}
+                        disabled={!streamingUrl}
+                        title={isInPopout ? 'Popout player active' : 'Open popout player'}
+                      >
+                        <PictureInPicture2 className="w-4 h-4" />
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-white/80 hover:text-white hover:bg-white/10"
+                        onClick={toggleFullscreen}
+                      >
+                        {isFullscreen ? (
+                          <Minimize2 className="w-4 h-4" />
+                        ) : (
+                          <Maximize2 className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
