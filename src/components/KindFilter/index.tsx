@@ -108,29 +108,46 @@ export default function KindFilter({
 
   const content = (
     <div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="space-y-2">
+        <Label className="flex items-center gap-2 cursor-pointer p-3 rounded-lg border bg-muted/30">
+          <Checkbox
+            id="kind-filter-view-all"
+            checked={ALL_KINDS.every((k) => temporaryShowKinds.includes(k))}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                setTemporaryShowKinds(ALL_KINDS)
+              } else {
+                setTemporaryShowKinds([])
+              }
+            }}
+          />
+          <span className="text-sm font-medium">{t('View all')}</span>
+        </Label>
+
         {KIND_FILTER_OPTIONS.map(({ kindGroup, label }) => {
           const checked = kindGroup.every((k) => temporaryShowKinds.includes(k))
+          const checkboxId = `kind-filter-${label.toLowerCase().replace(/\s+/g, '-')}`
           return (
-            <div
+            <Label
               key={label}
               className={cn(
-                'cursor-pointer grid gap-1.5 rounded-lg border px-4 py-3',
-                checked ? 'border-primary/60 bg-primary/5' : 'clickable'
+                'flex items-center gap-2 cursor-pointer p-3 rounded-lg border',
+                checked ? 'border-primary/60 bg-primary/5' : 'bg-transparent'
               )}
-              onClick={() => {
-                if (!checked) {
-                  // add all kinds in this group
-                  setTemporaryShowKinds((prev) => Array.from(new Set([...prev, ...kindGroup])))
-                } else {
-                  // remove all kinds in this group
-                  setTemporaryShowKinds((prev) => prev.filter((k) => !kindGroup.includes(k)))
-                }
-              }}
             >
-              <p className="leading-none font-medium">{t(label)}</p>
-              <p className="text-muted-foreground text-xs">kind {kindGroup.join(', ')}</p>
-            </div>
+              <Checkbox
+                id={checkboxId}
+                checked={checked}
+                onCheckedChange={(nextChecked) => {
+                  if (nextChecked) {
+                    setTemporaryShowKinds((prev) => Array.from(new Set([...prev, ...kindGroup])))
+                  } else {
+                    setTemporaryShowKinds((prev) => prev.filter((k) => !kindGroup.includes(k)))
+                  }
+                }}
+              />
+              <span className="text-sm font-medium">{t(label)}</span>
+            </Label>
           )
         })}
       </div>
@@ -144,23 +161,7 @@ export default function KindFilter({
         <span className="text-sm font-medium">{t('Show only Posts with media')}</span>
       </Label>
 
-      <div className="grid grid-cols-3 gap-2 mt-4">
-        <Button
-          variant="secondary"
-          onClick={() => {
-            setTemporaryShowKinds(ALL_KINDS)
-          }}
-        >
-          {t('Select All')}
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => {
-            setTemporaryShowKinds([])
-          }}
-        >
-          {t('Clear All')}
-        </Button>
+      <div className="grid grid-cols-1 gap-2 mt-4">
         <Button
           variant="secondary"
           onClick={() => {
