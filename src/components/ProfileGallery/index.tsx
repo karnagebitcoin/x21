@@ -88,11 +88,6 @@ export default function ProfileGallery({
           <Badge variant="secondary" className="text-xs">
             {gallery.length}
           </Badge>
-          {usingNewFormat && (
-            <Badge variant="outline" className="text-xs">
-              NIP-94
-            </Badge>
-          )}
         </div>
         <div className="grid grid-cols-4 gap-2">
           {visibleGallery.map((image, index) => (
