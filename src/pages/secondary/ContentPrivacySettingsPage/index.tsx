@@ -428,20 +428,27 @@ function MutedHashtagsTab() {
         {t('Muted hashtags are private on x21 by default.')}
       </div>
       <div className="flex gap-2">
-        <Input
-          value={newTag}
-          onChange={(e) => setNewTag(e.target.value)}
-          placeholder={t('Add muted hashtag...')}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              handleAddTag()
-            }
-          }}
-        />
+        <div className="relative flex-1">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">#</span>
+          <Input
+            value={newTag}
+            onChange={(e) => setNewTag(e.target.value)}
+            placeholder={t('bitcoin')}
+            className="pl-7"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                handleAddTag()
+              }
+            }}
+          />
+        </div>
         <Button onClick={handleAddTag} size="icon">
           <Plus />
         </Button>
+      </div>
+      <div className="text-xs text-muted-foreground">
+        {t('Type the hashtag word only. You can include #, but it is optional.')}
       </div>
       <div className="space-y-2">
         {mutedTags.map((tag) => (
