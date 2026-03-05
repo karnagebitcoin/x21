@@ -83,6 +83,48 @@ export default function TopUp() {
   const selectedPackage =
     quote?.packages.find((item) => item.characters === selectedCharacters) ?? null
 
+  const refreshTransactionStatus = async () => {
+    if (!latestTransactionId) return
+    try {
+      setTopUpLoading(true)
+      const { state, canVerify } = await transaction.checkTransaction(latestTransactionId)
+      setCanAutoVerifyPayment(canVerify ?? canAutoVerifyPayment)
+      if (state === 'settled') {
+        await getAccount()
+        setPaymentStatus(
+          t('Payment received. Credits added.', {
+            defaultValue: 'Payment received. Credits added.'
+          })
+        )
+        toast.success(
+          t('Payment confirmed', {
+            defaultValue: 'Payment confirmed'
+          })
+        )
+      } else if (state === 'failed') {
+        setPaymentStatus(
+          t('Payment failed or expired', { defaultValue: 'Payment failed or expired' })
+        )
+        toast.error(t('The invoice has expired or the payment was not successful'))
+      } else {
+        setPaymentStatus(
+          t('Still waiting for payment confirmation...', {
+            defaultValue: 'Still waiting for payment confirmation...'
+          })
+        )
+      }
+    } catch (error) {
+      toast.error(
+        t('Could not refresh payment status', {
+          defaultValue: 'Could not refresh payment status'
+        })
+      )
+      console.error('refresh payment status failed', error)
+    } finally {
+      setTopUpLoading(false)
+    }
+  }
+
   const handleTopUp = async (pkg: TTopUpPackage | null) => {
     if (topUpLoading || !pubkey || !pkg) return
 
@@ -276,6 +318,18 @@ export default function TopUp() {
       )}
 
       {paymentStatus && <p className="text-xs text-muted-foreground">{paymentStatus}</p>}
+
+      {latestTransactionId && (
+        <Button
+          variant="outline"
+          className="w-full"
+          disabled={topUpLoading}
+          onClick={refreshTransactionStatus}
+        >
+          {topUpLoading && <Loader className="animate-spin" />}
+          {t('Check payment status', { defaultValue: 'Check payment status' })}
+        </Button>
+      )}
 
       {canAutoVerifyPayment === false && (
         <p className="text-xs text-amber-500/90">
