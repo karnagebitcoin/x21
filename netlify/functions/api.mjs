@@ -13,6 +13,10 @@ let adminAuditStore
 const TRANSLATION_LIGHTNING_ADDRESS =
   process.env.TRANSLATION_LIGHTNING_ADDRESS || 'translation@katvibes.com'
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || ''
+const OPENROUTER_LOW_CREDIT_WARNING_THRESHOLD_DEFAULT = toNonNegativeNumber(
+  process.env.OPENROUTER_LOW_CREDIT_WARNING_THRESHOLD,
+  0
+)
 const TRANSLATION_ADMIN_TOKEN = process.env.TRANSLATION_ADMIN_TOKEN || ''
 const OPENROUTER_MODEL =
   process.env.OPENROUTER_TRANSLATION_MODEL || 'google/gemini-2.0-flash-001'
@@ -66,7 +70,7 @@ const OPENROUTER_KEY_CACHE_TTL_MS = 30 * 1000
 const OPENROUTER_STATUS_CACHE_TTL_MS = 60 * 1000
 let openRouterStatusCache = {
   fetchedAt: 0,
-  keyHash: '',
+  keyAndThresholdHash: '',
   status: {
     state: 'unknown',
     message: 'Not checked yet',
@@ -128,10 +132,12 @@ export default async (request) => {
     if (request.method === 'GET' && route === '/v1/admin/translation/config') {
       assertAdminRequest(request)
       const keyState = await resolveOpenRouterKey()
-      const keyStatus = await getOpenRouterKeyStatus(keyState)
+      const lowCreditWarningThreshold = await resolveLowCreditWarningThreshold()
+      const keyStatus = await getOpenRouterKeyStatus(keyState, lowCreditWarningThreshold)
       const receiptPublisher = getReceiptPublisherStatus()
       return json(200, {
         model: OPENROUTER_MODEL,
+        lowCreditWarningThreshold,
         openrouterKey: {
           configured: Boolean(keyState.key),
           masked: maskSecret(keyState.key),
@@ -231,29 +237,56 @@ export default async (request) => {
     if (request.method === 'POST' && route === '/v1/admin/translation/openrouter-key') {
       assertAdminRequest(request)
       const body = await parseJson(request)
-      const apiKey = typeof body?.apiKey === 'string' ? body.apiKey.trim() : ''
-      if (!apiKey) {
-        return json(400, { error: 'Missing OpenRouter API key' })
+      const apiKey =
+        typeof body?.apiKey === 'string' && body.apiKey.trim() ? body.apiKey.trim() : ''
+      const hasApiKeyUpdate = Boolean(apiKey)
+      const hasThresholdUpdate = body?.lowCreditWarningThreshold !== undefined
+      const nextThreshold = hasThresholdUpdate
+        ? toNonNegativeNumber(body?.lowCreditWarningThreshold, Number.NaN)
+        : undefined
+
+      if (!hasApiKeyUpdate && !hasThresholdUpdate) {
+        return json(400, { error: 'Nothing to update' })
       }
-      if (apiKey.length < 12) {
+
+      if (hasApiKeyUpdate && apiKey.length < 12) {
         return json(400, { error: 'OpenRouter API key looks invalid' })
       }
 
-      await adminConfigStore.setJSON('openrouter', {
-        apiKey,
-        updatedAt: Date.now()
-      })
+      if (hasThresholdUpdate && !Number.isFinite(nextThreshold)) {
+        return json(400, { error: 'Invalid low-credit warning threshold' })
+      }
+
+      const currentConfig = (await adminConfigStore.get('openrouter', { type: 'json' })) || {}
+      const nextConfig = {
+        ...currentConfig
+      }
+
+      if (hasApiKeyUpdate) {
+        nextConfig.apiKey = apiKey
+        nextConfig.updatedAt = Date.now()
+      }
+      if (hasThresholdUpdate) {
+        nextConfig.lowCreditWarningThreshold = nextThreshold
+        nextConfig.lowCreditWarningThresholdUpdatedAt = Date.now()
+      }
+
+      await adminConfigStore.setJSON('openrouter', nextConfig)
       invalidateOpenRouterCache()
 
       const nextState = await resolveOpenRouterKey()
+      const lowCreditWarningThreshold = await resolveLowCreditWarningThreshold()
+      const keyStatus = await getOpenRouterKeyStatus(nextState, lowCreditWarningThreshold)
       return json(200, {
         ok: true,
+        lowCreditWarningThreshold,
         openrouterKey: {
           configured: Boolean(nextState.key),
           masked: maskSecret(nextState.key),
           source: nextState.source,
           updatedAt: nextState.updatedAt
-        }
+        },
+        openrouterStatus: keyStatus
       })
     }
 
@@ -985,7 +1018,7 @@ function invalidateOpenRouterCache() {
   }
   openRouterStatusCache = {
     fetchedAt: 0,
-    keyHash: '',
+    keyAndThresholdHash: '',
     status: {
       state: 'unknown',
       message: 'Not checked yet',
@@ -997,7 +1030,19 @@ function invalidateOpenRouterCache() {
   }
 }
 
-async function getOpenRouterKeyStatus(keyState) {
+async function resolveLowCreditWarningThreshold() {
+  const stored = await adminConfigStore.get('openrouter', { type: 'json' })
+  const fromBlob = toNonNegativeNumber(
+    stored?.lowCreditWarningThreshold,
+    Number.NaN
+  )
+  if (Number.isFinite(fromBlob)) {
+    return fromBlob
+  }
+  return OPENROUTER_LOW_CREDIT_WARNING_THRESHOLD_DEFAULT
+}
+
+async function getOpenRouterKeyStatus(keyState, lowCreditWarningThreshold = 0) {
   if (!keyState?.key) {
     return {
       state: 'missing',
@@ -1009,9 +1054,9 @@ async function getOpenRouterKeyStatus(keyState) {
     }
   }
 
-  const keyHash = createHashKey(keyState.key).slice(0, 16)
+  const keyAndThresholdHash = `${createHashKey(keyState.key).slice(0, 16)}:${lowCreditWarningThreshold}`
   if (
-    openRouterStatusCache.keyHash === keyHash &&
+    openRouterStatusCache.keyAndThresholdHash === keyAndThresholdHash &&
     Date.now() - openRouterStatusCache.fetchedAt < OPENROUTER_STATUS_CACHE_TTL_MS
   ) {
     return openRouterStatusCache.status
@@ -1076,11 +1121,19 @@ async function getOpenRouterKeyStatus(keyState) {
           : null)
 
       const depleted = Number.isFinite(computedRemaining) && computedRemaining <= 0
+      const lowBalance =
+        Number.isFinite(computedRemaining) &&
+        computedRemaining > 0 &&
+        Number.isFinite(lowCreditWarningThreshold) &&
+        lowCreditWarningThreshold > 0 &&
+        computedRemaining <= lowCreditWarningThreshold
       nextStatus = {
-        state: depleted ? 'depleted' : 'ok',
+        state: depleted ? 'depleted' : lowBalance ? 'low' : 'ok',
         message: depleted
           ? 'OpenRouter key has no remaining credits'
-          : 'OpenRouter key is active',
+          : lowBalance
+            ? `OpenRouter key credits are low (${computedRemaining} <= ${lowCreditWarningThreshold})`
+            : 'OpenRouter key is active',
         checkedAt: Date.now(),
         remainingCredits: Number.isFinite(computedRemaining) ? computedRemaining : null,
         totalCredits: Number.isFinite(totalCredits) ? totalCredits : null,
@@ -1101,7 +1154,7 @@ async function getOpenRouterKeyStatus(keyState) {
 
   openRouterStatusCache = {
     fetchedAt: Date.now(),
-    keyHash,
+    keyAndThresholdHash,
     status: nextStatus
   }
   return nextStatus
@@ -1698,6 +1751,12 @@ function authError() {
 function toFiniteNumber(value, fallback) {
   const number = Number(value)
   if (!Number.isFinite(number)) return fallback
+  return number
+}
+
+function toNonNegativeNumber(value, fallback) {
+  const number = Number(value)
+  if (!Number.isFinite(number) || number < 0) return fallback
   return number
 }
 
