@@ -19,9 +19,17 @@ import { Plus, X } from 'lucide-react'
 import { forwardRef, HTMLProps, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+function getInitialTab() {
+  const tab = new URLSearchParams(window.location.search).get('tab')
+  if (tab === 'words' || tab === 'hashtags' || tab === 'threads' || tab === 'domains') {
+    return tab
+  }
+  return 'content'
+}
+
 const ContentPrivacySettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState('content')
+  const [activeTab, setActiveTab] = useState(getInitialTab)
   const {
     autoplay,
     setAutoplay,

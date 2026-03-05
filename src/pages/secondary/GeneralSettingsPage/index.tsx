@@ -18,9 +18,14 @@ import { Check, BellOff, BellRing } from 'lucide-react'
 import { forwardRef, HTMLProps, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+function getInitialTab() {
+  const tab = new URLSearchParams(window.location.search).get('tab')
+  return tab === 'display' ? tab : 'interface'
+}
+
 const GeneralSettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
   const { t, i18n } = useTranslation()
-  const [activeTab, setActiveTab] = useState('interface')
+  const [activeTab, setActiveTab] = useState(getInitialTab)
   const [language, setLanguage] = useState<TLanguage>(i18n.language as TLanguage)
   const { distractionFreeMode, setDistractionFreeMode } = useDistractionFreeMode()
   const {

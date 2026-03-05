@@ -45,6 +45,20 @@ import { Check, Moon, Sun, Monitor, LayoutGrid, Maximize2, List, FileText, Colum
 import { forwardRef, HTMLProps, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+function getInitialTab() {
+  const tab = new URLSearchParams(window.location.search).get('tab')
+  if (
+    tab === 'theme' ||
+    tab === 'navigation' ||
+    tab === 'layout' ||
+    tab === 'typography' ||
+    tab === 'styling'
+  ) {
+    return tab
+  }
+  return 'theme'
+}
+
 const getPaletteColor = (palette: TColorPalette, theme: string, type: 'background' | 'muted' | 'border') => {
   // Color palette HSL values for preview (background is darker, card/muted is lighter)
   const colors: Record<TColorPalette, { light: Record<string, string>, dark: Record<string, string> }> = {
@@ -79,7 +93,7 @@ const getPaletteColor = (palette: TColorPalette, theme: string, type: 'backgroun
 
 const AppearanceSettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState('theme')
+  const [activeTab, setActiveTab] = useState(getInitialTab)
   const { themeSetting, setThemeSetting, theme } = useTheme()
   const { colorPalette, setColorPalette } = useColorPalette()
   const { pageTheme, setPageTheme } = usePageTheme()

@@ -1,4 +1,5 @@
 import AboutInfoDialog from '@/components/AboutInfoDialog'
+import { Input } from '@/components/ui/input'
 import SecondaryPageLayout from '@/layouts/SecondaryPageLayout'
 import {
   toAITools,
@@ -28,114 +29,352 @@ import {
   Palette,
   PencilLine,
   Server,
+  Search,
   Settings2,
   Shield,
   Wallet
 } from 'lucide-react'
-import { forwardRef, HTMLProps, useState } from 'react'
+import { forwardRef, HTMLProps, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+type TSettingsSearchItem = {
+  id: string
+  icon: React.ReactNode
+  title: string
+  subtitle?: string
+  route: string
+  keywords: string[]
+}
+
+function normalizeSearchText(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s&-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function isSearchMatch(item: TSettingsSearchItem, query: string) {
+  if (!query) return true
+  const queryTokens = normalizeSearchText(query).split(' ').filter(Boolean)
+  if (!queryTokens.length) return true
+  const haystack = normalizeSearchText([item.title, item.subtitle, ...item.keywords].filter(Boolean).join(' '))
+  return queryTokens.every((token) => haystack.includes(token))
+}
 
 const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
   const { t } = useTranslation()
   const { pubkey, nsec, ncryptsec } = useNostr()
   const { push } = useSecondaryPage()
+  const [settingsQuery, setSettingsQuery] = useState('')
   const [copiedNsec, setCopiedNsec] = useState(false)
   const [copiedNcryptsec, setCopiedNcryptsec] = useState(false)
+  const normalizedQuery = settingsQuery.trim()
+
+  const searchItems = useMemo(() => {
+    const items: TSettingsSearchItem[] = [
+      {
+        id: 'general',
+        icon: <Settings2 />,
+        title: t('General'),
+        route: toGeneralSettings(),
+        keywords: ['settings', 'general']
+      },
+      {
+        id: 'general-interface',
+        icon: <Settings2 />,
+        title: t('Interface'),
+        subtitle: t('General'),
+        route: `${toGeneralSettings()}?tab=interface`,
+        keywords: ['language', 'payments', 'text only', 'slow connection', 'avatar', 'rtl', 'distraction free']
+      },
+      {
+        id: 'general-display',
+        icon: <Settings2 />,
+        title: t('Display'),
+        subtitle: t('General'),
+        route: `${toGeneralSettings()}?tab=display`,
+        keywords: ['hide reads', 'profiles']
+      },
+      {
+        id: 'content-privacy',
+        icon: <Shield />,
+        title: t('Content & Privacy'),
+        route: toContentPrivacySettings(),
+        keywords: ['mute', 'privacy', 'spam', 'nsfw', 'autoplay']
+      },
+      {
+        id: 'muted-words',
+        icon: <Shield />,
+        title: t('Muted Words'),
+        subtitle: t('Content & Privacy'),
+        route: `${toContentPrivacySettings()}?tab=words`,
+        keywords: ['mute words', 'keyword filter']
+      },
+      {
+        id: 'muted-hashtags',
+        icon: <Shield />,
+        title: t('Muted Hashtags'),
+        subtitle: t('Content & Privacy'),
+        route: `${toContentPrivacySettings()}?tab=hashtags`,
+        keywords: ['mute hashtag', 'hashtags', 'tag filter']
+      },
+      {
+        id: 'muted-threads',
+        icon: <Shield />,
+        title: t('Muted Threads'),
+        subtitle: t('Content & Privacy'),
+        route: `${toContentPrivacySettings()}?tab=threads`,
+        keywords: ['mute thread', 'mute conversation']
+      },
+      {
+        id: 'muted-domains',
+        icon: <Shield />,
+        title: t('Muted Domains'),
+        subtitle: t('Content & Privacy'),
+        route: `${toContentPrivacySettings()}?tab=domains`,
+        keywords: ['nip05 domain', 'domain mute']
+      },
+      {
+        id: 'appearance',
+        icon: <Palette />,
+        title: t('Appearance'),
+        route: toAppearanceSettings(),
+        keywords: ['theme', 'font', 'layout', 'colors', 'style']
+      },
+      {
+        id: 'appearance-theme',
+        icon: <Palette />,
+        title: t('Theme'),
+        subtitle: t('Appearance'),
+        route: `${toAppearanceSettings()}?tab=theme`,
+        keywords: ['dark mode', 'light mode', 'color palette']
+      },
+      {
+        id: 'appearance-navigation',
+        icon: <Palette />,
+        title: t('Navigation'),
+        subtitle: t('Appearance'),
+        route: `${toAppearanceSettings()}?tab=navigation`,
+        keywords: ['sidebar', 'logo', 'menu']
+      },
+      {
+        id: 'appearance-layout',
+        icon: <Palette />,
+        title: t('Layout'),
+        subtitle: t('Appearance'),
+        route: `${toAppearanceSettings()}?tab=layout`,
+        keywords: ['columns', 'deck', 'media style', 'notification list']
+      },
+      {
+        id: 'appearance-typography',
+        icon: <Palette />,
+        title: t('Typography'),
+        subtitle: t('Appearance'),
+        route: `${toAppearanceSettings()}?tab=typography`,
+        keywords: ['font', 'text size', 'title size']
+      },
+      {
+        id: 'appearance-styling',
+        icon: <Palette />,
+        title: t('Styling'),
+        subtitle: t('Appearance'),
+        route: `${toAppearanceSettings()}?tab=styling`,
+        keywords: ['radius', 'buttons', 'cards', 'media corners']
+      },
+      {
+        id: 'widgets',
+        icon: <LayoutGrid />,
+        title: t('Widgets'),
+        route: toWidgetsSettings(),
+        keywords: ['sidebar widgets', 'bitcoin ticker', 'trending notes']
+      },
+      {
+        id: 'relays',
+        icon: <Server />,
+        title: t('Relays'),
+        route: toRelaySettings(),
+        keywords: ['relay settings', 'favorite relays', 'mailbox']
+      },
+      {
+        id: 'backup',
+        icon: <Cloud />,
+        title: t('Backup & Sync'),
+        route: toBackupSettings(),
+        keywords: ['backup settings', 'sync settings', 'restore']
+      }
+    ]
+
+    if (pubkey) {
+      items.push(
+        {
+          id: 'ai-tools',
+          icon: <Bot />,
+          title: t('AI Tools'),
+          route: toAITools(),
+          keywords: ['ai', 'models', 'image model', 'web search model']
+        },
+        {
+          id: 'translation',
+          icon: <Languages />,
+          title: t('Translation'),
+          route: toTranslation(),
+          keywords: ['translate', 'language translation']
+        },
+        {
+          id: 'wallet',
+          icon: <Wallet />,
+          title: t('Wallet'),
+          route: toWallet(),
+          keywords: ['zap', 'lightning', 'payments']
+        },
+        {
+          id: 'posts',
+          icon: <PencilLine />,
+          title: t('Post settings'),
+          route: toPostSettings(),
+          keywords: ['post', 'composer', 'posting']
+        }
+      )
+    }
+
+    return items
+  }, [t, pubkey])
+
+  const searchResults = useMemo(() => {
+    if (!normalizedQuery) return []
+    return searchItems.filter((item) => isSearchMatch(item, normalizedQuery))
+  }, [searchItems, normalizedQuery])
 
   return (
     <SecondaryPageLayout ref={ref} index={index} title={t('Settings')}>
-      <SettingItem className="clickable" onClick={() => push(toGeneralSettings())}>
-        <Settings2 />
-        {t('General')}
-      </SettingItem>
-      <SettingItem className="clickable" onClick={() => push(toContentPrivacySettings())}>
-        <Shield />
-        {t('Content & Privacy')}
-      </SettingItem>
-      <SettingItem className="clickable" onClick={() => push(toAppearanceSettings())}>
-        <Palette />
-        {t('Appearance')}
-      </SettingItem>
-      <SettingItem className="clickable" onClick={() => push(toWidgetsSettings())}>
-        <LayoutGrid />
-        {t('Widgets')}
-      </SettingItem>
-      <SettingItem className="clickable" onClick={() => push(toRelaySettings())}>
-        <Server />
-        {t('Relays')}
-      </SettingItem>
-      <SettingItem className="clickable" onClick={() => push(toBackupSettings())}>
-        <Cloud />
-        {t('Backup & Sync')}
-      </SettingItem>
-      {!!pubkey && (
-        <SettingItem className="clickable" onClick={() => push(toAITools())}>
-          <Bot />
-          {t('AI Tools')}
-        </SettingItem>
-      )}
-      {!!pubkey && (
-        <SettingItem className="clickable" onClick={() => push(toTranslation())}>
-          <Languages />
-          {t('Translation')}
-        </SettingItem>
-      )}
-      {!!pubkey && (
-        <SettingItem className="clickable" onClick={() => push(toWallet())}>
-          <Wallet />
-          {t('Wallet')}
-        </SettingItem>
-      )}
-      {!!pubkey && (
-        <SettingItem className="clickable" onClick={() => push(toPostSettings())}>
-          <PencilLine />
-          {t('Post settings')}
-        </SettingItem>
-      )}
-      {!!nsec && (
-        <SettingItem
-          className="clickable"
-          onClick={() => {
-            navigator.clipboard.writeText(nsec)
-            setCopiedNsec(true)
-            setTimeout(() => setCopiedNsec(false), 2000)
-          }}
-          rightIcon={copiedNsec ? <Check /> : <Copy />}
-        >
-          <KeyRound />
-          {t('Copy private key')} (nsec)
-        </SettingItem>
-      )}
-      {!!ncryptsec && (
-        <SettingItem
-          className="clickable"
-          onClick={() => {
-            navigator.clipboard.writeText(ncryptsec)
-            setCopiedNcryptsec(true)
-            setTimeout(() => setCopiedNcryptsec(false), 2000)
-          }}
-          rightIcon={copiedNcryptsec ? <Check /> : <Copy />}
-        >
-          <KeyRound />
-          {t('Copy private key')} (ncryptsec)
-        </SettingItem>
-      )}
-      <AboutInfoDialog>
-        <SettingItem
-          className="clickable"
-          rightIcon={
-            <div className="flex gap-2 items-center">
-              <div className="text-muted-foreground">
-                v{import.meta.env.APP_VERSION} ({import.meta.env.GIT_COMMIT})
+      <div className="px-4 pt-3 pb-2">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            value={settingsQuery}
+            onChange={(e) => setSettingsQuery(e.target.value)}
+            placeholder={t('Search settings...')}
+            className="pl-9"
+          />
+        </div>
+      </div>
+
+      {normalizedQuery ? (
+        <>
+          {searchResults.map((item) => (
+            <SettingItem key={item.id} className="clickable" onClick={() => push(item.route)}>
+              {item.icon}
+              <div className="flex flex-col min-w-0">
+                <div className="truncate">{item.title}</div>
+                {item.subtitle && (
+                  <div className="text-xs text-muted-foreground truncate">{item.subtitle}</div>
+                )}
               </div>
-              <ChevronRight />
+            </SettingItem>
+          ))}
+          {searchResults.length === 0 && (
+            <div className="px-4 py-6 text-sm text-muted-foreground">
+              {t('No settings found for your search.')}
             </div>
-          }
-        >
-          <Info />
-          {t('About')}
-        </SettingItem>
-      </AboutInfoDialog>
+          )}
+        </>
+      ) : (
+        <>
+          <SettingItem className="clickable" onClick={() => push(toGeneralSettings())}>
+            <Settings2 />
+            {t('General')}
+          </SettingItem>
+          <SettingItem className="clickable" onClick={() => push(toContentPrivacySettings())}>
+            <Shield />
+            {t('Content & Privacy')}
+          </SettingItem>
+          <SettingItem className="clickable" onClick={() => push(toAppearanceSettings())}>
+            <Palette />
+            {t('Appearance')}
+          </SettingItem>
+          <SettingItem className="clickable" onClick={() => push(toWidgetsSettings())}>
+            <LayoutGrid />
+            {t('Widgets')}
+          </SettingItem>
+          <SettingItem className="clickable" onClick={() => push(toRelaySettings())}>
+            <Server />
+            {t('Relays')}
+          </SettingItem>
+          <SettingItem className="clickable" onClick={() => push(toBackupSettings())}>
+            <Cloud />
+            {t('Backup & Sync')}
+          </SettingItem>
+          {!!pubkey && (
+            <SettingItem className="clickable" onClick={() => push(toAITools())}>
+              <Bot />
+              {t('AI Tools')}
+            </SettingItem>
+          )}
+          {!!pubkey && (
+            <SettingItem className="clickable" onClick={() => push(toTranslation())}>
+              <Languages />
+              {t('Translation')}
+            </SettingItem>
+          )}
+          {!!pubkey && (
+            <SettingItem className="clickable" onClick={() => push(toWallet())}>
+              <Wallet />
+              {t('Wallet')}
+            </SettingItem>
+          )}
+          {!!pubkey && (
+            <SettingItem className="clickable" onClick={() => push(toPostSettings())}>
+              <PencilLine />
+              {t('Post settings')}
+            </SettingItem>
+          )}
+          {!!nsec && (
+            <SettingItem
+              className="clickable"
+              onClick={() => {
+                navigator.clipboard.writeText(nsec)
+                setCopiedNsec(true)
+                setTimeout(() => setCopiedNsec(false), 2000)
+              }}
+              rightIcon={copiedNsec ? <Check /> : <Copy />}
+            >
+              <KeyRound />
+              {t('Copy private key')} (nsec)
+            </SettingItem>
+          )}
+          {!!ncryptsec && (
+            <SettingItem
+              className="clickable"
+              onClick={() => {
+                navigator.clipboard.writeText(ncryptsec)
+                setCopiedNcryptsec(true)
+                setTimeout(() => setCopiedNcryptsec(false), 2000)
+              }}
+              rightIcon={copiedNcryptsec ? <Check /> : <Copy />}
+            >
+              <KeyRound />
+              {t('Copy private key')} (ncryptsec)
+            </SettingItem>
+          )}
+          <AboutInfoDialog>
+            <SettingItem
+              className="clickable"
+              rightIcon={
+                <div className="flex gap-2 items-center">
+                  <div className="text-muted-foreground">
+                    v{import.meta.env.APP_VERSION} ({import.meta.env.GIT_COMMIT})
+                  </div>
+                  <ChevronRight />
+                </div>
+              }
+            >
+              <Info />
+              {t('About')}
+            </SettingItem>
+          </AboutInfoDialog>
+        </>
+      )}
     </SecondaryPageLayout>
   )
 })
@@ -165,7 +404,7 @@ const SettingItem = forwardRef<
           {icon}
         </div>
         {/* Label */}
-        <span>{label}</span>
+        <div className="min-w-0">{label}</div>
       </div>
       {rightIcon || <ChevronRight className="size-4 shrink-0" />}
     </div>
