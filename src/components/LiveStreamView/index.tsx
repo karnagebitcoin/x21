@@ -36,6 +36,7 @@ import { BIG_RELAY_URLS } from '@/constants'
 import { normalizeUrl } from '@/lib/url'
 import { useLiveStreamPopout } from '@/providers/LiveStreamPopoutProvider'
 import { useWidgets } from '@/providers/WidgetsProvider'
+import liveStreamSyncService, { TLiveStreamSyncCommand } from '@/services/live-stream-sync.service'
 
 const DEFAULT_LIVE_RELAYS = ['wss://relay.damus.io/', 'wss://nos.lol/', 'wss://relay.nostr.band/']
 const FAST_LIVE_RELAYS = ['wss://relay.snort.social/', 'wss://relay.primal.net/', 'wss://nostr.wine/']
@@ -150,6 +151,7 @@ export default function LiveStreamView({
   const chatScrollRafRef = useRef<number | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const videoContainerRef = useRef<HTMLDivElement>(null)
+  const sourceIdRef = useRef(`live-stream-view-${Math.random().toString(36).slice(2)}`)
   const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const slowLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [loadAttempt, setLoadAttempt] = useState(0)
@@ -471,25 +473,41 @@ export default function LiveStreamView({
     if (isInPopout) return
 
     const video = videoRef.current
-    if (!video) return
+    if (!video || !activeStreamingUrl) return
 
     try {
       if (video.paused) {
         await video.play()
+        liveStreamSyncService.dispatchCommand({
+          streamingUrl: activeStreamingUrl,
+          action: 'play',
+          sourceId: sourceIdRef.current
+        })
       } else {
         video.pause()
+        liveStreamSyncService.dispatchCommand({
+          streamingUrl: activeStreamingUrl,
+          action: 'pause',
+          sourceId: sourceIdRef.current
+        })
       }
     } catch (error) {
       console.error('Failed to toggle video playback:', error)
     }
-  }, [isInPopout])
+  }, [activeStreamingUrl, isInPopout])
 
   const toggleVideoMute = useCallback(() => {
     const video = videoRef.current
-    if (!video) return
+    if (!video || !activeStreamingUrl) return
     video.muted = !video.muted
     setIsVideoMuted(video.muted)
-  }, [])
+    liveStreamSyncService.dispatchCommand({
+      streamingUrl: activeStreamingUrl,
+      action: 'set-muted',
+      muted: video.muted,
+      sourceId: sourceIdRef.current
+    })
+  }, [activeStreamingUrl])
 
   const handleSeek = useCallback((value: number[]) => {
     const video = videoRef.current
@@ -519,12 +537,54 @@ export default function LiveStreamView({
     if (!isInPopout) return
 
     const video = videoRef.current
-    if (!video) return
+    if (!video || !activeStreamingUrl) return
 
     if (!video.paused) {
       video.pause()
+      liveStreamSyncService.dispatchCommand({
+        streamingUrl: activeStreamingUrl,
+        action: 'pause',
+        sourceId: sourceIdRef.current
+      })
     }
     setIsVideoPlaying(false)
+  }, [activeStreamingUrl, isInPopout])
+
+  useEffect(() => {
+    if (!activeStreamingUrl) return
+
+    const handleCommand = (event: Event) => {
+      const customEvent = event as CustomEvent<TLiveStreamSyncCommand>
+      const command = customEvent.detail
+
+      if (!command || command.streamingUrl !== activeStreamingUrl) return
+      if (command.sourceId === sourceIdRef.current) return
+
+      const video = videoRef.current
+      if (!video) return
+
+      if (command.action === 'play') {
+        if (isInPopout) return
+        video.play().catch(() => {
+          setIsVideoPlaying(false)
+        })
+        return
+      }
+      if (command.action === 'pause') {
+        video.pause()
+        setIsVideoPlaying(false)
+        return
+      }
+      if (command.action === 'set-muted') {
+        video.muted = !!command.muted
+        setIsVideoMuted(video.muted)
+      }
+    }
+
+    liveStreamSyncService.addEventListener('command', handleCommand as EventListener)
+    return () => {
+      liveStreamSyncService.removeEventListener('command', handleCommand as EventListener)
+    }
   }, [activeStreamingUrl, isInPopout])
 
   if (isLoading) {
@@ -707,6 +767,11 @@ export default function LiveStreamView({
                           if (video && !video.paused) {
                             video.pause()
                             setIsVideoPlaying(false)
+                            liveStreamSyncService.dispatchCommand({
+                              streamingUrl,
+                              action: 'pause',
+                              sourceId: sourceIdRef.current
+                            })
                           }
                           openPopout({
                             streamingUrl,

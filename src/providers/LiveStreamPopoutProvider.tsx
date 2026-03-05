@@ -13,6 +13,7 @@ import { createPortal } from 'react-dom'
 import { Pause, PictureInPicture2, Play, Volume2, VolumeX, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
+import liveStreamSyncService, { TLiveStreamSyncCommand } from '@/services/live-stream-sync.service'
 
 type LiveStreamPopoutPayload = {
   streamingUrl: string
@@ -121,6 +122,7 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
   const layoutRef = useRef(layout)
   const videoRef = useRef<HTMLVideoElement>(null)
   const controlHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sourceIdRef = useRef(`live-stream-popout-${Math.random().toString(36).slice(2)}`)
 
   useEffect(() => {
     layoutRef.current = layout
@@ -275,26 +277,42 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
 
   const togglePlayback = useCallback(async () => {
     const video = videoRef.current
-    if (!video) return
+    if (!video || !popout?.streamingUrl) return
 
     try {
       if (video.paused) {
         await video.play()
+        liveStreamSyncService.dispatchCommand({
+          streamingUrl: popout.streamingUrl,
+          action: 'play',
+          sourceId: sourceIdRef.current
+        })
       } else {
         video.pause()
+        liveStreamSyncService.dispatchCommand({
+          streamingUrl: popout.streamingUrl,
+          action: 'pause',
+          sourceId: sourceIdRef.current
+        })
       }
     } catch (error) {
       console.error('Failed to toggle popout playback:', error)
     }
-  }, [])
+  }, [popout?.streamingUrl])
 
   const toggleMute = useCallback(() => {
     const video = videoRef.current
-    if (!video) return
+    if (!video || !popout?.streamingUrl) return
 
     video.muted = !video.muted
     setIsMuted(video.muted)
-  }, [])
+    liveStreamSyncService.dispatchCommand({
+      streamingUrl: popout.streamingUrl,
+      action: 'set-muted',
+      muted: video.muted,
+      sourceId: sourceIdRef.current
+    })
+  }, [popout?.streamingUrl])
 
   const handleVolumeChange = useCallback((values: number[]) => {
     const video = videoRef.current
@@ -368,6 +386,42 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
     }
     scheduleControlHide()
   }, [clearControlHideTimeout, isOpen, isPlaying, scheduleControlHide])
+
+  useEffect(() => {
+    if (!isOpen || !popout?.streamingUrl) return
+
+    const handleCommand = (event: Event) => {
+      const customEvent = event as CustomEvent<TLiveStreamSyncCommand>
+      const command = customEvent.detail
+
+      if (!command || command.streamingUrl !== popout.streamingUrl) return
+      if (command.sourceId === sourceIdRef.current) return
+
+      const video = videoRef.current
+      if (!video) return
+
+      if (command.action === 'play') {
+        video.play().catch(() => {
+          setIsPlaying(false)
+        })
+        return
+      }
+      if (command.action === 'pause') {
+        video.pause()
+        setIsPlaying(false)
+        return
+      }
+      if (command.action === 'set-muted') {
+        video.muted = !!command.muted
+        setIsMuted(video.muted)
+      }
+    }
+
+    liveStreamSyncService.addEventListener('command', handleCommand as EventListener)
+    return () => {
+      liveStreamSyncService.removeEventListener('command', handleCommand as EventListener)
+    }
+  }, [isOpen, popout?.streamingUrl])
 
   const contextValue = useMemo<LiveStreamPopoutContextValue>(
     () => ({

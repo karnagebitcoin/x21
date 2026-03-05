@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { CardHeader, CardTitle } from '@/components/ui/card'
 import { useSecondaryPage } from '@/PageManager'
 import { useWidgets } from '@/providers/WidgetsProvider'
+import liveStreamSyncService, { TLiveStreamSyncCommand } from '@/services/live-stream-sync.service'
 import { Pause, Play, Radio, Volume2, VolumeX, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,6 +30,7 @@ export default function LiveStreamWidget({
   const [isPlaying, setIsPlaying] = useState(true)
   const [isMuted, setIsMuted] = useState(true)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const sourceIdRef = useRef(`live-stream-widget-${widgetId}`)
 
   useEffect(() => {
     const video = videoRef.current
@@ -41,6 +43,41 @@ export default function LiveStreamWidget({
     })
   }, [streamingUrl])
 
+  useEffect(() => {
+    if (!streamingUrl) return
+
+    const handleCommand = (event: Event) => {
+      const customEvent = event as CustomEvent<TLiveStreamSyncCommand>
+      const command = customEvent.detail
+
+      if (!command || command.streamingUrl !== streamingUrl) return
+      if (command.sourceId === sourceIdRef.current) return
+
+      const video = videoRef.current
+      if (!video) return
+
+      if (command.action === 'play') {
+        video.play().catch(() => {
+          setIsPlaying(false)
+        })
+        return
+      }
+      if (command.action === 'pause') {
+        video.pause()
+        return
+      }
+      if (command.action === 'set-muted') {
+        video.muted = !!command.muted
+        setIsMuted(video.muted)
+      }
+    }
+
+    liveStreamSyncService.addEventListener('command', handleCommand as EventListener)
+    return () => {
+      liveStreamSyncService.removeEventListener('command', handleCommand as EventListener)
+    }
+  }, [streamingUrl])
+
   const handleTogglePlay = async () => {
     const video = videoRef.current
     if (!video) return
@@ -48,8 +85,18 @@ export default function LiveStreamWidget({
     try {
       if (video.paused) {
         await video.play()
+        liveStreamSyncService.dispatchCommand({
+          streamingUrl,
+          action: 'play',
+          sourceId: sourceIdRef.current
+        })
       } else {
         video.pause()
+        liveStreamSyncService.dispatchCommand({
+          streamingUrl,
+          action: 'pause',
+          sourceId: sourceIdRef.current
+        })
       }
     } catch {
       setIsPlaying(!video.paused)
@@ -61,6 +108,12 @@ export default function LiveStreamWidget({
     if (!video) return
     video.muted = !video.muted
     setIsMuted(video.muted)
+    liveStreamSyncService.dispatchCommand({
+      streamingUrl,
+      action: 'set-muted',
+      muted: video.muted,
+      sourceId: sourceIdRef.current
+    })
   }
 
   return (
