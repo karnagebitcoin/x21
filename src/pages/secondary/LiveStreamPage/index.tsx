@@ -12,7 +12,13 @@ const LiveStreamPage = forwardRef<any, LiveStreamPageProps>(({ naddr, index }, r
   const { t } = useTranslation()
 
   return (
-    <SecondaryPageLayout ref={ref} index={index} title={t('Live Stream')} displayScrollToTopButton>
+    <SecondaryPageLayout
+      ref={ref}
+      index={index}
+      title={t('Live Stream')}
+      displayScrollToTopButton
+      hideScrollBar
+    >
       <LiveStreamView naddr={naddr} />
     </SecondaryPageLayout>
   )

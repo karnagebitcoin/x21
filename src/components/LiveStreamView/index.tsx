@@ -462,7 +462,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
   }
 
   return (
-    <div className="h-[calc(100dvh-4rem)] flex flex-col overflow-hidden">
+    <div className="h-[calc(100dvh-4rem)] w-full min-w-0 max-w-full flex flex-col overflow-hidden">
       <div className="shrink-0 border-b px-3 py-1.5 bg-background">
         <div className="flex items-center gap-2 min-w-0">
           <UserAvatar userId={liveEvent.pubkey} size="small" />
@@ -502,7 +502,7 @@ export default function LiveStreamView({ naddr }: { naddr?: string }) {
         <div className="min-h-0 bg-black border-b flex flex-col">
           {streamingUrl ? (
             <>
-              <div ref={videoContainerRef} className="relative flex-1 min-h-0 bg-black">
+              <div ref={videoContainerRef} className="relative flex-1 min-h-0 min-w-0 bg-black">
                 <video
                   ref={videoRef}
                   src={streamingUrl}

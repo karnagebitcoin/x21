@@ -43,6 +43,7 @@ const LiveStreamsPage = forwardRef((_, ref) => {
       }
       displayScrollToTopButton
       hideBottomSpacer={!!activeStream}
+      hideScrollBar={!!activeStream}
     >
       {activeStream ? (
         <LiveStreamView naddr={activeStream.naddr} />

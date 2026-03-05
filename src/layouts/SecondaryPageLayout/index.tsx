@@ -2,6 +2,7 @@ import ScrollToTopButton from '@/components/ScrollToTopButton'
 import { Titlebar } from '@/components/Titlebar'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
 import { useSecondaryPage } from '@/PageManager'
 import { DeepBrowsingProvider } from '@/providers/DeepBrowsingProvider'
 import { ScrollVisibilityProvider } from '@/providers/ScrollVisibilityProvider'
@@ -23,7 +24,8 @@ const SecondaryPageLayout = forwardRef(
       titlebar,
       showCloseButton = false,
       onClose,
-      hideTitlebar = false
+      hideTitlebar = false,
+      hideScrollBar = false
     }: {
       children?: React.ReactNode
       index?: number
@@ -36,6 +38,7 @@ const SecondaryPageLayout = forwardRef(
       showCloseButton?: boolean
       onClose?: () => void
       hideTitlebar?: boolean
+      hideScrollBar?: boolean
     },
     ref
   ) => {
@@ -100,7 +103,7 @@ const SecondaryPageLayout = forwardRef(
         <DeepBrowsingProvider active={currentIndex === index} scrollAreaRef={scrollAreaRef}>
           <ScrollArea
             className="h-full overflow-auto"
-            scrollBarClassName="z-50 pt-12"
+            scrollBarClassName={cn('z-50 pt-12', hideScrollBar && 'opacity-0 pointer-events-none')}
             ref={scrollAreaRef}
           >
             {!hideTitlebar && (

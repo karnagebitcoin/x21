@@ -1,6 +1,7 @@
 import ScrollToTopButton from '@/components/ScrollToTopButton'
 import { Titlebar } from '@/components/Titlebar'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
 import { TPrimaryPageName, usePrimaryPage } from '@/PageManager'
 import { DeepBrowsingProvider } from '@/providers/DeepBrowsingProvider'
 import { ScrollVisibilityProvider } from '@/providers/ScrollVisibilityProvider'
@@ -15,7 +16,8 @@ const PrimaryPageLayout = forwardRef(
       pageName,
       displayScrollToTopButton = false,
       hideTitlebarBottomBorder = false,
-      hideBottomSpacer = false
+      hideBottomSpacer = false,
+      hideScrollBar = false
     }: {
       children?: React.ReactNode
       titlebar: React.ReactNode
@@ -23,6 +25,7 @@ const PrimaryPageLayout = forwardRef(
       displayScrollToTopButton?: boolean
       hideTitlebarBottomBorder?: boolean
       hideBottomSpacer?: boolean
+      hideScrollBar?: boolean
     },
     ref
   ) => {
@@ -110,7 +113,7 @@ const PrimaryPageLayout = forwardRef(
           </a>
           <ScrollArea
             className="h-full"
-            scrollBarClassName="z-50 pt-12"
+            scrollBarClassName={cn('z-50 pt-12', hideScrollBar && 'opacity-0 pointer-events-none')}
             ref={scrollAreaRef}
           >
             <PrimaryPageTitlebar hideBottomBorder={hideTitlebarBottomBorder}>
