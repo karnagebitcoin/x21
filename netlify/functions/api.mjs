@@ -362,10 +362,28 @@ async function checkTransaction(transactionId) {
   }
 
   if (tx.state !== 'pending') {
-    return json(200, { state: tx.state, canVerify: Boolean(tx.verify) })
+    return json(200, {
+      state: tx.state,
+      canVerify: Boolean(tx.verify),
+      transactionId: tx.id,
+      sats: tx.sats,
+      characters: tx.characters
+    })
   }
 
+  console.info('[translation tx] check:pending', {
+    transactionId: tx.id,
+    paymentHash: tx.paymentHash || null,
+    hasVerify: Boolean(tx.verify),
+    lightningAddress: tx.lightningAddress || null
+  })
   const status = await getTransactionState(tx)
+  console.info('[translation tx] check:status', {
+    transactionId: tx.id,
+    result: status.state,
+    source: status.source || 'unknown',
+    hasPreimage: Boolean(status.preimage)
+  })
   if (status.state === 'settled') {
     if (status.preimage && !tx.preimage) {
       tx.preimage = status.preimage
@@ -377,7 +395,13 @@ async function checkTransaction(transactionId) {
     await transactionStore.setJSON(txKey, tx)
   }
 
-  return json(200, { state: tx.state, canVerify: Boolean(tx.verify) })
+  return json(200, {
+    state: tx.state,
+    canVerify: Boolean(tx.verify),
+    transactionId: tx.id,
+    sats: tx.sats,
+    characters: tx.characters
+  })
 }
 
 async function confirmTransaction(transactionId, body) {
@@ -388,7 +412,13 @@ async function confirmTransaction(transactionId, body) {
   }
 
   if (tx.state === 'settled') {
-    return json(200, { state: 'settled', canVerify: Boolean(tx.verify) })
+    return json(200, {
+      state: 'settled',
+      canVerify: Boolean(tx.verify),
+      transactionId: tx.id,
+      sats: tx.sats,
+      characters: tx.characters
+    })
   }
 
   const preimage =
@@ -407,7 +437,13 @@ async function confirmTransaction(transactionId, body) {
   tx.preimage = preimage
   tx.paymentHash = expectedPaymentHash
   await settleTransaction(tx)
-  return json(200, { state: 'settled', canVerify: Boolean(tx.verify) })
+  return json(200, {
+    state: 'settled',
+    canVerify: Boolean(tx.verify),
+    transactionId: tx.id,
+    sats: tx.sats,
+    characters: tx.characters
+  })
 }
 
 async function settleTransaction(tx) {
@@ -1208,16 +1244,23 @@ async function createInvoiceForLightningAddress({ lightningAddress, sats, commen
     throw new Error(invoiceData?.reason || invoiceData?.error || 'Failed to create invoice')
   }
 
+  const paymentHash = getPaymentHashFromInvoice(invoiceData.pr)
+  const verifyFromLnurl = typeof invoiceData.verify === 'string' ? invoiceData.verify : null
+  const derivedVerify =
+    paymentHash && name && domain
+      ? `https://${domain}/.well-known/lnurlp/${encodeURIComponent(name)}/status/${paymentHash}`
+      : null
+
   return {
     invoice: invoiceData.pr,
-    verify: invoiceData.verify || null
+    verify: verifyFromLnurl || derivedVerify || null
   }
 }
 
 async function getTransactionState(tx) {
   const byInvoice = await getInvoiceVerificationState(tx)
   if (byInvoice.state !== 'pending') {
-    return byInvoice
+    return { ...byInvoice, source: 'invoice.verifyPayment' }
   }
 
   if (!tx.verify) {
@@ -1236,6 +1279,7 @@ async function getTransactionState(tx) {
     if (looksSettled(data)) {
       return {
         state: 'settled',
+        source: 'verify.url',
         preimage:
           typeof data?.preimage === 'string' && /^[0-9a-f]{64}$/i.test(data.preimage)
             ? data.preimage.toLowerCase()
@@ -1244,35 +1288,46 @@ async function getTransactionState(tx) {
     }
 
     if (looksFailed(data)) {
-      return { state: 'failed' }
+      return { state: 'failed', source: 'verify.url' }
     }
   } catch (error) {
     console.warn('verify transaction failed', error)
   }
 
-  return { state: 'pending' }
+  return { state: 'pending', source: 'verify.url' }
 }
 
 async function getFallbackTransactionState(tx) {
   const paymentHash = tx.paymentHash || getPaymentHashFromInvoice(tx.invoice)
   if (!paymentHash) {
-    return { state: 'pending' }
+    return { state: 'pending', source: 'fallback:no-payment-hash' }
   }
 
-  const domains = new Set(['coinos.io'])
+  const statusUrls = []
+  const legacyDomains = new Set(['coinos.io'])
   if (typeof tx.lightningAddress === 'string' && tx.lightningAddress.includes('@')) {
-    const domain = tx.lightningAddress.split('@')[1]?.trim().toLowerCase()
-    if (domain) {
-      domains.add(domain)
+    const [name, domain] = tx.lightningAddress.split('@')
+    const normalizedName = name?.trim().toLowerCase()
+    const normalizedDomain = domain?.trim().toLowerCase()
+    if (normalizedDomain) {
+      legacyDomains.add(normalizedDomain)
+    }
+    if (normalizedName && normalizedDomain) {
+      statusUrls.push(
+        `https://${normalizedDomain}/.well-known/lnurlp/${encodeURIComponent(normalizedName)}/status/${paymentHash}`,
+        `https://${normalizedDomain}/lnurlp/${encodeURIComponent(normalizedName)}/status/${paymentHash}`
+      )
     }
   }
 
-  const statusUrls = Array.from(domains).flatMap((domain) => [
-    `https://${domain}/api/invoice/${paymentHash}`,
-    `https://${domain}/api/v1/invoice/${paymentHash}`,
-    `https://${domain}/api/payments/${paymentHash}`,
-    `https://${domain}/api/payment/${paymentHash}`
-  ])
+  statusUrls.push(
+    ...Array.from(legacyDomains).flatMap((domain) => [
+      `https://${domain}/api/invoice/${paymentHash}`,
+      `https://${domain}/api/v1/invoice/${paymentHash}`,
+      `https://${domain}/api/payments/${paymentHash}`,
+      `https://${domain}/api/payment/${paymentHash}`
+    ])
+  )
 
   for (const statusUrl of statusUrls) {
     try {
@@ -1291,25 +1346,30 @@ async function getFallbackTransactionState(tx) {
       try {
         const data = JSON.parse(rawText)
         if (looksSettled(data)) {
+          console.info('[translation tx] fallback:settled', {
+            transactionId: tx.id,
+            statusUrl
+          })
           return {
             state: 'settled',
+            source: statusUrl,
             preimage:
               typeof data?.preimage === 'string' && /^[0-9a-f]{64}$/i.test(data.preimage)
                 ? data.preimage.toLowerCase()
                 : undefined
           }
         }
-        if (looksFailed(data)) return { state: 'failed' }
+        if (looksFailed(data)) return { state: 'failed', source: statusUrl }
       } catch {
         const normalized = rawText.toLowerCase()
         if (/invoice not found|not found|unknown invoice/.test(normalized)) {
           continue
         }
         if (/\b(settled|paid|confirmed|complete)\b/.test(normalized)) {
-          return { state: 'settled' }
+          return { state: 'settled', source: statusUrl }
         }
         if (/\b(failed|expired|cancelled|canceled)\b/.test(normalized)) {
-          return { state: 'failed' }
+          return { state: 'failed', source: statusUrl }
         }
       }
     } catch {
@@ -1317,7 +1377,7 @@ async function getFallbackTransactionState(tx) {
     }
   }
 
-  return { state: 'pending' }
+  return { state: 'pending', source: 'fallback:all-pending' }
 }
 
 function looksSettled(data) {

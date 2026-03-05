@@ -82,6 +82,9 @@ class TransactionService {
   async checkTransaction(transactionId: string): Promise<{
     state: 'pending' | 'failed' | 'settled'
     canVerify?: boolean
+    transactionId?: string
+    sats?: number
+    characters?: number
   }> {
     const url = new URL(`/v1/transactions/${transactionId}/check`, JUMBLE_API_BASE_URL).toString()
     const response = await fetch(url, {
@@ -100,6 +103,9 @@ class TransactionService {
   ): Promise<{
     state: 'pending' | 'failed' | 'settled'
     canVerify?: boolean
+    transactionId?: string
+    sats?: number
+    characters?: number
   }> {
     const url = new URL(`/v1/transactions/${transactionId}/confirm`, JUMBLE_API_BASE_URL).toString()
     const response = await fetch(url, {

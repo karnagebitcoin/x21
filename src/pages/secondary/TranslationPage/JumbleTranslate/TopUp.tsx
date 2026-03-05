@@ -87,15 +87,16 @@ export default function TopUp() {
     if (!latestTransactionId) return
     try {
       setTopUpLoading(true)
-      const { state, canVerify } = await transaction.checkTransaction(latestTransactionId)
+      const { state, canVerify, characters } = await transaction.checkTransaction(latestTransactionId)
       setCanAutoVerifyPayment(canVerify ?? canAutoVerifyPayment)
       if (state === 'settled') {
         await getAccount()
-        setPaymentStatus(
-          t('Payment received. Credits added.', {
-            defaultValue: 'Payment received. Credits added.'
-          })
-        )
+        const confirmedCredits = typeof characters === 'number' ? characters : 0
+        setPaymentStatus(confirmedCredits > 0
+          ? `Payment received. ${confirmedCredits.toLocaleString()} credits added.`
+          : t('Payment received. Credits added.', {
+              defaultValue: 'Payment received. Credits added.'
+            }))
         toast.success(
           t('Payment confirmed', {
             defaultValue: 'Payment confirmed'
@@ -145,22 +146,20 @@ export default function TopUp() {
       let checkPaymentInterval: ReturnType<typeof setInterval> | undefined = undefined
       let settled = false
 
-      const finalizeSettled = async () => {
+      const finalizeSettled = async (confirmedCharacters = characters, confirmedSats = sats) => {
         if (settled) return
         settled = true
         clearInterval(checkPaymentInterval)
         setTopUpLoading(false)
         setPaymentStatus(
-          t('Payment received. Credits added.', {
-            defaultValue: 'Payment received. Credits added.'
-          })
+          `Payment received. ${confirmedCharacters.toLocaleString()} credits added.`
         )
         await getAccount()
         toast.success(
           t('Top up successful: {{chars}} credits for {{sats}} sats', {
-            chars: characters.toLocaleString(),
-            sats: sats.toLocaleString(),
-            defaultValue: `Top up successful: ${characters.toLocaleString()} credits for ${sats.toLocaleString()} sats`
+            chars: confirmedCharacters.toLocaleString(),
+            sats: confirmedSats.toLocaleString(),
+            defaultValue: `Top up successful: ${confirmedCharacters.toLocaleString()} credits for ${confirmedSats.toLocaleString()} sats`
           })
         )
       }
@@ -173,14 +172,14 @@ export default function TopUp() {
             if (response?.preimage) {
               const result = await transaction.confirmTransaction(transactionId, response.preimage)
               if (result.state === 'settled') {
-                await finalizeSettled()
+                await finalizeSettled(result.characters ?? characters, result.sats ?? sats)
                 return
               }
             }
 
             const result = await transaction.checkTransaction(transactionId)
             if (result.state === 'settled') {
-              await finalizeSettled()
+              await finalizeSettled(result.characters ?? characters, result.sats ?? sats)
               return
             }
 
@@ -210,13 +209,18 @@ export default function TopUp() {
       let failedCount = 0
       checkPaymentInterval = setInterval(async () => {
         try {
-          const { state, canVerify: nextCanVerify } = await transaction.checkTransaction(transactionId)
+          const {
+            state,
+            canVerify: nextCanVerify,
+            characters: settledCharacters,
+            sats: settledSats
+          } = await transaction.checkTransaction(transactionId)
           setCanAutoVerifyPayment(nextCanVerify ?? canVerify)
           if (state === 'pending') return
 
           if (state === 'settled') {
             setPaid({ preimage: '' })
-            await finalizeSettled()
+            await finalizeSettled(settledCharacters ?? characters, settledSats ?? sats)
           } else {
             closeModal()
             clearInterval(checkPaymentInterval)
