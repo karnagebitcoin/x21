@@ -10,8 +10,9 @@ import {
   useState
 } from 'react'
 import { createPortal } from 'react-dom'
-import { PictureInPicture2, X } from 'lucide-react'
+import { Pause, PictureInPicture2, Play, Volume2, VolumeX, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Slider } from '@/components/ui/slider'
 
 type LiveStreamPopoutPayload = {
   streamingUrl: string
@@ -110,7 +111,13 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
   const [layout, setLayout] = useState<PopoutLayout>(() => loadLayout())
   const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
+  const [volume, setVolume] = useState(1)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
   const layoutRef = useRef(layout)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
     layoutRef.current = layout
@@ -136,6 +143,10 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
   }, [])
 
   const closePopout = useCallback(() => {
+    const video = videoRef.current
+    if (video && !video.paused) {
+      video.pause()
+    }
     setIsOpen(false)
   }, [])
 
@@ -223,6 +234,61 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
     window.addEventListener('pointercancel', handlePointerUp)
   }, [])
 
+  const togglePlayback = useCallback(async () => {
+    const video = videoRef.current
+    if (!video) return
+
+    try {
+      if (video.paused) {
+        await video.play()
+      } else {
+        video.pause()
+      }
+    } catch (error) {
+      console.error('Failed to toggle popout playback:', error)
+    }
+  }, [])
+
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    video.muted = !video.muted
+    setIsMuted(video.muted)
+  }, [])
+
+  const handleVolumeChange = useCallback((values: number[]) => {
+    const video = videoRef.current
+    if (!video) return
+
+    const nextVolume = values[0] ?? 1
+    video.volume = nextVolume
+    if (nextVolume > 0 && video.muted) {
+      video.muted = false
+    }
+    setVolume(nextVolume)
+    setIsMuted(video.muted)
+  }, [])
+
+  const handleSeek = useCallback((values: number[]) => {
+    const video = videoRef.current
+    if (!video) return
+
+    const nextTime = values[0] ?? 0
+    video.currentTime = nextTime
+    setCurrentTime(nextTime)
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen || !popout) return
+
+    const video = videoRef.current
+    if (!video) return
+
+    video.volume = volume
+    video.muted = isMuted
+  }, [isMuted, isOpen, popout, volume])
+
   const contextValue = useMemo<LiveStreamPopoutContextValue>(
     () => ({
       popout,
@@ -233,6 +299,9 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
     }),
     [closePopout, isOpen, isPopoutOpenForUrl, openPopout, popout]
   )
+
+  const hasDuration = Number.isFinite(duration) && duration > 0
+  const volumeValue = isMuted ? 0 : volume
 
   const overlay = isOpen && popout
     ? createPortal(
@@ -246,12 +315,12 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
             }}
           >
             <div
-              className={`flex h-10 items-center justify-between gap-2 border-b border-border/80 bg-black/90 px-2 text-white ${
+              className={`flex h-9 items-center justify-between gap-2 border-b border-border/80 bg-black/95 px-2 text-white ${
                 isDragging ? 'cursor-grabbing' : 'cursor-move'
               }`}
               onPointerDown={handleDragStart}
             >
-              <div className="flex min-w-0 items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2 pl-0.5">
                 <PictureInPicture2 className="h-4 w-4 shrink-0 text-white/70" />
                 <span className="truncate text-xs font-medium">{popout.title}</span>
               </div>
@@ -266,18 +335,99 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
               </Button>
             </div>
 
-            <video
-              src={popout.streamingUrl}
-              poster={popout.image}
-              controls
-              autoPlay
-              playsInline
-              className="h-[calc(100%-2.5rem)] w-full bg-black object-contain"
-            />
+            <div className="relative h-[calc(100%-2.25rem)] w-full bg-black">
+              <video
+                ref={videoRef}
+                src={popout.streamingUrl}
+                poster={popout.image}
+                autoPlay
+                playsInline
+                className="h-full w-full bg-black object-contain"
+                onClick={togglePlayback}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onEnded={() => setIsPlaying(false)}
+                onLoadedMetadata={(event) => {
+                  const nextDuration = event.currentTarget.duration
+                  setDuration(Number.isFinite(nextDuration) ? nextDuration : 0)
+                  setCurrentTime(event.currentTarget.currentTime)
+                  setVolume(event.currentTarget.volume)
+                  setIsMuted(event.currentTarget.muted)
+                }}
+                onDurationChange={(event) => {
+                  const nextDuration = event.currentTarget.duration
+                  setDuration(Number.isFinite(nextDuration) ? nextDuration : 0)
+                }}
+                onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+                onVolumeChange={(event) => {
+                  setVolume(event.currentTarget.volume)
+                  setIsMuted(event.currentTarget.muted)
+                }}
+              />
+
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/65 to-transparent p-2">
+                <div className="pointer-events-auto flex items-center gap-2 text-white">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-white/85 hover:bg-white/10 hover:text-white"
+                    onClick={togglePlayback}
+                    title={isPlaying ? 'Pause' : 'Play'}
+                  >
+                    {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  </Button>
+
+                  {hasDuration ? (
+                    <>
+                      <span className="w-10 shrink-0 text-[11px] tabular-nums text-white/75">
+                        {formatMediaTime(currentTime)}
+                      </span>
+                      <Slider
+                        value={[Math.min(currentTime, duration)]}
+                        max={duration}
+                        step={1}
+                        onValueChange={handleSeek}
+                        className="min-w-0 flex-1"
+                      />
+                      <span className="w-10 shrink-0 text-right text-[11px] tabular-nums text-white/75">
+                        {formatMediaTime(duration)}
+                      </span>
+                    </>
+                  ) : (
+                    <div className="flex min-w-0 flex-1 items-center">
+                      <span className="rounded-sm border border-red-500/70 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">
+                        LIVE
+                      </span>
+                    </div>
+                  )}
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-white/85 hover:bg-white/10 hover:text-white"
+                    onClick={toggleMute}
+                    title={isMuted ? 'Unmute' : 'Mute'}
+                  >
+                    {isMuted || volumeValue === 0 ? (
+                      <VolumeX className="h-4 w-4" />
+                    ) : (
+                      <Volume2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Slider
+                    value={[volumeValue]}
+                    max={1}
+                    step={0.01}
+                    onValueChange={handleVolumeChange}
+                    className="w-24 shrink-0"
+                  />
+                </div>
+              </div>
+            </div>
 
             <button
               type="button"
-              className={`absolute bottom-1.5 right-1.5 h-5 w-5 cursor-se-resize rounded bg-black/45 p-0.5 text-white/70 ${
+              className={`absolute right-1.5 top-12 h-5 w-5 cursor-se-resize rounded bg-black/45 p-0.5 text-white/70 ${
                 isResizing ? 'scale-110' : ''
               }`}
               onPointerDown={handleResizeStart}
@@ -310,4 +460,11 @@ export function useLiveStreamPopout() {
     throw new Error('useLiveStreamPopout must be used within a LiveStreamPopoutProvider')
   }
   return context
+}
+
+function formatMediaTime(time: number) {
+  if (!Number.isFinite(time) || time < 0) return '0:00'
+  const minutes = Math.floor(time / 60)
+  const seconds = Math.floor(time % 60)
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
