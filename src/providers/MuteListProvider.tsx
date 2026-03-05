@@ -346,10 +346,25 @@ export function MuteListProvider({ children }: { children: React.ReactNode }) {
 
   const addMutedWord = async (word: string) => {
     if (!accountPubkey || changing) return
+    const previousPublicTags = publicTags
+    const previousPrivateTags = privateTags
     setChanging(true)
     try {
       const normalizedWord = normalizeMutedWord(word)
       if (!normalizedWord) return
+      if (
+        hasTagIgnoreCase(previousPublicTags, 'word', normalizedWord) ||
+        hasTagIgnoreCase(previousPrivateTags, 'word', normalizedWord)
+      ) {
+        return
+      }
+
+      // Optimistic update to keep UI responsive while relay writes complete.
+      setPrivateTags((current) => {
+        if (hasTagIgnoreCase(current, 'word', normalizedWord)) return current
+        return [...current, ['word', normalizedWord]]
+      })
+
       const latestMuteListEvent = await fetchLatestMuteList()
       const latestPublicTags = latestMuteListEvent?.tags ?? []
       const { tags: latestPrivateTags, readable } = latestMuteListEvent
@@ -377,6 +392,8 @@ export function MuteListProvider({ children }: { children: React.ReactNode }) {
       setPrivateTags(newPrivateTags)
     } catch (error) {
       console.error('Error adding muted word:', error)
+      setPublicTags(previousPublicTags)
+      setPrivateTags(previousPrivateTags)
       toast.error(t('Failed to add muted word') + ': ' + (error as Error).message)
     } finally {
       setChanging(false)
@@ -385,10 +402,16 @@ export function MuteListProvider({ children }: { children: React.ReactNode }) {
 
   const removeMutedWord = async (word: string) => {
     if (!accountPubkey || changing) return
+    const previousPublicTags = publicTags
+    const previousPrivateTags = privateTags
     setChanging(true)
     try {
       const normalizedWord = normalizeMutedWord(word)
       if (!normalizedWord) return
+      // Optimistic removal for snappy UX while persisting in background.
+      setPublicTags((current) => removeTagIgnoreCase(current, 'word', normalizedWord))
+      setPrivateTags((current) => removeTagIgnoreCase(current, 'word', normalizedWord))
+
       const latestMuteListEvent = await fetchLatestMuteList()
       if (!latestMuteListEvent) {
         return
@@ -418,6 +441,8 @@ export function MuteListProvider({ children }: { children: React.ReactNode }) {
       setPrivateTags(newPrivateTags)
     } catch (error) {
       console.error('Error removing muted word:', error)
+      setPublicTags(previousPublicTags)
+      setPrivateTags(previousPrivateTags)
       toast.error(t('Failed to remove muted word') + ': ' + (error as Error).message)
     } finally {
       setChanging(false)
@@ -478,10 +503,25 @@ export function MuteListProvider({ children }: { children: React.ReactNode }) {
 
   const addMutedTag = async (tag: string) => {
     if (!accountPubkey || changing) return
+    const previousPublicTags = publicTags
+    const previousPrivateTags = privateTags
     setChanging(true)
     try {
       const normalizedTag = normalizeMutedTag(tag)
       if (!normalizedTag) return
+      if (
+        hasTagIgnoreCase(previousPublicTags, 't', normalizedTag) ||
+        hasTagIgnoreCase(previousPrivateTags, 't', normalizedTag)
+      ) {
+        return
+      }
+
+      // Optimistic update to avoid delayed hashtag mute rendering.
+      setPrivateTags((current) => {
+        if (hasTagIgnoreCase(current, 't', normalizedTag)) return current
+        return [...current, ['t', normalizedTag]]
+      })
+
       const latestMuteListEvent = await fetchLatestMuteList()
       const latestPublicTags = latestMuteListEvent?.tags ?? []
       const { tags: latestPrivateTags, readable } = latestMuteListEvent
@@ -507,6 +547,8 @@ export function MuteListProvider({ children }: { children: React.ReactNode }) {
       setPublicTags(latestPublicTags)
       setPrivateTags(newPrivateTags)
     } catch (error) {
+      setPublicTags(previousPublicTags)
+      setPrivateTags(previousPrivateTags)
       toast.error(t('Failed to add muted tag') + ': ' + (error as Error).message)
     } finally {
       setChanging(false)
@@ -515,10 +557,16 @@ export function MuteListProvider({ children }: { children: React.ReactNode }) {
 
   const removeMutedTag = async (tag: string) => {
     if (!accountPubkey || changing) return
+    const previousPublicTags = publicTags
+    const previousPrivateTags = privateTags
     setChanging(true)
     try {
       const normalizedTag = normalizeMutedTag(tag)
       if (!normalizedTag) return
+      // Optimistic removal for immediate feedback in hashtag mute UI.
+      setPublicTags((current) => removeTagIgnoreCase(current, 't', normalizedTag))
+      setPrivateTags((current) => removeTagIgnoreCase(current, 't', normalizedTag))
+
       const latestMuteListEvent = await fetchLatestMuteList()
       if (!latestMuteListEvent) {
         return
@@ -547,6 +595,8 @@ export function MuteListProvider({ children }: { children: React.ReactNode }) {
       setPublicTags(newPublicTags)
       setPrivateTags(newPrivateTags)
     } catch (error) {
+      setPublicTags(previousPublicTags)
+      setPrivateTags(previousPrivateTags)
       toast.error(t('Failed to remove muted tag') + ': ' + (error as Error).message)
     } finally {
       setChanging(false)
