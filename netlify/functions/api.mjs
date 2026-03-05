@@ -23,6 +23,11 @@ const NIP5_RESERVED_NAMES = parseReservedNames(
   process.env.NIP5_RESERVED_NAMES,
   ['admin', 'support', 'help', 'wallet', 'api', 'www', 'root', 'owner', 'x21']
 )
+const NIP5_STATIC_NAMES = parseNip5StaticNames(process.env.NIP5_STATIC_NAMES, {
+  _: 'f4eb8e62add1340b9cadcd9861e669b2e907cea534e0f7f3ac974c11c758a51a',
+  cody: '8125b911ed0e94dbe3008a0be48cfe5cd0c0b05923cfff917ae7e87da8400883',
+  cody2: '24462930821b45f530ec0063eca0a6522e5a577856f982fa944df0ef3caf03ab'
+})
 const NIP5_NAME_MIN_LENGTH = 3
 const NIP5_NAME_MAX_LENGTH = 20
 const NIP5_NAME_REGEX = /^[a-z0-9_]+$/
@@ -803,13 +808,36 @@ async function handleNip5WellKnown(request) {
   const queryName = normalizeNip5Name(url.searchParams.get('name') || '')
   const names = {}
   const relays = {}
+  const now = Date.now()
+
   if (queryName) {
     const assignment = await nip5Store.get(`handle:${queryName}`, { type: 'json' })
-    if (assignment && Number(assignment.expiresAt || 0) > Date.now() && isHexPubkey(assignment.pubkey)) {
+    if (assignment && Number(assignment.expiresAt || 0) > now && isHexPubkey(assignment.pubkey)) {
       names[queryName] = assignment.pubkey.toLowerCase()
-      relays[assignment.pubkey.toLowerCase()] = []
+    } else if (isHexPubkey(NIP5_STATIC_NAMES[queryName])) {
+      names[queryName] = NIP5_STATIC_NAMES[queryName].toLowerCase()
     }
+    return json(200, { names, relays })
   }
+
+  Object.entries(NIP5_STATIC_NAMES).forEach(([name, pubkey]) => {
+    if (isHexPubkey(pubkey)) {
+      names[name] = pubkey.toLowerCase()
+    }
+  })
+
+  const dynamicHandles = await listJsonEntries(nip5Store, 'handle:', 5000)
+  dynamicHandles.forEach((assignment) => {
+    if (
+      assignment &&
+      Number(assignment.expiresAt || 0) > now &&
+      isHexPubkey(assignment.pubkey) &&
+      typeof assignment.name === 'string'
+    ) {
+      names[normalizeNip5Name(assignment.name)] = assignment.pubkey.toLowerCase()
+    }
+  })
+
   return json(200, { names, relays })
 }
 
@@ -2247,6 +2275,27 @@ function parseReservedNames(value, fallbackNames) {
     .map((item) => String(item || '').trim().toLowerCase())
     .filter(Boolean)
   return new Set(names)
+}
+
+function parseNip5StaticNames(value, fallbackNames) {
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value)
+      if (parsed && typeof parsed === 'object') {
+        const out = {}
+        Object.entries(parsed).forEach(([name, pubkey]) => {
+          const normalized = normalizeNip5Name(name)
+          if (normalized && isHexPubkey(String(pubkey || ''))) {
+            out[normalized] = String(pubkey).toLowerCase()
+          }
+        })
+        return out
+      }
+    } catch {
+      // no-op
+    }
+  }
+  return fallbackNames
 }
 
 function normalizeRelayUrl(value) {

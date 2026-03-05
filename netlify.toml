@@ -14,3 +14,4 @@ status = 200
 from = "/.well-known/nostr.json"
 to = "/.netlify/functions/api/.well-known/nostr.json"
 status = 200
+force = true
