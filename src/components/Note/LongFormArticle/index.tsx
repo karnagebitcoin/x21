@@ -4,7 +4,7 @@ import { getLongFormArticleMetadataFromEvent } from '@/lib/event-metadata'
 import { toNote, toNoteList, toProfile } from '@/lib/link'
 import { ExternalLink } from 'lucide-react'
 import { Event, kinds } from 'nostr-tools'
-import { useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import NostrNode from './NostrNode'
@@ -13,6 +13,7 @@ import { Components } from './types'
 import { useTextOnlyMode } from '@/providers/TextOnlyModeProvider'
 import { useMediaStyle } from '@/providers/MediaStyleProvider'
 import { MEDIA_STYLE } from '@/constants'
+import { useTranslation } from 'react-i18next'
 
 export default function LongFormArticle({
   event,
@@ -24,8 +25,14 @@ export default function LongFormArticle({
   const { push } = useSecondaryPage()
   const { textOnlyMode } = useTextOnlyMode()
   const { mediaStyle } = useMediaStyle()
+  const { t } = useTranslation()
   const isFullWidth = mediaStyle === MEDIA_STYLE.FULL_WIDTH
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
   const metadata = useMemo(() => getLongFormArticleMetadataFromEvent(event), [event])
+
+  const handleLoadImage = useCallback((url: string) => {
+    setLoadedImages((prev) => new Set(prev).add(url))
+  }, [])
 
   const components = useMemo(
     () =>
@@ -90,9 +97,33 @@ export default function LongFormArticle({
         img: function ImageComponent(props) {
           const imageUrl = props.src || ''
           if (textOnlyMode) {
+            const isLoaded = loadedImages.has(imageUrl)
+            if (isLoaded) {
+              return (
+                <ImageWithLightbox
+                  image={{ url: imageUrl, pubkey: event.pubkey }}
+                  className={isFullWidth ? 'object-contain my-0' : 'max-h-[80vh] sm:max-h-[50vh] object-contain my-0'}
+                  classNames={{
+                    wrapper: isFullWidth ? 'w-full' : 'w-fit max-w-full'
+                  }}
+                />
+              )
+            }
             return (
-              <span className="inline-flex items-center rounded-full border border-border/60 text-muted-foreground text-xs px-2 py-0.5 my-2">
+              <span className="inline-flex items-center gap-1 rounded-full border border-border/60 text-muted-foreground text-xs px-2 py-0.5 my-2">
                 Image hidden
+                <span className="opacity-60">·</span>
+                <button
+                  type="button"
+                  className="underline underline-offset-2 text-muted-foreground/90 hover:text-foreground"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleLoadImage(imageUrl)
+                  }}
+                >
+                  {t('Show', { defaultValue: 'Show' })}
+                </button>
               </span>
             )
           }
@@ -107,7 +138,7 @@ export default function LongFormArticle({
           )
         }
       }) as Components,
-    [event.pubkey, textOnlyMode, isFullWidth]
+    [event.pubkey, textOnlyMode, loadedImages, handleLoadImage, isFullWidth, t]
   )
 
   return (

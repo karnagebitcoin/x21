@@ -1,4 +1,5 @@
 import AboutInfoDialog from '@/components/AboutInfoDialog'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import SecondaryPageLayout from '@/layouts/SecondaryPageLayout'
 import {
@@ -33,9 +34,10 @@ import {
   Search,
   Settings2,
   Shield,
+  Loader2,
   Wallet
 } from 'lucide-react'
-import { forwardRef, HTMLProps, useMemo, useState } from 'react'
+import { forwardRef, HTMLProps, MouseEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type TSettingsSearchItem = {
@@ -68,7 +70,74 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
   const { pubkey } = useNostr()
   const { push } = useSecondaryPage()
   const [settingsQuery, setSettingsQuery] = useState('')
+  const [updateAvailable, setUpdateAvailable] = useState(false)
+  const [checkingForUpdate, setCheckingForUpdate] = useState(false)
+  const [refreshingForUpdate, setRefreshingForUpdate] = useState(false)
   const normalizedQuery = settingsQuery.trim()
+
+  const checkForUpdate = useCallback(async () => {
+    if (!('serviceWorker' in navigator)) return
+
+    setCheckingForUpdate(true)
+    try {
+      const registration = await navigator.serviceWorker.getRegistration()
+      if (!registration) {
+        setUpdateAvailable(false)
+        return
+      }
+
+      await registration.update()
+      setUpdateAvailable(Boolean(registration.waiting))
+    } catch (error) {
+      console.warn('Failed to check for app update:', error)
+    } finally {
+      setCheckingForUpdate(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+
+    const handleControllerChange = () => {
+      // New service worker took control of this page; reload is recommended.
+      setUpdateAvailable(true)
+    }
+
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange)
+    void checkForUpdate()
+    const interval = window.setInterval(() => {
+      void checkForUpdate()
+    }, 60_000)
+
+    return () => {
+      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange)
+      window.clearInterval(interval)
+    }
+  }, [checkForUpdate])
+
+  const hardRefreshToUpdate = async (event: MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    setRefreshingForUpdate(true)
+    try {
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration()
+        if (registration?.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+        } else {
+          await registration?.update()
+        }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys()
+        await Promise.all(keys.map((key) => caches.delete(key)))
+      }
+    } catch (error) {
+      console.warn('Failed to prepare hard refresh:', error)
+    }
+    window.location.reload()
+  }
 
   const searchItems = useMemo(() => {
     const items: TSettingsSearchItem[] = [
@@ -357,9 +426,35 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
               className="clickable"
               rightIcon={
                 <div className="flex gap-2 items-center">
-                  <div className="text-muted-foreground">
-                    v{import.meta.env.APP_VERSION} ({import.meta.env.GIT_COMMIT})
-                  </div>
+                  {updateAvailable ? (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary">
+                      {t('Update available', { defaultValue: 'Update available' })}
+                    </span>
+                  ) : checkingForUpdate ? (
+                    <span className="text-xs text-muted-foreground">
+                      {t('Checking updates…', { defaultValue: 'Checking updates…' })}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      {t('Up to date', { defaultValue: 'Up to date' })}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground">v{import.meta.env.APP_VERSION}</span>
+                  {updateAvailable ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      onClick={(event) => void hardRefreshToUpdate(event)}
+                      disabled={refreshingForUpdate}
+                    >
+                      {refreshingForUpdate ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        t('Refresh', { defaultValue: 'Refresh' })
+                      )}
+                    </Button>
+                  ) : null}
                   <ChevronRight />
                 </div>
               }
