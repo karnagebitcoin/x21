@@ -46,6 +46,7 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
     sats?: number
   } | null>(null)
   const [claiming, setClaiming] = useState(false)
+  const [activeClaimSats, setActiveClaimSats] = useState<number | null>(null)
   const [claimId, setClaimId] = useState('')
   const [claimStatus, setClaimStatus] = useState('')
   const [copiedClaimId, setCopiedClaimId] = useState(false)
@@ -74,6 +75,22 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
     const fallbackSats = Number(account?.pricing?.maxSats ?? account?.pricing?.minSats ?? 0)
     return Number.isFinite(fallbackSats) ? Math.max(fallbackSats, 0) : 0
   }, [normalizedHandle, isRenew, availability?.sats, account?.pricing?.currentSats, account?.pricing?.maxSats, account?.pricing?.minSats])
+  const buttonSats = useMemo(() => {
+    if (claiming && typeof activeClaimSats === 'number' && activeClaimSats > 0) {
+      return activeClaimSats
+    }
+    return quotedSats
+  }, [claiming, activeClaimSats, quotedSats])
+  const priceReady = useMemo(() => {
+    if (!normalizedHandle) return false
+    if (isRenew) return buttonSats > 0
+    return (
+      !availabilityLoading &&
+      availability?.available !== false &&
+      typeof availability?.sats === 'number' &&
+      availability.sats > 0
+    )
+  }, [normalizedHandle, isRenew, buttonSats, availabilityLoading, availability])
 
   const validationError = useMemo(() => {
     if (!normalizedHandle) return ''
@@ -159,6 +176,7 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
           await loadAccount()
           setClaimStatus(`Claimed ${status.handle || initialHandle}`)
           setClaiming(false)
+          setActiveClaimSats(null)
           toast.success('Vanity address claimed successfully')
           return
         }
@@ -166,12 +184,14 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
         clearInterval(interval)
         closeModal()
         setClaiming(false)
+        setActiveClaimSats(null)
         setClaimStatus('Payment failed or expired')
       } catch {
         failedCount += 1
         if (failedCount <= 4) return
         clearInterval(interval)
         setClaiming(false)
+        setActiveClaimSats(null)
         setClaimStatus('Could not verify payment. Use Check status below.')
       }
     }, 2200)
@@ -191,11 +211,17 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
       toast.error(availability.reason || 'That handle is not available')
       return
     }
+    if (!priceReady || buttonSats <= 0) {
+      toast.error('Still fetching claim price. Please try again in a moment.')
+      return
+    }
 
     setClaiming(true)
+    setActiveClaimSats(buttonSats)
     setClaimStatus('')
     try {
       const claim = await vanityAddress.createClaim(normalizedHandle)
+      setActiveClaimSats(Number(claim.sats || 0) > 0 ? Number(claim.sats) : buttonSats)
       setClaimId(claim.claimId)
       setClaimStatus('Waiting for payment confirmation...')
       void pollClaimUntilSettled(claim.claimId, claim.handle)
@@ -209,6 +235,7 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
             if (status.state === 'settled') {
               await loadAccount()
               setClaiming(false)
+              setActiveClaimSats(null)
               setClaimStatus(`Claimed ${status.handle || claim.handle}`)
               toast.success('Vanity address claimed successfully')
               return
@@ -220,10 +247,12 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
         },
         onCancelled: () => {
           setClaiming(false)
+          setActiveClaimSats(null)
         }
       })
     } catch (error) {
       setClaiming(false)
+      setActiveClaimSats(null)
       setClaimStatus('')
       toast.error(error instanceof Error ? error.message : 'Failed to create claim')
     }
@@ -241,12 +270,13 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
       } else if (status.state === 'failed') {
         setClaimStatus('Payment failed or expired')
       } else {
-        setClaimStatus('Still waiting for payment confirmation...')
+      setClaimStatus('Still waiting for payment confirmation...')
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to check claim status')
     } finally {
       setClaiming(false)
+      setActiveClaimSats(null)
     }
   }
 
@@ -316,15 +346,18 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
             loading ||
             claiming ||
             !normalizedHandle ||
+            !priceReady ||
             Boolean(validationError) ||
             (!isRenew && availability?.available === false)
           }
           onClick={() => void runClaim()}
         >
           {claiming ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {isRenew
-            ? `Renew for ${quotedSats.toLocaleString()} sats`
-            : `Claim for ${quotedSats.toLocaleString()} sats`}
+          {!priceReady && !claiming
+            ? 'Fetching claim price...'
+            : isRenew
+              ? `Renew for ${buttonSats.toLocaleString()} sats`
+              : `Claim for ${buttonSats.toLocaleString()} sats`}
         </Button>
 
         {claimId ? (
