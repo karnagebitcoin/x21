@@ -704,6 +704,9 @@ async function getNip5Eligibility(pubkey) {
 async function getNip5Account(user) {
   const config = await resolveNip5Config()
   const account = await getCurrentNip5Assignment(user.pubkey)
+  if (account) {
+    await ensureNip5HandleIndex(account)
+  }
   const eligibility = await getNip5Eligibility(user.pubkey)
   const minSats = Math.min(...config.priceTiers.map((tier) => Number(tier.sats || 0)))
   const maxSats = Math.max(...config.priceTiers.map((tier) => Number(tier.sats || 0)))
