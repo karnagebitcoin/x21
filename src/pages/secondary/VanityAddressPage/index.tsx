@@ -19,7 +19,15 @@ type TVanityAccountState = {
   assignment?: {
     name: string
     expiresAt: number | null
+    createdAt?: number | null
+    updatedAt?: number | null
   } | null
+  handles?: Array<{
+    name: string
+    expiresAt: number | null
+    createdAt?: number | null
+    updatedAt?: number | null
+  }>
   pricing?: {
     minSats: number
     maxSats: number
@@ -36,11 +44,15 @@ function normalizeHandle(value: string) {
   return value.trim().toLowerCase()
 }
 
+function formatHandleAddress(name: string, domain: string) {
+  const normalizedName = normalizeHandle(name)
+  return normalizedName ? `${normalizedName}@${domain}` : ''
+}
+
 const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
   const { pubkey, profile, profileEvent, publish, updateProfileEvent, startLogin } = useNostr()
   const [account, setAccount] = useState<TVanityAccountState | null>(null)
   const [loading, setLoading] = useState(false)
-  const [applyingProfile, setApplyingProfile] = useState(false)
   const [handle, setHandle] = useState('')
   const [availabilityLoading, setAvailabilityLoading] = useState(false)
   const [availability, setAvailability] = useState<{
@@ -54,37 +66,39 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
   const [claimId, setClaimId] = useState('')
   const [claimStatus, setClaimStatus] = useState('')
   const [copiedClaimId, setCopiedClaimId] = useState(false)
+  const [copiedAddress, setCopiedAddress] = useState('')
+  const [applyingAddress, setApplyingAddress] = useState('')
 
   const normalizedHandle = useMemo(() => normalizeHandle(handle), [handle])
-  const currentName = account?.assignment?.name || ''
   const ownerCanClaimFree = Boolean(account?.ownerCanClaimFree)
   const domain = account?.domain || 'x21.social'
-  const selectedAddress = normalizedHandle ? `${normalizedHandle}@${domain}` : ''
-  const assignedAddress = currentName ? `${currentName}@${domain}` : ''
-  const isAppliedToProfile = Boolean(
-    assignedAddress &&
-      profile?.nip05 &&
-      profile.nip05.toLowerCase() === assignedAddress.toLowerCase()
+  const ownedHandles = useMemo(() => {
+    const handles = account?.handles || []
+    if (handles.length) return handles
+    return account?.assignment ? [account.assignment] : []
+  }, [account?.handles, account?.assignment])
+  const ownedHandleMap = useMemo(
+    () =>
+      new Map(ownedHandles.map((ownedHandle) => [normalizeHandle(ownedHandle.name), ownedHandle])),
+    [ownedHandles]
   )
-  const isRenew = Boolean(currentName && normalizedHandle === currentName)
+  const currentName = account?.assignment?.name || ''
+  const selectedOwnedHandle = normalizedHandle ? ownedHandleMap.get(normalizedHandle) || null : null
+  const selectedAddress = normalizedHandle ? formatHandleAddress(normalizedHandle, domain) : ''
+  const currentAssignedAddress = currentName ? formatHandleAddress(currentName, domain) : ''
+  const activeProfileAddress = normalizeHandle(String(profile?.nip05 || ''))
+  const activeProfileHandle = ownedHandles.find(
+    (ownedHandle) => formatHandleAddress(ownedHandle.name, domain).toLowerCase() === activeProfileAddress
+  ) || null
+  const isRenew = Boolean(selectedOwnedHandle)
   const renewalWindowOpen = useMemo(() => {
-    const expiresAt = Number(account?.assignment?.expiresAt || 0)
+    const expiresAt = Number(selectedOwnedHandle?.expiresAt || 0)
     if (!expiresAt) return false
     return expiresAt - Date.now() <= 30 * 24 * 60 * 60 * 1000
-  }, [account?.assignment?.expiresAt])
+  }, [selectedOwnedHandle?.expiresAt])
   const quotedSats = useMemo(() => {
     if (!normalizedHandle) return 0
     if (ownerCanClaimFree) return 0
-    if (isRenew) {
-      const renewSats = Number(
-        account?.pricing?.currentSats ??
-          account?.pricing?.maxSats ??
-          account?.pricing?.minSats ??
-          0
-      )
-      return Number.isFinite(renewSats) ? Math.max(renewSats, 0) : 0
-    }
-
     if (typeof availability?.sats === 'number' && Number.isFinite(availability.sats)) {
       return Math.max(availability.sats, 0)
     }
@@ -99,10 +113,11 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
     return quotedSats
   }, [claiming, activeClaimSats, quotedSats])
   const availabilityBlocked = useMemo(() => {
+    if (selectedOwnedHandle) return false
     if (!availability || availability.available !== false) return false
     if (!ownerCanClaimFree) return true
     return Boolean(availability.ownerPubkey)
-  }, [availability, ownerCanClaimFree])
+  }, [availability, ownerCanClaimFree, selectedOwnedHandle])
   const priceReady = useMemo(() => {
     if (!normalizedHandle) return false
     if (isRenew) return ownerCanClaimFree || buttonSats > 0
@@ -154,13 +169,6 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
       setAvailability(null)
       return
     }
-    if (normalizedHandle === currentName) {
-      setAvailability({
-        available: true,
-        sats: Number(account?.pricing?.currentSats ?? account?.pricing?.maxSats ?? account?.pricing?.minSats ?? 0)
-      })
-      return
-    }
 
     let ignore = false
     const timer = setTimeout(() => {
@@ -189,7 +197,7 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
       ignore = true
       clearTimeout(timer)
     }
-  }, [normalizedHandle, validationError, currentName, account?.pricing?.currentSats, account?.pricing?.maxSats, account?.pricing?.minSats])
+  }, [normalizedHandle, validationError])
 
   const applySettledClaimToState = (claimedHandle: string, expiresAt?: number | null) => {
     const claimedName = normalizeHandle(String(claimedHandle || '').split('@')[0] || '')
@@ -197,19 +205,34 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
 
     setAccount((prev) => {
       if (!prev) return prev
+      const nextUpdatedAt = Date.now()
+      const existingHandles = prev.handles || (prev.assignment ? [prev.assignment] : [])
+      const existingHandle = existingHandles.find(
+        (ownedHandle) => normalizeHandle(ownedHandle.name) === claimedName
+      )
+      const nextHandle = {
+        name: claimedName,
+        expiresAt: Number(expiresAt || 0) || existingHandle?.expiresAt || prev.assignment?.expiresAt || null,
+        createdAt: existingHandle?.createdAt || prev.assignment?.createdAt || nextUpdatedAt,
+        updatedAt: nextUpdatedAt
+      }
+      const nextHandles = [
+        nextHandle,
+        ...existingHandles.filter(
+          (ownedHandle) => normalizeHandle(ownedHandle.name) !== claimedName
+        )
+      ]
       return {
         ...prev,
         assignment: {
-          name: claimedName,
-          expiresAt: Number(expiresAt || 0) || prev.assignment?.expiresAt || null
-        }
+          ...nextHandle
+        },
+        handles: nextHandles
       }
     })
     setAvailability({
       available: true,
-      sats: ownerCanClaimFree
-        ? 0
-        : Number(account?.pricing?.currentSats ?? account?.pricing?.maxSats ?? account?.pricing?.minSats ?? 0)
+      sats: ownerCanClaimFree ? 0 : quotedSats
     })
   }
 
@@ -345,10 +368,10 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
     }
   }
 
-  const applyClaimedAddressToProfile = async () => {
-    if (!assignedAddress || isAppliedToProfile) return
+  const applyClaimedAddressToProfile = async (address: string) => {
+    if (!address || activeProfileAddress === address.toLowerCase()) return
 
-    setApplyingProfile(true)
+    setApplyingAddress(address)
     try {
       const baseProfile =
         profileEvent?.content && profileEvent.content.trim()
@@ -356,7 +379,7 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
           : {}
       const profileContent = {
         ...baseProfile,
-        nip05: assignedAddress
+        nip05: address
       }
 
       const profileDraftEvent = createProfileDraftEvent(
@@ -365,11 +388,11 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
       )
       const newProfileEvent = await publish(profileDraftEvent)
       await updateProfileEvent(newProfileEvent)
-      toast.success(`Applied ${assignedAddress} to your profile`)
+      toast.success(`Applied ${address} to your profile`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to apply vanity address to profile')
     } finally {
-      setApplyingProfile(false)
+      setApplyingAddress('')
     }
   }
 
@@ -387,28 +410,87 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
     <SecondaryPageLayout ref={ref} index={index} title="Vanity Address">
       <div className="px-4 pt-3 space-y-4">
         <div className="rounded-xl border bg-muted/20 p-3">
-          <p className="text-sm text-muted-foreground">Current address</p>
+          <p className="text-sm text-muted-foreground">Claimed handles</p>
           <p className="text-lg font-semibold">
-            {account?.assignment?.name ? `${account.assignment.name}@${domain}` : `Not claimed yet`}
+            {ownedHandles.length ? `${ownedHandles.length} claimed` : 'Not claimed yet'}
           </p>
-          {account?.assignment?.expiresAt ? (
-            <p className="text-xs text-muted-foreground mt-1">
-              Expires {new Date(account.assignment.expiresAt).toLocaleString()}
-            </p>
-          ) : null}
+          <p className="text-xs text-muted-foreground mt-1">
+            {activeProfileHandle
+              ? `Active on profile: ${formatHandleAddress(activeProfileHandle.name, domain)}`
+              : currentAssignedAddress
+                ? `Latest claimed: ${currentAssignedAddress}`
+                : 'Claim a handle to start using @x21.social on your profile.'}
+          </p>
           <p className="text-xs text-muted-foreground mt-2">
             Claims last {account?.pricing?.termDays || 365} days. Renew before expiry to keep your handle.
           </p>
-          {assignedAddress ? (
-            <Button
-              variant="outline"
-              className="mt-3"
-              disabled={applyingProfile || isAppliedToProfile}
-              onClick={() => void applyClaimedAddressToProfile()}
-            >
-              {applyingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {isAppliedToProfile ? 'Applied to profile' : 'Apply to profile'}
-            </Button>
+          {ownedHandles.length ? (
+            <div className="mt-3 space-y-2">
+              {ownedHandles.map((ownedHandle) => {
+                const address = formatHandleAddress(ownedHandle.name, domain)
+                const isActiveOnProfile = activeProfileAddress === address.toLowerCase()
+                const isLatestClaim = currentAssignedAddress.toLowerCase() === address.toLowerCase()
+                const isCopyReady = copiedAddress === address
+                const isApplying = applyingAddress === address
+
+                return (
+                  <div
+                    key={address}
+                    className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/50 p-3 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold">{address}</p>
+                        {isActiveOnProfile ? (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
+                            <Check className="h-3.5 w-3.5" />
+                            Active
+                          </span>
+                        ) : null}
+                        {!isActiveOnProfile && isLatestClaim ? (
+                          <span className="inline-flex items-center rounded-full border border-border/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                            Latest
+                          </span>
+                        ) : null}
+                      </div>
+                      {ownedHandle.expiresAt ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Expires {new Date(ownedHandle.expiresAt).toLocaleString()}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(address)
+                          setCopiedAddress(address)
+                          window.setTimeout(() => {
+                            setCopiedAddress((current) => (current === address ? '' : current))
+                          }, 2000)
+                        }}
+                      >
+                        {isCopyReady ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        {isCopyReady ? 'Copied' : 'Copy'}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={isApplying || isActiveOnProfile}
+                        onClick={() => void applyClaimedAddressToProfile(address)}
+                      >
+                        {isApplying ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        {isActiveOnProfile ? 'Applied' : 'Apply'}
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           ) : null}
         </div>
 
@@ -431,15 +513,15 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking availability...
             </p>
+          ) : selectedOwnedHandle ? (
+            <p className="text-xs text-muted-foreground">
+              {renewalWindowOpen
+                ? 'You already own this handle. Renew it when you are ready.'
+                : 'You already own this handle.'}
+            </p>
           ) : availability?.available || (ownerCanClaimFree && availability && !availabilityBlocked) ? (
             <p className="text-xs text-emerald-400">
-              {isRenew
-                ? ownerCanClaimFree
-                  ? 'This is your current handle. You can renew it for free.'
-                  : 'This is your current handle. Renew to extend it.'
-                : ownerCanClaimFree
-                  ? 'Available to you'
-                  : 'Available'}
+              {ownerCanClaimFree ? 'Available to you' : 'Available'}
             </p>
           ) : availability ? (
             <p className="text-xs text-red-400">{availability.reason || 'Unavailable'}</p>

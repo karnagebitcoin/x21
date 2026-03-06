@@ -707,6 +707,7 @@ async function getNip5Account(user) {
   if (account) {
     await ensureNip5HandleIndex(account)
   }
+  const handles = await getOwnedNip5Handles(user.pubkey, { allowRepair: true })
   const eligibility = await getNip5Eligibility(user.pubkey)
   const minSats = Math.min(...config.priceTiers.map((tier) => Number(tier.sats || 0)))
   const maxSats = Math.max(...config.priceTiers.map((tier) => Number(tier.sats || 0)))
@@ -724,6 +725,12 @@ async function getNip5Account(user) {
           updatedAt: Number(account.updatedAt || 0) || null
         }
       : null,
+    handles: handles.map((handle) => ({
+      name: handle.name,
+      expiresAt: Number(handle.expiresAt || 0) || null,
+      createdAt: Number(handle.createdAt || 0) || null,
+      updatedAt: Number(handle.updatedAt || 0) || null
+    })),
     pricing: {
       termDays: config.termDays,
       minSats: Number.isFinite(minSats) ? minSats : NIP5_CLAIM_SATS_DEFAULT,
@@ -738,6 +745,7 @@ async function getNip5Account(user) {
 async function createNip5Claim(user, body) {
   const config = await resolveNip5Config()
   const ownerCanClaimFree = isNip5OwnerFreePubkey(user.pubkey)
+  const ownedHandles = await getOwnedNip5Handles(user.pubkey, { allowRepair: true })
 
   const name = normalizeNip5Name(body?.name || '')
   const validationError = validateNip5Name(name)
@@ -758,8 +766,9 @@ async function createNip5Claim(user, body) {
     return json(409, { error: 'That handle is already claimed' })
   }
 
-  const assignment = await getCurrentNip5Assignment(user.pubkey)
-  const action = assignment?.name === name ? 'renew' : assignment?.name ? 'change' : 'claim'
+  const action = ownedHandles.some((handle) => normalizeNip5Name(handle.name || '') === name)
+    ? 'renew'
+    : 'claim'
   const sats = ownerCanClaimFree ? 0 : quoteNip5SatsByLength(name.length, config.priceTiers)
 
   const claimId = createId('nip5')
@@ -905,17 +914,42 @@ async function getCurrentNip5Assignment(pubkey, { allowRepair = true } = {}) {
       assignment = await nip5Store.get(key, { type: 'json' })
     }
   }
-  if (!assignment) return null
-  if (Number(assignment.expiresAt || 0) > now) return assignment
-
-  await nip5Store.delete(key)
-  if (assignment.name) {
-    const handleEntry = await nip5Store.get(`handle:${assignment.name}`, { type: 'json' })
-    if (handleEntry && String(handleEntry.pubkey || '').toLowerCase() === pubkey) {
-      await nip5Store.delete(`handle:${assignment.name}`)
+  if (assignment && Number(assignment.expiresAt || 0) > now) {
+    const handleEntry = assignment.name
+      ? await nip5Store.get(`handle:${assignment.name}`, { type: 'json' })
+      : null
+    if (!handleEntry) {
+      await ensureNip5HandleIndex(assignment)
+      return assignment
+    }
+    if (
+      Number(handleEntry.expiresAt || 0) > now &&
+      String(handleEntry.pubkey || '').toLowerCase() === pubkey
+    ) {
+      return assignment
     }
   }
-  return null
+
+  if (assignment) {
+    await nip5Store.delete(key)
+    if (assignment.name) {
+      const handleEntry = await nip5Store.get(`handle:${assignment.name}`, { type: 'json' })
+      if (
+        handleEntry &&
+        Number(handleEntry.expiresAt || 0) <= now &&
+        String(handleEntry.pubkey || '').toLowerCase() === pubkey
+      ) {
+        await nip5Store.delete(`handle:${assignment.name}`)
+      }
+    }
+  }
+
+  const ownedHandles = await getOwnedNip5Handles(pubkey, { allowRepair: false })
+  if (!ownedHandles.length) return null
+
+  const nextAssignment = createNip5PubkeyRecord(pubkey, ownedHandles[0])
+  await nip5Store.setJSON(key, nextAssignment)
+  return nextAssignment
 }
 
 async function settleNip5Claim(claim) {
@@ -958,9 +992,6 @@ async function settleNip5Claim(claim) {
   const previousAssignment = await getCurrentNip5Assignment(pubkey, {
     allowRepair: !isRepairingSettledClaim
   })
-  if (previousAssignment?.name && previousAssignment.name !== name) {
-    await nip5Store.delete(`handle:${previousAssignment.name}`)
-  }
 
   const baseExpiry = Math.max(
     now,
@@ -986,18 +1017,13 @@ async function settleNip5Claim(claim) {
     lastSaleId: claim.id
   }
 
-  const pubkeyRecord = {
-    pubkey,
-    npub: toNpub(pubkey),
-    name,
-    domain: NIP5_DOMAIN,
+  const pubkeyRecord = createNip5PubkeyRecord(pubkey, {
+    ...handleRecord,
     createdAt:
       previousAssignment?.name === name
-        ? Number(previousAssignment.createdAt || claimCreatedAt)
-        : claimCreatedAt,
-    updatedAt: now,
-    expiresAt: nextExpiry
-  }
+        ? Number(previousAssignment.createdAt || handleRecord.createdAt || claimCreatedAt)
+        : handleRecord.createdAt
+  })
 
   claim.state = 'settled'
   claim.updatedAt = now
@@ -1211,6 +1237,60 @@ function compareNip5ClaimsByRecency(a, b) {
   const aTime = Number(a?.updatedAt || a?.settledAt || a?.createdAt || 0)
   const bTime = Number(b?.updatedAt || b?.settledAt || b?.createdAt || 0)
   return bTime - aTime
+}
+
+function compareNip5HandlesByRecency(a, b) {
+  const aTime = Number(a?.updatedAt || a?.createdAt || 0)
+  const bTime = Number(b?.updatedAt || b?.createdAt || 0)
+  return bTime - aTime
+}
+
+function createNip5PubkeyRecord(pubkey, handleRecord) {
+  const normalizedPubkey = String(pubkey || '').toLowerCase()
+  const now = Date.now()
+  return {
+    pubkey: normalizedPubkey,
+    npub: toNpub(normalizedPubkey),
+    name: normalizeNip5Name(handleRecord?.name || ''),
+    domain: NIP5_DOMAIN,
+    createdAt: Number(handleRecord?.createdAt || now) || now,
+    updatedAt: Number(handleRecord?.updatedAt || now) || now,
+    expiresAt: Number(handleRecord?.expiresAt || 0) || null,
+    lastSaleId: handleRecord?.lastSaleId || null
+  }
+}
+
+async function listActiveOwnedNip5Handles(pubkey, now = Date.now()) {
+  const normalizedPubkey = String(pubkey || '').toLowerCase()
+  if (!isHexPubkey(normalizedPubkey)) return []
+
+  const handleEntries = await listJsonEntries(nip5Store, 'handle:', 5000)
+  return handleEntries
+    .filter(
+      (handle) =>
+        handle &&
+        Number(handle.expiresAt || 0) > now &&
+        String(handle.pubkey || '').toLowerCase() === normalizedPubkey &&
+        validateNip5Name(normalizeNip5Name(handle.name || '')) === null
+    )
+    .sort(compareNip5HandlesByRecency)
+}
+
+async function getOwnedNip5Handles(pubkey, { allowRepair = true } = {}) {
+  const normalizedPubkey = String(pubkey || '').toLowerCase()
+  let handles = await listActiveOwnedNip5Handles(normalizedPubkey)
+  if (handles.length || !allowRepair) {
+    return handles
+  }
+
+  const repairableClaim = await findRepairableNip5ClaimByPubkey(normalizedPubkey)
+  if (!repairableClaim) {
+    return handles
+  }
+
+  await settleNip5Claim(repairableClaim)
+  handles = await listActiveOwnedNip5Handles(normalizedPubkey)
+  return handles
 }
 
 async function findRepairableNip5ClaimByPubkey(pubkey, now = Date.now()) {

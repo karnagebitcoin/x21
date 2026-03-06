@@ -16,6 +16,12 @@ type TVanityAccount = {
     createdAt?: number | null
     updatedAt?: number | null
   } | null
+  handles?: Array<{
+    name: string
+    expiresAt: number | null
+    createdAt?: number | null
+    updatedAt?: number | null
+  }>
   pricing?: {
     minSats: number
     maxSats: number
