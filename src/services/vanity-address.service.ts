@@ -4,6 +4,7 @@ import client from '@/services/client.service'
 type TVanityAccount = {
   domain: string
   claimable: boolean
+  ownerCanClaimFree?: boolean
   eligibility?: {
     eligible: boolean
     source?: string | null
@@ -30,9 +31,10 @@ type TVanityClaimCreate = {
   handle: string
   sats: number
   termDays: number
-  invoiceId: string
+  invoiceId?: string | null
   canVerify?: boolean
   invoiceComment?: string
+  paymentRequired?: boolean
 }
 
 type TVanityClaimStatus = {
@@ -95,6 +97,7 @@ class VanityAddressService {
     reason?: string
     domain?: string
     sats?: number
+    ownerPubkey?: string | null
   }> {
     const url = new URL('/v1/nip5/availability', JUMBLE_API_BASE_URL)
     url.searchParams.set('name', name)

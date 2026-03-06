@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 
 type TVanityAccountState = {
   domain: string
+  ownerCanClaimFree?: boolean
   eligibility?: {
     eligible: boolean
     source?: string | null
@@ -46,6 +47,7 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
     available: boolean
     reason?: string
     sats?: number
+    ownerPubkey?: string | null
   } | null>(null)
   const [claiming, setClaiming] = useState(false)
   const [activeClaimSats, setActiveClaimSats] = useState<number | null>(null)
@@ -55,6 +57,7 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
 
   const normalizedHandle = useMemo(() => normalizeHandle(handle), [handle])
   const currentName = account?.assignment?.name || ''
+  const ownerCanClaimFree = Boolean(account?.ownerCanClaimFree)
   const domain = account?.domain || 'x21.social'
   const selectedAddress = normalizedHandle ? `${normalizedHandle}@${domain}` : ''
   const assignedAddress = currentName ? `${currentName}@${domain}` : ''
@@ -66,6 +69,7 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
   const isRenew = Boolean(currentName && normalizedHandle === currentName)
   const quotedSats = useMemo(() => {
     if (!normalizedHandle) return 0
+    if (ownerCanClaimFree) return 0
     if (isRenew) {
       const renewSats = Number(
         account?.pricing?.currentSats ??
@@ -82,23 +86,31 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
 
     const fallbackSats = Number(account?.pricing?.maxSats ?? account?.pricing?.minSats ?? 0)
     return Number.isFinite(fallbackSats) ? Math.max(fallbackSats, 0) : 0
-  }, [normalizedHandle, isRenew, availability?.sats, account?.pricing?.currentSats, account?.pricing?.maxSats, account?.pricing?.minSats])
+  }, [normalizedHandle, ownerCanClaimFree, isRenew, availability?.sats, account?.pricing?.currentSats, account?.pricing?.maxSats, account?.pricing?.minSats])
   const buttonSats = useMemo(() => {
-    if (claiming && typeof activeClaimSats === 'number' && activeClaimSats > 0) {
+    if (claiming && typeof activeClaimSats === 'number' && activeClaimSats >= 0) {
       return activeClaimSats
     }
     return quotedSats
   }, [claiming, activeClaimSats, quotedSats])
+  const availabilityBlocked = useMemo(() => {
+    if (!availability || availability.available !== false) return false
+    if (!ownerCanClaimFree) return true
+    return Boolean(availability.ownerPubkey)
+  }, [availability, ownerCanClaimFree])
   const priceReady = useMemo(() => {
     if (!normalizedHandle) return false
-    if (isRenew) return buttonSats > 0
+    if (isRenew) return ownerCanClaimFree || buttonSats > 0
+    if (ownerCanClaimFree) {
+      return !availabilityLoading && !availabilityBlocked
+    }
     return (
       !availabilityLoading &&
-      availability?.available !== false &&
+      !availabilityBlocked &&
       typeof availability?.sats === 'number' &&
       availability.sats > 0
     )
-  }, [normalizedHandle, isRenew, buttonSats, availabilityLoading, availability])
+  }, [normalizedHandle, isRenew, ownerCanClaimFree, buttonSats, availabilityLoading, availabilityBlocked, availability])
 
   const validationError = useMemo(() => {
     if (!normalizedHandle) return ''
@@ -152,7 +164,12 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
         .checkAvailability(normalizedHandle)
         .then((result) => {
           if (ignore) return
-          setAvailability({ available: Boolean(result.available), reason: result.reason, sats: result.sats })
+          setAvailability({
+            available: Boolean(result.available),
+            reason: result.reason,
+            sats: result.sats,
+            ownerPubkey: result.ownerPubkey ?? null
+          })
         })
         .catch((error) => {
           if (ignore) return
@@ -215,11 +232,11 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
       return
     }
     if (!normalizedHandle || validationError) return
-    if (!isRenew && availability && !availability.available) {
-      toast.error(availability.reason || 'That handle is not available')
+    if (!isRenew && availabilityBlocked) {
+      toast.error(availability?.reason || 'That handle is not available')
       return
     }
-    if (!priceReady || buttonSats <= 0) {
+    if (!priceReady || (!ownerCanClaimFree && buttonSats <= 0)) {
       toast.error('Still fetching claim price. Please try again in a moment.')
       return
     }
@@ -229,8 +246,17 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
     setClaimStatus('')
     try {
       const claim = await vanityAddress.createClaim(normalizedHandle)
-      setActiveClaimSats(Number(claim.sats || 0) > 0 ? Number(claim.sats) : buttonSats)
+      setActiveClaimSats(Number.isFinite(Number(claim.sats)) ? Math.max(Number(claim.sats), 0) : buttonSats)
       setClaimId(claim.claimId)
+      if (claim.state === 'settled' || claim.paymentRequired === false || !claim.invoiceId) {
+        await loadAccount()
+        setClaiming(false)
+        setActiveClaimSats(null)
+        setClaimStatus(`Claimed ${claim.handle}`)
+        toast.success('Vanity address claimed successfully')
+        return
+      }
+
       setClaimStatus('Waiting for payment confirmation...')
       void pollClaimUntilSettled(claim.claimId, claim.handle)
 
@@ -374,9 +400,15 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking availability...
             </p>
-          ) : availability?.available ? (
+          ) : availability?.available || (ownerCanClaimFree && availability && !availabilityBlocked) ? (
             <p className="text-xs text-emerald-400">
-              {isRenew ? 'This is your current handle. Renew to extend it.' : 'Available'}
+              {isRenew
+                ? ownerCanClaimFree
+                  ? 'This is your current handle. You can renew it for free.'
+                  : 'This is your current handle. Renew to extend it.'
+                : ownerCanClaimFree
+                  ? 'Available to you'
+                  : 'Available'}
             </p>
           ) : availability ? (
             <p className="text-xs text-red-400">{availability.reason || 'Unavailable'}</p>
@@ -395,7 +427,7 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
             !normalizedHandle ||
             !priceReady ||
             Boolean(validationError) ||
-            (!isRenew && availability?.available === false)
+            (!isRenew && availabilityBlocked)
           }
           onClick={() => void runClaim()}
         >
@@ -403,8 +435,12 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
           {!priceReady && !claiming
             ? 'Fetching claim price...'
             : isRenew
-              ? `Renew for ${buttonSats.toLocaleString()} sats`
-              : `Claim for ${buttonSats.toLocaleString()} sats`}
+              ? ownerCanClaimFree
+                ? 'Renew for free'
+                : `Renew for ${buttonSats.toLocaleString()} sats`
+              : ownerCanClaimFree
+                ? 'Claim for free'
+                : `Claim for ${buttonSats.toLocaleString()} sats`}
         </Button>
 
         {claimId ? (

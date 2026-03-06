@@ -19,6 +19,9 @@ const NIP5_DOMAIN = (process.env.NIP5_DOMAIN || 'x21.social').trim().toLowerCase
 const NIP5_CLAIM_SATS_DEFAULT = toSafeInt(process.env.NIP5_CLAIM_SATS, 2100, 1, 10_000_000)
 const NIP5_TERM_DAYS_DEFAULT = toSafeInt(process.env.NIP5_TERM_DAYS, 365, 1, 3650)
 const NIP5_REQUIRE_SIGNUP_DEFAULT = false
+const NIP5_OWNER_FREE_PUBKEYS = parseHexOrNpubList(process.env.NIP5_OWNER_FREE_PUBKEYS, [
+  'npub1r0rs5q2gk0e3dk3nlc7gnu378ec6cnlenqp8a3cjhyzu6f8k5sgs4sq9ac'
+])
 const NIP5_DEFAULT_RESERVED_NAMES = [
   'admin',
   'administrator',
@@ -708,6 +711,7 @@ async function getNip5Account(user) {
     domain: NIP5_DOMAIN,
     eligibility,
     claimable: eligibility.eligible,
+    ownerCanClaimFree: isNip5OwnerFreePubkey(user.pubkey),
     address: account?.name ? `${account.name}@${NIP5_DOMAIN}` : null,
     assignment: account
       ? {
@@ -730,13 +734,14 @@ async function getNip5Account(user) {
 
 async function createNip5Claim(user, body) {
   const config = await resolveNip5Config()
+  const ownerCanClaimFree = isNip5OwnerFreePubkey(user.pubkey)
 
   const name = normalizeNip5Name(body?.name || '')
   const validationError = validateNip5Name(name)
   if (validationError) {
     return json(400, { error: validationError })
   }
-  if (config.reservedNameSet.has(name)) {
+  if (config.reservedNameSet.has(name) && !ownerCanClaimFree) {
     return json(409, { error: 'Handle unavailable' })
   }
 
@@ -752,16 +757,9 @@ async function createNip5Claim(user, body) {
 
   const assignment = await getCurrentNip5Assignment(user.pubkey)
   const action = assignment?.name === name ? 'renew' : assignment?.name ? 'change' : 'claim'
-  const sats = quoteNip5SatsByLength(name.length, config.priceTiers)
+  const sats = ownerCanClaimFree ? 0 : quoteNip5SatsByLength(name.length, config.priceTiers)
 
   const claimId = createId('nip5')
-  const invoiceComment = `x21 nip5 ${action} ${name}@${NIP5_DOMAIN} ${claimId}`
-  const invoiceData = await createInvoiceForLightningAddress({
-    lightningAddress: NIP5_LIGHTNING_ADDRESS,
-    sats,
-    comment: invoiceComment
-  })
-
   const claim = {
     id: claimId,
     pubkey: user.pubkey,
@@ -770,17 +768,34 @@ async function createNip5Claim(user, body) {
     action,
     sats,
     termDays: config.termDays,
-    state: 'pending',
-    invoice: invoiceData.invoice,
-    verify: invoiceData.verify ?? null,
-    paymentHash: getPaymentHashFromInvoice(invoiceData.invoice),
-    invoiceComment,
+    state: ownerCanClaimFree ? 'settled' : 'pending',
+    invoice: null,
+    verify: null,
+    paymentHash: null,
+    invoiceComment: null,
     lightningAddress: NIP5_LIGHTNING_ADDRESS,
     createdAt: now,
     updatedAt: now
   }
 
+  if (!ownerCanClaimFree) {
+    const invoiceComment = `x21 nip5 ${action} ${name}@${NIP5_DOMAIN} ${claimId}`
+    const invoiceData = await createInvoiceForLightningAddress({
+      lightningAddress: NIP5_LIGHTNING_ADDRESS,
+      sats,
+      comment: invoiceComment
+    })
+    claim.invoice = invoiceData.invoice
+    claim.verify = invoiceData.verify ?? null
+    claim.paymentHash = getPaymentHashFromInvoice(invoiceData.invoice)
+    claim.invoiceComment = invoiceComment
+  }
+
   await nip5Store.setJSON(`claim:${claimId}`, claim)
+  if (ownerCanClaimFree) {
+    await settleNip5Claim(claim)
+  }
+
   return json(200, {
     claimId,
     transactionId: claimId,
@@ -790,7 +805,8 @@ async function createNip5Claim(user, body) {
     termDays: claim.termDays,
     invoiceId: claim.invoice,
     canVerify: Boolean(claim.verify),
-    invoiceComment
+    invoiceComment: claim.invoiceComment,
+    paymentRequired: !ownerCanClaimFree
   })
 }
 
@@ -2553,6 +2569,26 @@ function parseReservedNames(value, fallbackNames) {
   return Array.from(new Set(names))
 }
 
+function parseHexOrNpubList(value, fallbackItems) {
+  let raw = []
+  if (Array.isArray(value)) {
+    raw = value
+  } else if (typeof value === 'string' && value.trim()) {
+    raw = value
+      .split(/[\n,]/g)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  } else {
+    raw = fallbackItems
+  }
+
+  const pubkeys = raw
+    .map((item) => decodePubkey(String(item || '')))
+    .filter(Boolean)
+    .map((item) => item.toLowerCase())
+  return Array.from(new Set(pubkeys))
+}
+
 function parseNip5PriceTiers(value, fallbackTiers) {
   if (Array.isArray(value)) {
     return value
@@ -2640,6 +2676,29 @@ function decodeNostrPrivateKey(secret) {
   }
 
   return null
+}
+
+function decodePubkey(value) {
+  if (typeof value !== 'string' || !value.trim()) return null
+  const trimmed = value.trim()
+  if (isHexPubkey(trimmed)) {
+    return trimmed.toLowerCase()
+  }
+  if (trimmed.startsWith('npub1')) {
+    try {
+      const decoded = nip19.decode(trimmed)
+      if (decoded.type !== 'npub') return null
+      return String(decoded.data || '').toLowerCase()
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+function isNip5OwnerFreePubkey(pubkey) {
+  if (!isHexPubkey(pubkey)) return false
+  return NIP5_OWNER_FREE_PUBKEYS.includes(String(pubkey).toLowerCase())
 }
 
 function toNpub(pubkey) {
