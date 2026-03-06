@@ -21,12 +21,14 @@ import Title from './Title'
 
 export default function PostEditor({
   defaultContent = '',
+  initialMentionIds = [],
   parentEvent,
   open,
   setOpen,
   openFrom
 }: {
   defaultContent?: string
+  initialMentionIds?: string[]
   parentEvent?: Event
   open: boolean
   setOpen: Dispatch<boolean>
@@ -40,6 +42,7 @@ export default function PostEditor({
     return (
       <PostContent
         defaultContent={defaultContent}
+        initialMentionIds={initialMentionIds}
         parentEvent={parentEvent}
         close={() => setOpen(false)}
         openFrom={openFrom}
@@ -47,7 +50,7 @@ export default function PostEditor({
         additionalRelayUrls={additionalRelayUrls}
       />
     )
-  }, [defaultContent, parentEvent, openFrom, isProtectedEvent, additionalRelayUrls])
+  }, [defaultContent, initialMentionIds, parentEvent, openFrom, isProtectedEvent, additionalRelayUrls])
 
   if (isSmallScreen) {
     return (

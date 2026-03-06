@@ -35,6 +35,7 @@ export type TPostTextareaHandle = {
   appendText: (text: string, addNewline?: boolean) => void
   insertText: (text: string) => void
   insertEmoji: (emoji: string | TEmoji) => void
+  insertMention: (userId: string, position?: 'start' | 'end') => void
 }
 
 const PostTextarea = forwardRef<
@@ -185,6 +186,22 @@ const PostTextarea = forwardRef<
             })
             editor.chain().insertContent(emojiNode).insertContent(' ').run()
           }
+        }
+      },
+      insertMention: (userId: string, position: 'start' | 'end' = 'end') => {
+        if (editor) {
+          let chain = editor.chain().focus()
+          if (position === 'start') {
+            chain = chain.command(({ tr, dispatch }) => {
+              if (dispatch) {
+                const selection = TextSelection.create(tr.doc, 1)
+                tr.setSelection(selection)
+                dispatch(tr)
+              }
+              return true
+            })
+          }
+          chain.createMention(userId).run()
         }
       }
     }))

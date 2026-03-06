@@ -30,6 +30,7 @@ import ComposerHelpDialog from './ComposerHelpDialog'
 
 export default function PostContent({
   defaultContent = '',
+  initialMentionIds = [],
   parentEvent,
   close,
   openFrom,
@@ -37,6 +38,7 @@ export default function PostContent({
   additionalRelayUrls
 }: {
   defaultContent?: string
+  initialMentionIds?: string[]
   parentEvent?: Event
   close: () => void
   openFrom?: string[]
@@ -67,6 +69,7 @@ export default function PostContent({
   })
   const [minPow, setMinPow] = useState(0)
   const isFirstRender = useRef(true)
+  const hasAppliedInitialMentions = useRef(false)
 
   const canPost = useMemo(() => {
     return (
@@ -122,6 +125,22 @@ export default function PostContent({
       }
     )
   }, [defaultContent, parentEvent, isNsfw, isPoll, pollCreateData, addClientTag, images])
+
+  useEffect(() => {
+    if (hasAppliedInitialMentions.current || !initialMentionIds.length || !textareaRef.current) {
+      return
+    }
+
+    // Only seed the mention into a fresh draft. Cached drafts keep their existing content.
+    if (text !== defaultContent.trim()) {
+      return
+    }
+
+    initialMentionIds.forEach((userId) => {
+      textareaRef.current?.insertMention(userId, 'start')
+    })
+    hasAppliedInitialMentions.current = true
+  }, [defaultContent, initialMentionIds, text])
 
   const post = async (e?: React.MouseEvent) => {
     e?.stopPropagation()

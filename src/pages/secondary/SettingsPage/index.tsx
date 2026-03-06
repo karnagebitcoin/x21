@@ -1,4 +1,5 @@
 import AboutInfoDialog from '@/components/AboutInfoDialog'
+import PostEditor from '@/components/PostEditor'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import SecondaryPageLayout from '@/layouts/SecondaryPageLayout'
@@ -21,6 +22,7 @@ import { useSecondaryPage } from '@/PageManager'
 import { useNostr } from '@/providers/NostrProvider'
 import {
   Bot,
+  Bug,
   AtSign,
   ChevronRight,
   Cloud,
@@ -40,13 +42,16 @@ import {
 import { forwardRef, HTMLProps, MouseEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+const BUG_REPORT_TARGET = 'npub1r0rs5q2gk0e3dk3nlc7gnu378ec6cnlenqp8a3cjhyzu6f8k5sgs4sq9ac'
+
 type TSettingsSearchItem = {
   id: string
   icon: React.ReactNode
   iconToneClassName?: string
   title: string
   subtitle?: string
-  route: string
+  route?: string
+  action?: () => void
   keywords: string[]
 }
 
@@ -68,13 +73,34 @@ function isSearchMatch(item: TSettingsSearchItem, query: string) {
 
 const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
   const { t } = useTranslation()
-  const { pubkey } = useNostr()
+  const { pubkey, checkLogin } = useNostr()
   const { push } = useSecondaryPage()
   const [settingsQuery, setSettingsQuery] = useState('')
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [checkingForUpdate, setCheckingForUpdate] = useState(false)
   const [refreshingForUpdate, setRefreshingForUpdate] = useState(false)
+  const [bugComposerOpen, setBugComposerOpen] = useState(false)
   const normalizedQuery = settingsQuery.trim()
+  const bugReportDraft = useMemo(
+    () =>
+      [
+        t('Bug report', { defaultValue: 'Bug report' }),
+        '',
+        t('What happened?', { defaultValue: 'What happened?' }),
+        '',
+        t('What did you expect?', { defaultValue: 'What did you expect?' }),
+        '',
+        t('Steps to reproduce:', { defaultValue: 'Steps to reproduce:' }),
+        ''
+      ].join('\n'),
+    [t]
+  )
+
+  const openBugReportComposer = useCallback(() => {
+    checkLogin(() => {
+      setBugComposerOpen(true)
+    })
+  }, [checkLogin])
 
   const checkForUpdate = useCallback(async () => {
     if (!('serviceWorker' in navigator)) return
@@ -296,6 +322,15 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
         title: t('Backup & Sync'),
         route: toBackupSettings(),
         keywords: ['backup settings', 'sync settings', 'restore']
+      },
+      {
+        id: 'report-bug',
+        icon: <Bug />,
+        iconToneClassName: 'bg-pink-500/20 text-pink-500',
+        title: t('Report a Bug', { defaultValue: 'Report a Bug' }),
+        subtitle: '@holokat',
+        action: openBugReportComposer,
+        keywords: ['bug', 'report issue', 'feedback', 'support', 'broken', 'problem']
       }
     ]
 
@@ -345,7 +380,7 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
     }
 
     return items
-  }, [t, pubkey])
+  }, [openBugReportComposer, t, pubkey])
 
   const searchResults = useMemo(() => {
     if (!normalizedQuery) return []
@@ -373,7 +408,15 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
               key={item.id}
               className="clickable"
               iconToneClassName={item.iconToneClassName}
-              onClick={() => push(item.route)}
+              onClick={() => {
+                if (item.action) {
+                  item.action()
+                  return
+                }
+                if (item.route) {
+                  push(item.route)
+                }
+              }}
             >
               {item.icon}
               <div className="flex flex-col min-w-0">
@@ -419,6 +462,10 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
           <SettingItem className="clickable" iconToneClassName="bg-teal-500/20 text-teal-500" onClick={() => push(toBackupSettings())}>
             <Cloud />
             {t('Backup & Sync')}
+          </SettingItem>
+          <SettingItem className="clickable" iconToneClassName="bg-pink-500/20 text-pink-500" onClick={openBugReportComposer}>
+            <Bug />
+            {t('Report a Bug', { defaultValue: 'Report a Bug' })}
           </SettingItem>
           {!!pubkey && (
             <SettingItem className="clickable" iconToneClassName="bg-violet-500/20 text-violet-500" onClick={() => push(toAITools())}>
@@ -495,6 +542,12 @@ const SettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
           </AboutInfoDialog>
         </>
       )}
+      <PostEditor
+        open={bugComposerOpen}
+        setOpen={setBugComposerOpen}
+        defaultContent={bugReportDraft}
+        initialMentionIds={[BUG_REPORT_TARGET]}
+      />
     </SecondaryPageLayout>
   )
 })
