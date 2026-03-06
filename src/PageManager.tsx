@@ -323,6 +323,11 @@ export function PageManager({ maxStackSize = 5 }: { maxStackSize?: number }) {
 
   const clearSecondaryPages = () => {
     if (secondaryStack.length === 0) return
+    if (secondaryStack.length === 1) {
+      window.history.replaceState(null, '', '/')
+      setSecondaryStack([])
+      return
+    }
     window.history.go(-secondaryStack.length)
   }
 
