@@ -29,7 +29,7 @@ export default function LoginDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="w-[440px] max-h-[90vh] py-8 overflow-auto">
+      <DialogContent className="w-[560px] max-h-[90vh] py-8 overflow-auto">
         <DialogTitle className="sr-only">{t('Account Login')}</DialogTitle>
         <AccountManager close={() => setOpen(false)} />
       </DialogContent>

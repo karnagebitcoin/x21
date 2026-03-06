@@ -186,6 +186,30 @@ export default function NostrConnectLogin({
 
   return (
     <div className="relative flex flex-col gap-4">
+      <div className="space-y-2 text-center">
+        <div className="text-sm font-medium">Connect a signer app</div>
+        <p className="text-xs text-muted-foreground">
+          Scan the QR code with a signer app, or paste a signer connection link below.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+          <a
+            href="https://github.com/ZharlieW/Aegis/releases"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-full border border-border/70 px-3 py-1 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+          >
+            Aegis
+          </a>
+          <a
+            href="https://greenart7c3.com/#download"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-full border border-border/70 px-3 py-1 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+          >
+            Amber
+          </a>
+        </div>
+      </div>
       <div ref={qrContainerRef} className="flex flex-col items-center w-full space-y-3 mb-3">
         <a href={loginDetails.connectionString} aria-label="Open with Nostr signer app">
           <QrCode size={qrCodeSize} value={loginDetails.connectionString} />
@@ -221,7 +245,7 @@ export default function NostrConnectLogin({
         <div className="flex items-start space-x-2">
           <div className="flex-1 relative">
             <Input
-              placeholder="bunker://..."
+              placeholder="Paste signer connection link"
               value={bunkerInput}
               onChange={handleInputChange}
               className={errMsg ? 'border-destructive pr-10' : 'pr-10'}
