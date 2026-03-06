@@ -16,7 +16,7 @@ import client from '@/services/client.service'
 import postEditorCache, { ImageAttachment } from '@/services/post-editor-cache.service'
 import { TPollCreateData } from '@/types'
 import { ImagePlay, ImageUp, ListTodo, LoaderCircle, Settings, Smile, X, HelpCircle } from 'lucide-react'
-import { Event, kinds } from 'nostr-tools'
+import { Event, kinds, nip19 } from 'nostr-tools'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -72,6 +72,33 @@ export default function PostContent({
   const [minPow, setMinPow] = useState(0)
   const isFirstRender = useRef(true)
   const hasAppliedInitialMentions = useRef(false)
+  const requiredMentionPubkeys = useMemo(() => {
+    return Array.from(
+      new Set(
+        initialMentionIds
+          .map((id) => {
+            if (/^[0-9a-f]{64}$/i.test(id)) {
+              return id.toLowerCase()
+            }
+
+            try {
+              const decoded = nip19.decode(id)
+              if (decoded.type === 'npub') {
+                return decoded.data
+              }
+              if (decoded.type === 'nprofile') {
+                return decoded.data.pubkey
+              }
+            } catch (error) {
+              console.warn('Failed to decode initial mention target:', id, error)
+            }
+
+            return null
+          })
+          .filter((pubkey): pubkey is string => Boolean(pubkey))
+      )
+    )
+  }, [initialMentionIds])
 
   const canPost = useMemo(() => {
     return (
@@ -157,20 +184,21 @@ export default function PostContent({
           const imageUrls = images.map((img) => img.url).join('\n')
           contentWithImages = contentWithImages ? `${contentWithImages}\n${imageUrls}` : imageUrls
         }
+        const allMentions = Array.from(new Set([...mentions, ...requiredMentionPubkeys]))
 
         const draftEvent =
           parentEvent && parentEvent.kind !== kinds.ShortTextNote
-            ? await createCommentDraftEvent(contentWithImages, parentEvent, mentions, {
+            ? await createCommentDraftEvent(contentWithImages, parentEvent, allMentions, {
                 addClientTag,
                 protectedEvent: isProtectedEvent,
                 isNsfw
               })
             : isPoll
-              ? await createPollDraftEvent(pubkey!, contentWithImages, mentions, pollCreateData, {
+              ? await createPollDraftEvent(pubkey!, contentWithImages, allMentions, pollCreateData, {
                   addClientTag,
                   isNsfw
                 })
-              : await createShortTextNoteDraftEvent(contentWithImages, mentions, {
+              : await createShortTextNoteDraftEvent(contentWithImages, allMentions, {
                   parentEvent,
                   addClientTag,
                   protectedEvent: isProtectedEvent,
