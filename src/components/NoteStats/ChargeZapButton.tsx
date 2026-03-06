@@ -153,7 +153,7 @@ export default function ChargeZapButton({ event }: { event: Event }) {
       }
 
       noteStatsService.addZap(pubkey, event.id, zapResult.invoice, finalAmount, '')
-      toast.success(t('Zapped n sats', { n: finalAmount }))
+      toast.success(t('Zap sent successfully', { defaultValue: 'Zap sent successfully' }))
     } catch (error) {
       toast.error(`${t('Zap failed')}: ${(error as Error).message}`)
     } finally {
