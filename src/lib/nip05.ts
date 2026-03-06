@@ -9,6 +9,7 @@ type TVerifyNip05Result = {
 
 const verifyNip05ResultCache = new LRUCache<string, TVerifyNip05Result>({
   max: 1000,
+  ttl: 5 * 60 * 1000,
   fetchMethod: (key) => {
     const { nip05, pubkey } = JSON.parse(key)
     return _verifyNip05(nip05, pubkey)
@@ -16,14 +17,16 @@ const verifyNip05ResultCache = new LRUCache<string, TVerifyNip05Result>({
 })
 
 async function _verifyNip05(nip05: string, pubkey: string): Promise<TVerifyNip05Result> {
-  const [nip05Name, nip05Domain] = nip05?.split('@') || [undefined, undefined]
+  const [rawNip05Name, rawNip05Domain] = nip05?.split('@') || [undefined, undefined]
+  const nip05Name = rawNip05Name?.trim().toLowerCase()
+  const nip05Domain = rawNip05Domain?.trim().toLowerCase()
   const result = { isVerified: false, nip05Name, nip05Domain }
   if (!nip05Name || !nip05Domain || !pubkey) return result
 
   try {
     const res = await fetch(getWellKnownNip05Url(nip05Domain, nip05Name))
     const json = await res.json()
-    if (json.names?.[nip05Name] === pubkey) {
+    if (String(json.names?.[nip05Name] || '').toLowerCase() === String(pubkey).toLowerCase()) {
       return { ...result, isVerified: true }
     }
   } catch {
@@ -37,7 +40,9 @@ export async function verifyNip05(nip05: string, pubkey: string): Promise<TVerif
   if (result) {
     return result
   }
-  const [nip05Name, nip05Domain] = nip05?.split('@') || [undefined, undefined]
+  const [rawNip05Name, rawNip05Domain] = nip05?.split('@') || [undefined, undefined]
+  const nip05Name = rawNip05Name?.trim().toLowerCase()
+  const nip05Domain = rawNip05Domain?.trim().toLowerCase()
   return { isVerified: false, nip05Name, nip05Domain }
 }
 

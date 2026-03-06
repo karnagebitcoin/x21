@@ -1093,8 +1093,14 @@ async function handleNip5WellKnown(request) {
     const assignment = await nip5Store.get(`handle:${queryName}`, { type: 'json' })
     if (assignment && Number(assignment.expiresAt || 0) > now && isHexPubkey(assignment.pubkey)) {
       names[queryName] = assignment.pubkey.toLowerCase()
-    } else if (isHexPubkey(NIP5_STATIC_NAMES[queryName])) {
-      names[queryName] = NIP5_STATIC_NAMES[queryName].toLowerCase()
+    } else {
+      const repairedAssignment = await findNip5AssignmentByName(queryName, now)
+      if (repairedAssignment) {
+        names[queryName] = repairedAssignment.pubkey.toLowerCase()
+        void ensureNip5HandleIndex(repairedAssignment)
+      } else if (isHexPubkey(NIP5_STATIC_NAMES[queryName])) {
+        names[queryName] = NIP5_STATIC_NAMES[queryName].toLowerCase()
+      }
     }
     return json(200, { names, relays })
   }
@@ -1117,7 +1123,63 @@ async function handleNip5WellKnown(request) {
     }
   })
 
+  const pubkeyAssignments = await listJsonEntries(nip5Store, 'pubkey:', 5000)
+  pubkeyAssignments.forEach((assignment) => {
+    if (
+      assignment &&
+      Number(assignment.expiresAt || 0) > now &&
+      isHexPubkey(assignment.pubkey) &&
+      typeof assignment.name === 'string'
+    ) {
+      const normalizedName = normalizeNip5Name(assignment.name)
+      if (normalizedName && !names[normalizedName]) {
+        names[normalizedName] = assignment.pubkey.toLowerCase()
+        void ensureNip5HandleIndex(assignment)
+      }
+    }
+  })
+
   return json(200, { names, relays })
+}
+
+async function findNip5AssignmentByName(name, now = Date.now()) {
+  const pubkeyAssignments = await listJsonEntries(nip5Store, 'pubkey:', 5000)
+  return (
+    pubkeyAssignments.find(
+      (assignment) =>
+        assignment &&
+        Number(assignment.expiresAt || 0) > now &&
+        isHexPubkey(assignment.pubkey) &&
+        normalizeNip5Name(assignment.name) === name
+    ) || null
+  )
+}
+
+async function ensureNip5HandleIndex(assignment) {
+  const name = normalizeNip5Name(assignment?.name || '')
+  const pubkey = String(assignment?.pubkey || '').toLowerCase()
+  const expiresAt = Number(assignment?.expiresAt || 0)
+  if (!name || !isHexPubkey(pubkey) || expiresAt <= Date.now()) return
+
+  const existing = await nip5Store.get(`handle:${name}`, { type: 'json' })
+  if (
+    existing &&
+    Number(existing.expiresAt || 0) > Date.now() &&
+    String(existing.pubkey || '').toLowerCase() !== pubkey
+  ) {
+    return
+  }
+
+  await nip5Store.setJSON(`handle:${name}`, {
+    name,
+    domain: NIP5_DOMAIN,
+    pubkey,
+    npub: toNpub(pubkey),
+    createdAt: Number(assignment?.createdAt || Date.now()),
+    updatedAt: Date.now(),
+    expiresAt,
+    lastSaleId: assignment?.lastSaleId || existing?.lastSaleId || null
+  })
 }
 
 async function checkTransaction(transactionId) {
