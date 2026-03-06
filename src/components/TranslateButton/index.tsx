@@ -1,7 +1,7 @@
 import { ExtendedKind } from '@/constants'
 import { useTranslatedEvent } from '@/hooks'
 import { toTranslation } from '@/lib/link'
-import { cn, detectLanguage } from '@/lib/utils'
+import { cn, detectLanguage, isSameLanguage } from '@/lib/utils'
 import { useSecondaryPage } from '@/PageManager'
 import { useTranslationService } from '@/providers/TranslationServiceProvider'
 import { Languages, Loader } from 'lucide-react'
@@ -39,7 +39,7 @@ export default function TranslateButton({
     const detected = detectLanguage(event.content)
     if (!detected) return false
     if (detected === 'und') return true
-    return !i18n.language.startsWith(detected)
+    return !isSameLanguage(detected, i18n.language)
   }, [event, i18n.language])
 
   if (!supported || !needTranslation) {

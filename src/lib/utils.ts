@@ -145,6 +145,29 @@ export function detectLanguage(text?: string): string | null {
   }
 }
 
+export function normalizeLanguageCode(language?: string | null): string | null {
+  if (!language) {
+    return null
+  }
+
+  return language.split('-')[0]?.toLowerCase() ?? null
+}
+
+export function isSameLanguage(languageA?: string | null, languageB?: string | null): boolean {
+  const normalizedA = normalizeLanguageCode(languageA)
+  const normalizedB = normalizeLanguageCode(languageB)
+
+  if (!normalizedA || !normalizedB) {
+    return false
+  }
+
+  if (normalizedA === 'und' || normalizedB === 'und') {
+    return false
+  }
+
+  return normalizedA === normalizedB
+}
+
 export function parseEmojiPickerUnified(unified: string): string | TEmoji | undefined {
   if (unified.startsWith(':')) {
     const secondColonIndex = unified.indexOf(':', 1)

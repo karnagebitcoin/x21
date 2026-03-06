@@ -5,7 +5,7 @@ import {
   EmbeddedWebsocketUrlParser,
   parseContent
 } from '@/lib/content-parser'
-import { detectLanguage } from '@/lib/utils'
+import { detectLanguage, isSameLanguage } from '@/lib/utils'
 import { useTranslationService } from '@/providers/TranslationServiceProvider'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,7 +24,7 @@ export default function ProfileAbout({ about, className }: { about?: string; cla
     const detected = detectLanguage(about)
     if (!detected) return false
     if (detected === 'und') return true
-    return !i18n.language.startsWith(detected)
+    return !isSameLanguage(detected, i18n.language)
   }, [about, i18n.language])
   const [translatedAbout, setTranslatedAbout] = useState<string | null>(null)
   const [translating, setTranslating] = useState(false)

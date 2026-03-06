@@ -1,5 +1,6 @@
 import { ExtendedKind } from '@/constants'
 import { getPollMetadataFromEvent } from '@/lib/event-metadata'
+import { detectLanguage, isSameLanguage } from '@/lib/utils'
 import libreTranslate from '@/services/libre-translate.service'
 import openrouterTranslate from '@/services/openrouter-translate.service'
 import storage from '@/services/local-storage.service'
@@ -45,6 +46,59 @@ export function TranslationServiceProvider({ children }: { children: React.React
   const { pubkey, startLogin } = useNostr()
   const [translatedEventIdSet, setTranslatedEventIdSet] = useState<Set<string>>(new Set())
 
+  const syncTranslatedEventIdSet = (targetLanguage: string) => {
+    const prefix = `${targetLanguage}_`
+    const eventIds = new Set<string>()
+
+    translatedEventCache.forEach((_, key) => {
+      if (!key.startsWith(prefix)) {
+        return
+      }
+
+      const eventId = key.slice(prefix.length)
+      if (eventId) {
+        eventIds.add(eventId)
+      }
+    })
+
+    setTranslatedEventIdSet(eventIds)
+  }
+
+  const shouldSkipTextTranslation = (text: string | undefined, targetLanguage: string) => {
+    const detected = detectLanguage(text)
+    if (!detected || detected === 'und') {
+      return false
+    }
+
+    return isSameLanguage(detected, targetLanguage)
+  }
+
+  const getEventTranslatableText = (event: Event) => {
+    if (event.kind === kinds.Highlights) {
+      const comment = event.tags.find((tag) => tag[0] === 'comment')?.[1]
+      return joinTexts({
+        content: event.content,
+        comment
+      })
+    }
+
+    if (event.kind === ExtendedKind.POLL) {
+      const pollMetadata = getPollMetadataFromEvent(event)
+      return joinTexts({
+        question: event.content,
+        ...pollMetadata?.options.reduce(
+          (acc, option) => {
+            acc[option.id] = option.label
+            return acc
+          },
+          {} as Record<string, string>
+        )
+      })
+    }
+
+    return event.content
+  }
+
   // Initialize cache from IndexedDB on mount
   useEffect(() => {
     if (!cacheInitialized) {
@@ -53,15 +107,7 @@ export function TranslationServiceProvider({ children }: { children: React.React
         events.forEach((event, key) => {
           translatedEventCache.set(key, event)
         })
-        // Update the translated event ID set
-        const eventIds = new Set<string>()
-        events.forEach((_, key) => {
-          const eventId = key.split('_')[1] // Extract eventId from "lang_eventId" format
-          if (eventId) {
-            eventIds.add(eventId)
-          }
-        })
-        setTranslatedEventIdSet(eventIds)
+        syncTranslatedEventIdSet(i18n.language)
       }).catch((error) => {
         console.error('Failed to load translated events from IndexedDB:', error)
       })
@@ -72,6 +118,10 @@ export function TranslationServiceProvider({ children }: { children: React.React
       })
     }
   }, [])
+
+  useEffect(() => {
+    syncTranslatedEventIdSet(i18n.language)
+  }, [i18n.language])
 
   useEffect(() => {
     translation.changeCurrentPubkey(pubkey)
@@ -124,6 +174,9 @@ export function TranslationServiceProvider({ children }: { children: React.React
     }
 
     const target = i18n.language
+    if (shouldSkipTextTranslation(text, target)) {
+      return text
+    }
     const cacheKey = target + '_' + text
     const cache = translatedTextCache.get(cacheKey)
     if (cache) {
@@ -192,6 +245,9 @@ export function TranslationServiceProvider({ children }: { children: React.React
     }
 
     const target = i18n.language
+    if (shouldSkipTextTranslation(getEventTranslatableText(event), target)) {
+      return event
+    }
     const cacheKey = target + '_' + event.id
     const cache = translatedEventCache.get(cacheKey)
     if (cache) {
@@ -247,8 +303,12 @@ export function TranslationServiceProvider({ children }: { children: React.React
       return
     }
 
-    // Check if already translated
     const target = i18n.language
+    if (shouldSkipTextTranslation(getEventTranslatableText(event), target)) {
+      return
+    }
+
+    // Check if already translated
     const cacheKey = target + '_' + event.id
     if (translatedEventCache.has(cacheKey) || translatedEventIdSet.has(event.id)) {
       return

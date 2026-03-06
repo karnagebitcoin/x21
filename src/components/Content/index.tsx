@@ -11,7 +11,7 @@ import {
 } from '@/lib/content-parser'
 import { getImetaInfosFromEvent } from '@/lib/event'
 import { getEmojiInfosFromEmojiTags, getImetaInfoFromImetaTag } from '@/lib/tag'
-import { cn, detectLanguage } from '@/lib/utils'
+import { cn, detectLanguage, isSameLanguage } from '@/lib/utils'
 import mediaUpload from '@/services/media-upload.service'
 import { TImetaInfo } from '@/types'
 import { Event } from 'nostr-tools'
@@ -84,7 +84,7 @@ export default function Content({
     if (!detected) return
 
     // Don't translate if already in target language
-    if (detected !== 'und' && i18n.language.startsWith(detected)) {
+    if (isSameLanguage(detected, i18n.language)) {
       return
     }
 
