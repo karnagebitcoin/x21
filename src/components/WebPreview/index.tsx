@@ -35,7 +35,7 @@ export default function WebPreview({ url, pubkey, className }: { url: string; pu
       <>
         <div
           className={cn(
-            'p-2 clickable flex gap-2 w-full border overflow-hidden relative group',
+            'p-3 clickable flex gap-3 w-full border overflow-hidden relative group',
             className
           )}
           style={{ borderRadius: 'var(--media-radius, 12px)' }}
@@ -45,14 +45,18 @@ export default function WebPreview({ url, pubkey, className }: { url: string; pu
           }}
         >
           {image && (
-            <Image image={{ url: image }} className="w-10 h-10 rounded flex-shrink-0" hideIfError />
+            <Image
+              image={{ url: image }}
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-md flex-shrink-0"
+              hideIfError
+            />
           )}
           <div className="flex-1 min-w-0">
-            <div className="font-semibold line-clamp-1 text-sm">{title}</div>
+            <div className="font-semibold line-clamp-2 text-sm sm:text-base leading-snug">{title}</div>
             {description && (
-              <div className="text-xs text-muted-foreground line-clamp-2">{description}</div>
+              <div className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mt-0.5">{description}</div>
             )}
-            <div className="text-xs text-muted-foreground mt-0.5">{hostname}</div>
+            <div className="text-xs text-muted-foreground mt-1">{hostname}</div>
           </div>
 
           {/* Summarize Button */}
