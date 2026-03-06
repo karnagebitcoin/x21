@@ -771,7 +771,7 @@ async function createNip5Claim(user, body) {
     action,
     sats,
     termDays: config.termDays,
-    state: ownerCanClaimFree ? 'settled' : 'pending',
+    state: 'pending',
     invoice: null,
     verify: null,
     paymentHash: null,
@@ -894,10 +894,17 @@ async function reconcilePendingNip5Claim(claim, key) {
   }
 }
 
-async function getCurrentNip5Assignment(pubkey) {
+async function getCurrentNip5Assignment(pubkey, { allowRepair = true } = {}) {
   const key = `pubkey:${pubkey}`
   const now = Date.now()
-  const assignment = await nip5Store.get(key, { type: 'json' })
+  let assignment = await nip5Store.get(key, { type: 'json' })
+  if (!assignment && allowRepair) {
+    const repairableClaim = await findRepairableNip5ClaimByPubkey(pubkey, now)
+    if (repairableClaim) {
+      await settleNip5Claim(repairableClaim)
+      assignment = await nip5Store.get(key, { type: 'json' })
+    }
+  }
   if (!assignment) return null
   if (Number(assignment.expiresAt || 0) > now) return assignment
 
@@ -912,12 +919,32 @@ async function getCurrentNip5Assignment(pubkey) {
 }
 
 async function settleNip5Claim(claim) {
-  if (claim.state === 'settled') return
-
   const now = Date.now()
   const pubkey = String(claim.pubkey || '').toLowerCase()
   const name = normalizeNip5Name(claim.name || '')
+  const termDays = toSafeInt(claim.termDays, NIP5_TERM_DAYS_DEFAULT, 1, 3650)
+  const claimCreatedAt = Number(claim.createdAt || now) || now
+  const repairExpiry =
+    Number(claim.expiresAt || 0) || claimCreatedAt + termDays * 24 * 60 * 60 * 1000
+  const isRepairingSettledClaim = claim.state === 'settled'
   const existingHandle = await nip5Store.get(`handle:${name}`, { type: 'json' })
+  const existingPubkeyRecord = await nip5Store.get(`pubkey:${pubkey}`, { type: 'json' })
+
+  if (isRepairingSettledClaim) {
+    const hasHandleRecord =
+      existingHandle &&
+      Number(existingHandle.expiresAt || 0) > now &&
+      String(existingHandle.pubkey || '').toLowerCase() === pubkey
+    const hasPubkeyRecord =
+      existingPubkeyRecord &&
+      Number(existingPubkeyRecord.expiresAt || 0) > now &&
+      normalizeNip5Name(existingPubkeyRecord.name || '') === name
+
+    if (hasHandleRecord && hasPubkeyRecord) {
+      return
+    }
+  }
+
   if (
     existingHandle &&
     Number(existingHandle.expiresAt || 0) > now &&
@@ -928,7 +955,9 @@ async function settleNip5Claim(claim) {
     throw err
   }
 
-  const previousAssignment = await getCurrentNip5Assignment(pubkey)
+  const previousAssignment = await getCurrentNip5Assignment(pubkey, {
+    allowRepair: !isRepairingSettledClaim
+  })
   if (previousAssignment?.name && previousAssignment.name !== name) {
     await nip5Store.delete(`handle:${previousAssignment.name}`)
   }
@@ -939,8 +968,9 @@ async function settleNip5Claim(claim) {
       ? Number(existingHandle?.expiresAt || 0)
       : 0
   )
-  const termDays = toSafeInt(claim.termDays, NIP5_TERM_DAYS_DEFAULT, 1, 3650)
-  const nextExpiry = baseExpiry + termDays * 24 * 60 * 60 * 1000
+  const nextExpiry = isRepairingSettledClaim
+    ? repairExpiry
+    : baseExpiry + termDays * 24 * 60 * 60 * 1000
 
   const handleRecord = {
     name,
@@ -950,7 +980,7 @@ async function settleNip5Claim(claim) {
     createdAt:
       String(existingHandle?.pubkey || '').toLowerCase() === pubkey
         ? Number(existingHandle.createdAt || now)
-        : now,
+        : claimCreatedAt,
     updatedAt: now,
     expiresAt: nextExpiry,
     lastSaleId: claim.id
@@ -963,8 +993,8 @@ async function settleNip5Claim(claim) {
     domain: NIP5_DOMAIN,
     createdAt:
       previousAssignment?.name === name
-        ? Number(previousAssignment.createdAt || now)
-        : now,
+        ? Number(previousAssignment.createdAt || claimCreatedAt)
+        : claimCreatedAt,
     updatedAt: now,
     expiresAt: nextExpiry
   }
@@ -1101,8 +1131,14 @@ async function handleNip5WellKnown(request) {
       if (repairedAssignment) {
         names[queryName] = repairedAssignment.pubkey.toLowerCase()
         void ensureNip5HandleIndex(repairedAssignment)
-      } else if (isHexPubkey(NIP5_STATIC_NAMES[queryName])) {
-        names[queryName] = NIP5_STATIC_NAMES[queryName].toLowerCase()
+      } else {
+        const repairableClaim = await findRepairableNip5ClaimByName(queryName, now)
+        if (repairableClaim) {
+          await settleNip5Claim(repairableClaim)
+          names[queryName] = repairableClaim.pubkey.toLowerCase()
+        } else if (isHexPubkey(NIP5_STATIC_NAMES[queryName])) {
+          names[queryName] = NIP5_STATIC_NAMES[queryName].toLowerCase()
+        }
       }
     }
     return json(200, { names, relays })
@@ -1155,6 +1191,63 @@ async function findNip5AssignmentByName(name, now = Date.now()) {
         isHexPubkey(assignment.pubkey) &&
         normalizeNip5Name(assignment.name) === name
     ) || null
+  )
+}
+
+function getNip5ClaimExpiry(claim, now = Date.now()) {
+  const expiresAt = Number(claim?.expiresAt || 0)
+  if (expiresAt > 0) return expiresAt
+
+  const createdAt = Number(claim?.createdAt || 0)
+  const termDays = toSafeInt(claim?.termDays, NIP5_TERM_DAYS_DEFAULT, 1, 3650)
+  if (createdAt > 0) {
+    return createdAt + termDays * 24 * 60 * 60 * 1000
+  }
+
+  return now + termDays * 24 * 60 * 60 * 1000
+}
+
+function compareNip5ClaimsByRecency(a, b) {
+  const aTime = Number(a?.updatedAt || a?.settledAt || a?.createdAt || 0)
+  const bTime = Number(b?.updatedAt || b?.settledAt || b?.createdAt || 0)
+  return bTime - aTime
+}
+
+async function findRepairableNip5ClaimByPubkey(pubkey, now = Date.now()) {
+  const normalizedPubkey = String(pubkey || '').toLowerCase()
+  if (!isHexPubkey(normalizedPubkey)) return null
+
+  const claims = await listJsonEntries(nip5Store, 'claim:', 5000)
+  return (
+    claims
+      .filter(
+        (claim) =>
+          claim &&
+          claim.state === 'settled' &&
+          String(claim.pubkey || '').toLowerCase() === normalizedPubkey &&
+          getNip5ClaimExpiry(claim, now) > now &&
+          validateNip5Name(normalizeNip5Name(claim.name || '')) === null
+      )
+      .sort(compareNip5ClaimsByRecency)[0] || null
+  )
+}
+
+async function findRepairableNip5ClaimByName(name, now = Date.now()) {
+  const normalizedName = normalizeNip5Name(name || '')
+  if (!normalizedName) return null
+
+  const claims = await listJsonEntries(nip5Store, 'claim:', 5000)
+  return (
+    claims
+      .filter(
+        (claim) =>
+          claim &&
+          claim.state === 'settled' &&
+          normalizeNip5Name(claim.name || '') === normalizedName &&
+          isHexPubkey(claim.pubkey) &&
+          getNip5ClaimExpiry(claim, now) > now
+      )
+      .sort(compareNip5ClaimsByRecency)[0] || null
   )
 }
 
