@@ -9,7 +9,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { isDevEnv } from '@/lib/utils'
 import { useNostr } from '@/providers/NostrProvider'
-import { KeyRound, Puzzle, QrCode } from 'lucide-react'
+import { KeyRound, PartyPopper, Puzzle, QrCode } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import AccountList from '../AccountList'
@@ -121,8 +121,9 @@ function AccountManagerNav({
         </div>
         <Button
           onClick={() => setPage('signup')}
-          className="w-full mt-2"
+          className="mx-auto mt-2 flex w-auto items-center gap-2 px-5"
         >
+          <PartyPopper className="h-4 w-4" />
           {t('Sign up')}
         </Button>
         <Button
