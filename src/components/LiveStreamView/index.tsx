@@ -36,6 +36,7 @@ import { BIG_RELAY_URLS } from '@/constants'
 import { normalizeUrl } from '@/lib/url'
 import { useLiveStreamPopout } from '@/providers/LiveStreamPopoutProvider'
 import { useWidgets } from '@/providers/WidgetsProvider'
+import mediaManager from '@/services/media-manager.service'
 import liveStreamSyncService, { TLiveStreamSyncCommand } from '@/services/live-stream-sync.service'
 
 const DEFAULT_LIVE_RELAYS = ['wss://relay.damus.io/', 'wss://nos.lol/', 'wss://relay.nostr.band/']
@@ -477,16 +478,24 @@ export default function LiveStreamView({
 
     try {
       if (video.paused) {
-        await video.play()
-        liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: true })
+        const played = await mediaManager.play(video)
+        setIsVideoPlaying(played)
+        if (!played) return
+        liveStreamSyncService.setState(activeStreamingUrl, {
+          isPlaying: true,
+          activeSourceId: sourceIdRef.current
+        })
         liveStreamSyncService.dispatchCommand({
           streamingUrl: activeStreamingUrl,
           action: 'play',
           sourceId: sourceIdRef.current
         })
       } else {
-        video.pause()
-        liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
+        mediaManager.pause(video)
+        liveStreamSyncService.setState(activeStreamingUrl, {
+          isPlaying: false,
+          activeSourceId: sourceIdRef.current
+        })
         liveStreamSyncService.dispatchCommand({
           streamingUrl: activeStreamingUrl,
           action: 'pause',
@@ -543,8 +552,11 @@ export default function LiveStreamView({
     if (!video || !activeStreamingUrl) return
 
     if (!video.paused) {
-      video.pause()
-      liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
+      mediaManager.pause(video)
+      liveStreamSyncService.setState(activeStreamingUrl, {
+        isPlaying: false,
+        activeSourceId: sourceIdRef.current
+      })
       liveStreamSyncService.dispatchCommand({
         streamingUrl: activeStreamingUrl,
         action: 'pause',
@@ -569,18 +581,22 @@ export default function LiveStreamView({
 
       if (command.action === 'play') {
         if (isInPopout) return
-        video.play().then(() => {
-          liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: true })
-        }).catch(() => {
-          setIsVideoPlaying(false)
-          liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
-        })
+        if (!video.paused) {
+          mediaManager.pause(video)
+        }
+        setIsVideoPlaying(false)
         return
       }
       if (command.action === 'pause') {
-        video.pause()
+        mediaManager.pause(video)
         setIsVideoPlaying(false)
-        liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
+        const sharedState = liveStreamSyncService.getState(activeStreamingUrl)
+        if (!sharedState?.activeSourceId || sharedState.activeSourceId === sourceIdRef.current) {
+          liveStreamSyncService.setState(activeStreamingUrl, {
+            isPlaying: false,
+            activeSourceId: sourceIdRef.current
+          })
+        }
         return
       }
       if (command.action === 'set-muted') {
@@ -696,28 +712,50 @@ export default function LiveStreamView({
                   className="w-full h-full object-contain"
                   onPlay={(event) => {
                     if (isInPopout) {
-                      event.currentTarget.pause()
+                      mediaManager.pause(event.currentTarget)
                       setIsVideoPlaying(false)
                       if (activeStreamingUrl) {
-                        liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
+                        const sharedState = liveStreamSyncService.getState(activeStreamingUrl)
+                        if (!sharedState?.activeSourceId || sharedState.activeSourceId === sourceIdRef.current) {
+                          liveStreamSyncService.setState(activeStreamingUrl, {
+                            isPlaying: false,
+                            activeSourceId: sourceIdRef.current
+                          })
+                        }
                       }
                       return
                     }
+                    void mediaManager.play(event.currentTarget)
                     setIsVideoPlaying(true)
                     if (activeStreamingUrl) {
-                      liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: true })
+                      liveStreamSyncService.setState(activeStreamingUrl, {
+                        isPlaying: true,
+                        activeSourceId: sourceIdRef.current
+                      })
                     }
                   }}
                   onPause={() => {
                     setIsVideoPlaying(false)
                     if (activeStreamingUrl) {
-                      liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
+                      const sharedState = liveStreamSyncService.getState(activeStreamingUrl)
+                      if (!sharedState?.activeSourceId || sharedState.activeSourceId === sourceIdRef.current) {
+                        liveStreamSyncService.setState(activeStreamingUrl, {
+                          isPlaying: false,
+                          activeSourceId: sourceIdRef.current
+                        })
+                      }
                     }
                   }}
                   onEnded={() => {
                     setIsVideoPlaying(false)
                     if (activeStreamingUrl) {
-                      liveStreamSyncService.setState(activeStreamingUrl, { isPlaying: false })
+                      const sharedState = liveStreamSyncService.getState(activeStreamingUrl)
+                      if (!sharedState?.activeSourceId || sharedState.activeSourceId === sourceIdRef.current) {
+                        liveStreamSyncService.setState(activeStreamingUrl, {
+                          isPlaying: false,
+                          activeSourceId: sourceIdRef.current
+                        })
+                      }
                     }
                   }}
                   onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
@@ -805,11 +843,12 @@ export default function LiveStreamView({
                           if (video) {
                             liveStreamSyncService.setState(streamingUrl, {
                               isMuted: video.muted,
-                              isPlaying: !video.paused
+                              isPlaying: !video.paused,
+                              activeSourceId: !video.paused ? sourceIdRef.current : undefined
                             })
                           }
                           if (video && !video.paused) {
-                            video.pause()
+                            mediaManager.pause(video)
                             setIsVideoPlaying(false)
                             liveStreamSyncService.dispatchCommand({
                               streamingUrl,

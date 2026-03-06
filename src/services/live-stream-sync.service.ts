@@ -10,6 +10,7 @@ export type TLiveStreamSyncCommand = {
 export type TLiveStreamSyncState = {
   isPlaying?: boolean
   isMuted?: boolean
+  activeSourceId?: string
   updatedAt: number
 }
 
@@ -33,15 +34,16 @@ class LiveStreamSyncService extends EventTarget {
     this.stateMap.set(streamingUrl, {
       isPlaying: partial.isPlaying ?? prev?.isPlaying,
       isMuted: partial.isMuted ?? prev?.isMuted,
+      activeSourceId: partial.activeSourceId ?? prev?.activeSourceId,
       updatedAt: Date.now()
     })
   }
 
   dispatchCommand(command: TLiveStreamSyncCommand) {
     if (command.action === 'play') {
-      this.setState(command.streamingUrl, { isPlaying: true })
+      this.setState(command.streamingUrl, { isPlaying: true, activeSourceId: command.sourceId })
     } else if (command.action === 'pause') {
-      this.setState(command.streamingUrl, { isPlaying: false })
+      this.setState(command.streamingUrl, { isPlaying: false, activeSourceId: command.sourceId })
     } else if (command.action === 'set-muted') {
       this.setState(command.streamingUrl, { isMuted: command.muted })
     }

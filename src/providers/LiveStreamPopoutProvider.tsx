@@ -13,6 +13,7 @@ import { createPortal } from 'react-dom'
 import { Pause, PictureInPicture2, Play, Volume2, VolumeX, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
+import mediaManager from '@/services/media-manager.service'
 import liveStreamSyncService, { TLiveStreamSyncCommand } from '@/services/live-stream-sync.service'
 
 type LiveStreamPopoutPayload = {
@@ -185,7 +186,7 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
   const closePopout = useCallback(() => {
     const video = videoRef.current
     if (video && !video.paused) {
-      video.pause()
+      mediaManager.pause(video)
     }
     clearControlHideTimeout()
     setIsOpen(false)
@@ -281,16 +282,24 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
 
     try {
       if (video.paused) {
-        await video.play()
-        liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: true })
+        const played = await mediaManager.play(video)
+        setIsPlaying(played)
+        if (!played) return
+        liveStreamSyncService.setState(popout.streamingUrl, {
+          isPlaying: true,
+          activeSourceId: sourceIdRef.current
+        })
         liveStreamSyncService.dispatchCommand({
           streamingUrl: popout.streamingUrl,
           action: 'play',
           sourceId: sourceIdRef.current
         })
       } else {
-        video.pause()
-        liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: false })
+        mediaManager.pause(video)
+        liveStreamSyncService.setState(popout.streamingUrl, {
+          isPlaying: false,
+          activeSourceId: sourceIdRef.current
+        })
         liveStreamSyncService.dispatchCommand({
           streamingUrl: popout.streamingUrl,
           action: 'pause',
@@ -404,18 +413,22 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
       if (!video) return
 
       if (command.action === 'play') {
-        video.play().then(() => {
-          liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: true })
-        }).catch(() => {
-          setIsPlaying(false)
-          liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: false })
-        })
+        if (!video.paused) {
+          mediaManager.pause(video)
+        }
+        setIsPlaying(false)
         return
       }
       if (command.action === 'pause') {
-        video.pause()
+        mediaManager.pause(video)
         setIsPlaying(false)
-        liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: false })
+        const sharedState = liveStreamSyncService.getState(popout.streamingUrl)
+        if (!sharedState?.activeSourceId || sharedState.activeSourceId === sourceIdRef.current) {
+          liveStreamSyncService.setState(popout.streamingUrl, {
+            isPlaying: false,
+            activeSourceId: sourceIdRef.current
+          })
+        }
         return
       }
       if (command.action === 'set-muted') {
@@ -470,16 +483,32 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
                 className="popout-stream-video h-full w-full bg-black object-contain"
                 onClick={togglePlayback}
                 onPlay={() => {
+                  void mediaManager.play(videoRef.current)
                   setIsPlaying(true)
-                  liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: true })
+                  liveStreamSyncService.setState(popout.streamingUrl, {
+                    isPlaying: true,
+                    activeSourceId: sourceIdRef.current
+                  })
                 }}
                 onPause={() => {
                   setIsPlaying(false)
-                  liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: false })
+                  const sharedState = liveStreamSyncService.getState(popout.streamingUrl)
+                  if (!sharedState?.activeSourceId || sharedState.activeSourceId === sourceIdRef.current) {
+                    liveStreamSyncService.setState(popout.streamingUrl, {
+                      isPlaying: false,
+                      activeSourceId: sourceIdRef.current
+                    })
+                  }
                 }}
                 onEnded={() => {
                   setIsPlaying(false)
-                  liveStreamSyncService.setState(popout.streamingUrl, { isPlaying: false })
+                  const sharedState = liveStreamSyncService.getState(popout.streamingUrl)
+                  if (!sharedState?.activeSourceId || sharedState.activeSourceId === sourceIdRef.current) {
+                    liveStreamSyncService.setState(popout.streamingUrl, {
+                      isPlaying: false,
+                      activeSourceId: sourceIdRef.current
+                    })
+                  }
                 }}
                 onLoadedMetadata={(event) => {
                   const nextDuration = event.currentTarget.duration
@@ -489,7 +518,8 @@ export function LiveStreamPopoutProvider({ children }: { children: ReactNode }) 
                   setIsMuted(event.currentTarget.muted)
                   liveStreamSyncService.setState(popout.streamingUrl, {
                     isPlaying: !event.currentTarget.paused,
-                    isMuted: event.currentTarget.muted
+                    isMuted: event.currentTarget.muted,
+                    activeSourceId: !event.currentTarget.paused ? sourceIdRef.current : undefined
                   })
                 }}
                 onDurationChange={(event) => {

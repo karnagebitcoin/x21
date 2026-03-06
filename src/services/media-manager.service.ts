@@ -49,12 +49,12 @@ class MediaManagerService extends EventTarget {
     ) {
       return
     }
-    this.play(media)
+    void this.play(media)
   }
 
-  play(media: Media | null) {
+  async play(media: Media | null): Promise<boolean> {
     if (!media) {
-      return
+      return false
     }
     if (document.pictureInPictureElement && document.pictureInPictureElement !== media) {
       ;(document.pictureInPictureElement as HTMLMediaElement).pause()
@@ -64,13 +64,19 @@ class MediaManagerService extends EventTarget {
     }
     this.currentMedia = media
     if (isMediaPlaying(media)) {
-      return
+      return true
     }
 
-    _play(this.currentMedia).catch((error) => {
+    try {
+      await _play(this.currentMedia)
+      return true
+    } catch (error) {
       console.error('Error playing media:', error)
-      this.currentMedia = null
-    })
+      if (this.currentMedia === media) {
+        this.currentMedia = null
+      }
+      return false
+    }
   }
 
   playAudioBackground(src: string, time: number = 0) {
@@ -95,7 +101,7 @@ function isMediaPlaying(media: Media) {
   if (isYouTubePlayer(media)) {
     return media.getPlayerState() === window.YT.PlayerState.PLAYING
   }
-  return media.currentTime > 0 && !media.paused && !media.ended && media.readyState >= 2
+  return !media.paused && !media.ended && media.readyState >= 2
 }
 
 function isPipElement(media: Media) {

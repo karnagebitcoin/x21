@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { CardHeader, CardTitle } from '@/components/ui/card'
 import { useSecondaryPage } from '@/PageManager'
 import { useWidgets } from '@/providers/WidgetsProvider'
+import mediaManager from '@/services/media-manager.service'
 import liveStreamSyncService, { TLiveStreamSyncCommand } from '@/services/live-stream-sync.service'
 import { Pause, Play, Radio, Volume2, VolumeX, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -34,17 +35,19 @@ export default function LiveStreamWidget({
 
   const playVideo = async (video: HTMLVideoElement) => {
     try {
-      await video.play()
-      return true
+      return await mediaManager.play(video)
     } catch {
       try {
         video.load()
-        await video.play()
-        return true
+        return await mediaManager.play(video)
       } catch {
         return false
       }
     }
+  }
+
+  const pauseVideo = (video: HTMLVideoElement) => {
+    mediaManager.pause(video)
   }
 
   useEffect(() => {
@@ -59,14 +62,18 @@ export default function LiveStreamWidget({
     setIsMuted(nextMuted)
 
     if (!shouldPlay) {
-      video.pause()
+      pauseVideo(video)
       setIsPlaying(false)
       return
     }
 
     playVideo(video).then((played) => {
       setIsPlaying(played)
-      liveStreamSyncService.setState(streamingUrl, { isPlaying: played, isMuted: nextMuted })
+      liveStreamSyncService.setState(streamingUrl, {
+        isPlaying: played,
+        isMuted: nextMuted,
+        activeSourceId: played ? sourceIdRef.current : undefined
+      })
     })
   }, [streamingUrl])
 
@@ -84,14 +91,13 @@ export default function LiveStreamWidget({
       if (!video) return
 
       if (command.action === 'play') {
-        playVideo(video).then((played) => {
-          setIsPlaying(played)
-          liveStreamSyncService.setState(streamingUrl, { isPlaying: played })
-        })
+        if (!video.paused) {
+          pauseVideo(video)
+        }
         return
       }
       if (command.action === 'pause') {
-        video.pause()
+        pauseVideo(video)
         return
       }
       if (command.action === 'set-muted') {
@@ -116,13 +122,21 @@ export default function LiveStreamWidget({
         const played = await playVideo(video)
         setIsPlaying(played)
         if (!played) return
+        liveStreamSyncService.setState(streamingUrl, {
+          isPlaying: true,
+          activeSourceId: sourceIdRef.current
+        })
         liveStreamSyncService.dispatchCommand({
           streamingUrl,
           action: 'play',
           sourceId: sourceIdRef.current
         })
       } else {
-        video.pause()
+        pauseVideo(video)
+        liveStreamSyncService.setState(streamingUrl, {
+          isPlaying: false,
+          activeSourceId: sourceIdRef.current
+        })
         liveStreamSyncService.dispatchCommand({
           streamingUrl,
           action: 'pause',
@@ -191,12 +205,22 @@ export default function LiveStreamWidget({
               playsInline
               className="w-full aspect-video bg-black object-contain"
               onPlay={() => {
+                void mediaManager.play(videoRef.current)
                 setIsPlaying(true)
-                liveStreamSyncService.setState(streamingUrl, { isPlaying: true })
+                liveStreamSyncService.setState(streamingUrl, {
+                  isPlaying: true,
+                  activeSourceId: sourceIdRef.current
+                })
               }}
               onPause={() => {
                 setIsPlaying(false)
-                liveStreamSyncService.setState(streamingUrl, { isPlaying: false })
+                const sharedState = liveStreamSyncService.getState(streamingUrl)
+                if (!sharedState?.activeSourceId || sharedState.activeSourceId === sourceIdRef.current) {
+                  liveStreamSyncService.setState(streamingUrl, {
+                    isPlaying: false,
+                    activeSourceId: sourceIdRef.current
+                  })
+                }
               }}
               onVolumeChange={(event) => {
                 setIsMuted(event.currentTarget.muted)
