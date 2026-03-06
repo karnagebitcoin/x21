@@ -803,6 +803,7 @@ async function createNip5Claim(user, body) {
     handle: `${name}@${NIP5_DOMAIN}`,
     sats: claim.sats,
     termDays: claim.termDays,
+    expiresAt: Number(claim.expiresAt || 0) || null,
     invoiceId: claim.invoice,
     canVerify: Boolean(claim.verify),
     invoiceComment: claim.invoiceComment,

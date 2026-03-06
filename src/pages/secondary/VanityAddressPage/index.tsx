@@ -67,6 +67,11 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
       profile.nip05.toLowerCase() === assignedAddress.toLowerCase()
   )
   const isRenew = Boolean(currentName && normalizedHandle === currentName)
+  const renewalWindowOpen = useMemo(() => {
+    const expiresAt = Number(account?.assignment?.expiresAt || 0)
+    if (!expiresAt) return false
+    return expiresAt - Date.now() <= 30 * 24 * 60 * 60 * 1000
+  }, [account?.assignment?.expiresAt])
   const quotedSats = useMemo(() => {
     if (!normalizedHandle) return 0
     if (ownerCanClaimFree) return 0
@@ -186,6 +191,28 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
     }
   }, [normalizedHandle, validationError, currentName, account?.pricing?.currentSats, account?.pricing?.maxSats, account?.pricing?.minSats])
 
+  const applySettledClaimToState = (claimedHandle: string, expiresAt?: number | null) => {
+    const claimedName = normalizeHandle(String(claimedHandle || '').split('@')[0] || '')
+    if (!claimedName) return
+
+    setAccount((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        assignment: {
+          name: claimedName,
+          expiresAt: Number(expiresAt || 0) || prev.assignment?.expiresAt || null
+        }
+      }
+    })
+    setAvailability({
+      available: true,
+      sats: ownerCanClaimFree
+        ? 0
+        : Number(account?.pricing?.currentSats ?? account?.pricing?.maxSats ?? account?.pricing?.minSats ?? 0)
+    })
+  }
+
   const pollClaimUntilSettled = async (id: string, initialHandle: string) => {
     let settled = false
     let failedCount = 0
@@ -198,7 +225,8 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
           settled = true
           clearInterval(interval)
           closeModal()
-          await loadAccount()
+          applySettledClaimToState(status.handle || initialHandle, status.expiresAt)
+          void loadAccount()
           setClaimStatus(`Claimed ${status.handle || initialHandle}`)
           setClaiming(false)
           setActiveClaimSats(null)
@@ -249,7 +277,8 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
       setActiveClaimSats(Number.isFinite(Number(claim.sats)) ? Math.max(Number(claim.sats), 0) : buttonSats)
       setClaimId(claim.claimId)
       if (claim.state === 'settled' || claim.paymentRequired === false || !claim.invoiceId) {
-        await loadAccount()
+        applySettledClaimToState(claim.handle, claim.expiresAt)
+        void loadAccount()
         setClaiming(false)
         setActiveClaimSats(null)
         setClaimStatus(`Claimed ${claim.handle}`)
@@ -267,7 +296,8 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
           try {
             const status = await vanityAddress.checkClaim(claim.claimId)
             if (status.state === 'settled') {
-              await loadAccount()
+              applySettledClaimToState(status.handle || claim.handle, status.expiresAt)
+              void loadAccount()
               setClaiming(false)
               setActiveClaimSats(null)
               setClaimStatus(`Claimed ${status.handle || claim.handle}`)
@@ -298,7 +328,8 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
     try {
       const status = await vanityAddress.checkClaim(claimId)
       if (status.state === 'settled') {
-        await loadAccount()
+        applySettledClaimToState(status.handle || selectedAddress, status.expiresAt)
+        void loadAccount()
         setClaimStatus(`Claimed ${status.handle || selectedAddress}`)
         toast.success('Payment confirmed')
       } else if (status.state === 'failed') {
@@ -425,6 +456,7 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
             loading ||
             claiming ||
             !normalizedHandle ||
+            (isRenew && !renewalWindowOpen) ||
             !priceReady ||
             Boolean(validationError) ||
             (!isRenew && availabilityBlocked)
@@ -434,7 +466,9 @@ const VanityAddressPage = forwardRef(({ index }: { index?: number }, ref) => {
           {claiming ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {!priceReady && !claiming
             ? 'Fetching claim price...'
-            : isRenew
+            : isRenew && !renewalWindowOpen
+              ? 'Already claimed'
+              : isRenew
               ? ownerCanClaimFree
                 ? 'Renew for free'
                 : `Renew for ${buttonSats.toLocaleString()} sats`

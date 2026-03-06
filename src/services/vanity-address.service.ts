@@ -31,6 +31,7 @@ type TVanityClaimCreate = {
   handle: string
   sats: number
   termDays: number
+  expiresAt?: number | null
   invoiceId?: string | null
   canVerify?: boolean
   invoiceComment?: string
