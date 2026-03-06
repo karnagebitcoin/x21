@@ -75,7 +75,7 @@ function AccountManagerNav({
           <Button
             type="button"
             variant="secondary"
-            className="h-24 flex-col gap-2 text-sm"
+            className="h-14 justify-center gap-2 text-sm"
             onClick={handleExtensionLogin}
           >
             <Puzzle className="h-5 w-5" />
@@ -84,7 +84,7 @@ function AccountManagerNav({
           <Button
             type="button"
             variant="secondary"
-            className="h-24 flex-col gap-2 text-sm"
+            className="h-14 justify-center gap-2 text-sm"
             onClick={() => setPage('signer')}
           >
             <QrCode className="h-5 w-5" />
@@ -93,7 +93,7 @@ function AccountManagerNav({
           <Button
             type="button"
             variant="secondary"
-            className="h-24 flex-col gap-2 text-sm"
+            className="h-14 justify-center gap-2 text-sm"
             onClick={() => setPage('key')}
           >
             <KeyRound className="h-5 w-5" />
