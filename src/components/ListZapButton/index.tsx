@@ -8,7 +8,7 @@ import { usePaymentsEnabled } from '@/providers/PaymentsEnabledProvider'
 import client from '@/services/client.service'
 import lightning from '@/services/lightning.service'
 import listStatsService from '@/services/list-stats.service'
-import { Loader, Zap } from 'lucide-react'
+import { Zap } from 'lucide-react'
 import { MouseEvent, TouchEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -34,7 +34,7 @@ export default function ListZapButton({
   const { defaultZapSats, defaultZapComment, quickZap, zapSound, isWalletConnected } = useZap()
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null)
   const [openZapDialog, setOpenZapDialog] = useState(false)
-  const [zapping, setZapping] = useState(false)
+  const [isPendingQuickZap, setIsPendingQuickZap] = useState(false)
   const { zapAmount, hasZapped } = useMemo(() => {
     return {
       zapAmount: listStats?.zaps?.reduce((acc, zap) => acc + zap.amount, 0),
@@ -59,7 +59,7 @@ export default function ListZapButton({
       if (!pubkey) {
         throw new Error('You need to be logged in to zap')
       }
-      if (zapping) return
+      if (isPendingQuickZap) return
 
       // Play zap sound IMMEDIATELY when button is pressed (only if wallet is connected)
       if (isWalletConnected && zapSound !== ZAP_SOUNDS.NONE) {
@@ -76,7 +76,7 @@ export default function ListZapButton({
         })
       }
 
-      setZapping(true)
+      setIsPendingQuickZap(true)
 
       // Create a virtual event representing the list for zapping
       const coordinate = `${ExtendedKind.STARTER_PACK}:${authorPubkey}:${dTag}`
@@ -103,7 +103,7 @@ export default function ListZapButton({
     } catch (error) {
       toast.error(`${t('Zap failed')}: ${(error as Error).message}`)
     } finally {
-      setZapping(false)
+      setIsPendingQuickZap(false)
     }
   }
 
@@ -124,7 +124,6 @@ export default function ListZapButton({
         isLongPressRef.current = true
         checkLogin(() => {
           setOpenZapDialog(true)
-          setZapping(true)
         })
       }, 500)
     }
@@ -150,7 +149,6 @@ export default function ListZapButton({
     if (!quickZap) {
       checkLogin(() => {
         setOpenZapDialog(true)
-        setZapping(true)
       })
     } else if (!isLongPressRef.current) {
       checkLogin(() => handleZap())
@@ -175,35 +173,35 @@ export default function ListZapButton({
         <button
           className={cn(
             'flex items-center gap-1 select-none',
-            hasZapped ? 'text-yellow-400' : 'text-muted-foreground',
+            hasZapped || isPendingQuickZap ? 'text-yellow-400' : 'text-muted-foreground',
             disable
               ? 'cursor-not-allowed text-muted-foreground/40'
               : 'cursor-pointer enabled:hover:text-yellow-400',
             className
           )}
           title={t('Zap')}
-          disabled={disable || zapping}
+          disabled={disable || isPendingQuickZap}
           onMouseDown={handleClickStart}
           onMouseUp={handleClickEnd}
           onMouseLeave={handleMouseLeave}
           onTouchStart={handleClickStart}
           onTouchEnd={handleClickEnd}
+          aria-busy={isPendingQuickZap}
         >
-          {zapping ? (
-            <Loader className="w-4 h-4 animate-spin" />
-          ) : (
-            <Zap className={cn('w-4 h-4', hasZapped ? 'fill-yellow-400' : '')} />
-          )}
+          <Zap
+            className={cn(
+              'w-4 h-4',
+              (hasZapped || isPendingQuickZap) && 'fill-yellow-400',
+              isPendingQuickZap && 'animate-pulse'
+            )}
+          />
           {showAmount && !!zapAmount && (
             <div className="text-sm">{formatAmount(zapAmount)}</div>
           )}
         </button>
         <ZapDialog
           open={openZapDialog}
-          setOpen={(open) => {
-            setOpenZapDialog(open)
-            setZapping(open)
-          }}
+          setOpen={setOpenZapDialog}
           pubkey={authorPubkey}
         />
       </>
@@ -215,33 +213,32 @@ export default function ListZapButton({
       <button
         className={cn(
           'flex items-center gap-1 select-none px-3 h-full',
-          hasZapped ? 'text-yellow-400' : 'text-muted-foreground',
+          hasZapped || isPendingQuickZap ? 'text-yellow-400' : 'text-muted-foreground',
           disable
             ? 'cursor-not-allowed text-muted-foreground/40'
             : 'cursor-pointer enabled:hover:text-yellow-400',
           className
         )}
         title={t('Zap')}
-        disabled={disable || zapping}
+        disabled={disable || isPendingQuickZap}
         onMouseDown={handleClickStart}
         onMouseUp={handleClickEnd}
         onMouseLeave={handleMouseLeave}
         onTouchStart={handleClickStart}
         onTouchEnd={handleClickEnd}
+        aria-busy={isPendingQuickZap}
       >
-        {zapping ? (
-          <Loader className="animate-spin" />
-        ) : (
-          <Zap className={hasZapped ? 'fill-yellow-400' : ''} />
-        )}
+        <Zap
+          className={cn(
+            (hasZapped || isPendingQuickZap) && 'fill-yellow-400',
+            isPendingQuickZap && 'animate-pulse'
+          )}
+        />
         {showAmount && !!zapAmount && <div className="text-sm">{formatAmount(zapAmount)}</div>}
       </button>
       <ZapDialog
         open={openZapDialog}
-        setOpen={(open) => {
-          setOpenZapDialog(open)
-          setZapping(open)
-        }}
+        setOpen={setOpenZapDialog}
         pubkey={authorPubkey}
       />
     </>
