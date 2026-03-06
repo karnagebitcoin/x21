@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useState } from 'react'
 type TReplyContext = {
   repliesMap: Map<string, { events: Event[]; eventIdSet: Set<string> }>
   addReplies: (replies: Event[]) => void
+  removeReplies: (replyIds: string[]) => void
 }
 
 const ReplyContext = createContext<TReplyContext | undefined>(undefined)
@@ -74,11 +75,35 @@ export function ReplyProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
+  const removeReplies = useCallback((replyIds: string[]) => {
+    if (!replyIds.length) return
+    const removeIdSet = new Set(replyIds)
+
+    setRepliesMap((prev) => {
+      const next = new Map<string, { events: Event[]; eventIdSet: Set<string> }>()
+
+      for (const [id, replies] of prev.entries()) {
+        const filteredEvents = replies.events.filter((reply) => !removeIdSet.has(reply.id))
+        if (!filteredEvents.length) {
+          continue
+        }
+
+        next.set(id, {
+          events: filteredEvents,
+          eventIdSet: new Set(filteredEvents.map((reply) => reply.id))
+        })
+      }
+
+      return next
+    })
+  }, [])
+
   return (
     <ReplyContext.Provider
       value={{
         repliesMap,
-        addReplies
+        addReplies,
+        removeReplies
       }}
     >
       {children}

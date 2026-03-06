@@ -7,10 +7,12 @@ import {
   createShortTextNoteDraftEvent,
   deleteDraftEventCache
 } from '@/lib/draft-event'
+import { minePow } from '@/lib/event'
 import { isTouchDevice } from '@/lib/utils'
 import { useNostr } from '@/providers/NostrProvider'
 import { useReply } from '@/providers/ReplyProvider'
 import { useNoteExpiration } from '@/providers/NoteExpirationProvider'
+import client from '@/services/client.service'
 import postEditorCache, { ImageAttachment } from '@/services/post-editor-cache.service'
 import { TPollCreateData } from '@/types'
 import { ImagePlay, ImageUp, ListTodo, LoaderCircle, Settings, Smile, X, HelpCircle } from 'lucide-react'
@@ -46,8 +48,8 @@ export default function PostContent({
   additionalRelayUrls: string[]
 }) {
   const { t } = useTranslation()
-  const { pubkey, publish, checkLogin } = useNostr()
-  const { addReplies } = useReply()
+  const { pubkey, publish, checkLogin, signEvent } = useNostr()
+  const { addReplies, removeReplies } = useReply()
   const { defaultExpiration, getExpirationTimestamp } = useNoteExpiration()
   const [text, setText] = useState('')
   const textareaRef = useRef<TPostTextareaHandle>(null)
@@ -193,11 +195,46 @@ export default function PostContent({
           draftEvent.tags.push(['expiration', String(expirationTimestamp)])
         }
 
-        const newEvent = await publish(draftEvent, {
+        const publishOptions = {
           specifiedRelayUrls: isProtectedEvent ? additionalRelayUrls : undefined,
           additionalRelayUrls: isPoll ? pollCreateData.relays : additionalRelayUrls,
           minPow
-        })
+        }
+
+        if (parentEvent) {
+          const optimisticReply =
+            minPow > 0
+              ? await signEvent(await minePow({ ...draftEvent, pubkey: pubkey! }, minPow))
+              : await signEvent(draftEvent)
+
+          client.addEventToCache(optimisticReply)
+          addReplies([optimisticReply])
+          close()
+
+          void (async () => {
+            try {
+              const relays = await client.determineTargetRelays(optimisticReply, publishOptions)
+              await client.publishEvent(relays, optimisticReply)
+              postEditorCache.clearPostCache({ defaultContent, parentEvent })
+              deleteDraftEventCache(draftEvent)
+              toast.success(t('Post successful'), { duration: 2000 })
+            } catch (error) {
+              removeReplies([optimisticReply.id])
+              const errors = error instanceof AggregateError ? error.errors : [error]
+              errors.forEach((err) => {
+                toast.error(
+                  `${t('Failed to post')}: ${err instanceof Error ? err.message : String(err)}`,
+                  { duration: 10_000 }
+                )
+                console.error(err)
+              })
+            }
+          })()
+
+          return
+        }
+
+        const newEvent = await publish(draftEvent, publishOptions)
         postEditorCache.clearPostCache({ defaultContent, parentEvent })
         deleteDraftEventCache(draftEvent)
         addReplies([newEvent])
@@ -215,7 +252,9 @@ export default function PostContent({
       } finally {
         setPosting(false)
       }
-      toast.success(t('Post successful'), { duration: 2000 })
+      if (!parentEvent) {
+        toast.success(t('Post successful'), { duration: 2000 })
+      }
     })
   }
 
