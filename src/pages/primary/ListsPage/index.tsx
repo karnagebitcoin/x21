@@ -801,7 +801,7 @@ const ListsPage = forwardRef((_, ref) => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('Search lists...')}
-                className="pl-9"
+                className="pl-9 rounded-full"
               />
             </div>
             <DropdownMenu>
