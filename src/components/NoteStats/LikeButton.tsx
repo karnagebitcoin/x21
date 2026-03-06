@@ -7,7 +7,6 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { ACTUAL_ZAP_SOUNDS, ZAP_SOUNDS } from '@/constants'
 import { useNoteStatsById } from '@/hooks/useNoteStatsById'
-import { createReactionDraftEvent } from '@/lib/draft-event'
 import { getLightningAddressFromProfile } from '@/lib/lightning'
 import { useNostr } from '@/providers/NostrProvider'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
@@ -19,11 +18,12 @@ import noteStatsService from '@/services/note-stats.service'
 import { TEmoji } from '@/types'
 import { Loader, SmilePlus } from 'lucide-react'
 import { Event } from 'nostr-tools'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import Emoji from '../Emoji'
 import SuggestedEmojis from '../SuggestedEmojis'
+import { beginOptimisticReaction } from './reaction'
 import { formatCount } from './utils'
 
 // Lazy load the heavy EmojiPicker component
@@ -46,17 +46,24 @@ function EmojiPickerFallback() {
 export default function LikeButton({ event }: { event: Event }) {
   const { t } = useTranslation()
   const { isSmallScreen } = useScreenSize()
-  const { pubkey, publish, checkLogin } = useNostr()
+  const { pubkey, signEvent, checkLogin } = useNostr()
   const { hideUntrustedInteractions, isUserTrusted } = useUserTrust()
   const { zapOnReactions, defaultZapSats, defaultZapComment, zapSound, isWalletConnected } = useZap()
   const [liking, setLiking] = useState(false)
   const [isEmojiReactionsOpen, setIsEmojiReactionsOpen] = useState(false)
   const [isPickerOpen, setIsPickerOpen] = useState(false)
   const [canZap, setCanZap] = useState(false)
+  const publishInFlightRef = useRef(false)
   const noteStats = useNoteStatsById(event.id)
   const { myLastEmoji, likeCount } = useMemo(() => {
     const stats = noteStats || {}
-    const myLike = stats.likes?.find((like) => like.pubkey === pubkey)
+    const myLike = (stats.likes ?? []).reduce<
+      { id: string; pubkey: string; created_at: number; emoji: TEmoji | string } | undefined
+    >((latest, like) => {
+      if (like.pubkey !== pubkey) return latest
+      if (!latest || like.created_at >= latest.created_at) return like
+      return latest
+    }, undefined)
     const likes = hideUntrustedInteractions
       ? stats.likes?.filter((like) => isUserTrusted(like.pubkey))
       : stats.likes
@@ -79,62 +86,65 @@ export default function LikeButton({ event }: { event: Event }) {
 
   const like = async (emoji: string | TEmoji) => {
     checkLogin(async () => {
-      if (liking || !pubkey) return
+      if (liking || publishInFlightRef.current || !pubkey) return
 
       setLiking(true)
 
       try {
-        if (!noteStats?.updatedAt) {
-          await noteStatsService.fetchNoteStats(event, pubkey)
-        }
-
-        const reaction = createReactionDraftEvent(event, emoji)
-        const seenOn = client.getSeenEventRelayUrls(event.id)
-        const evt = await publish(reaction, { additionalRelayUrls: seenOn })
-        noteStatsService.updateNoteStatsByEvents([evt])
-
-        // UI is now updated - stop showing the loading state
+        const { publishTask } = await beginOptimisticReaction(event, emoji, signEvent)
+        publishInFlightRef.current = true
         setLiking(false)
 
-        // If "Zap on reactions" is enabled and the user can zap this note, send a zap in the background
-        if (zapOnReactions && canZap) {
-          // Process zap asynchronously without blocking the UI
-          Promise.resolve().then(async () => {
-            try {
-              // Play zap sound when reaction is sent (only if wallet is connected)
-              if (isWalletConnected && zapSound !== ZAP_SOUNDS.NONE) {
-                let soundToPlay = zapSound
-                // If random is selected, pick a random sound
-                if (zapSound === ZAP_SOUNDS.RANDOM) {
-                  const randomIndex = Math.floor(Math.random() * ACTUAL_ZAP_SOUNDS.length)
-                  soundToPlay = ACTUAL_ZAP_SOUNDS[randomIndex]
-                }
-                const audio = new Audio(`/sounds/${soundToPlay}.mp3`)
-                audio.volume = 0.5
-                audio.play().catch(() => {
-                  // Ignore errors (e.g., autoplay policy restrictions)
-                })
-              }
+        void publishTask
+          .then(() => {
+            if (!zapOnReactions || !canZap) return
 
-              const zapResult = await lightning.zap(pubkey, event, defaultZapSats, defaultZapComment)
-              // user canceled
-              if (zapResult) {
-                noteStatsService.addZap(
+            Promise.resolve().then(async () => {
+              try {
+                // Play zap sound when reaction is sent (only if wallet is connected)
+                if (isWalletConnected && zapSound !== ZAP_SOUNDS.NONE) {
+                  let soundToPlay = zapSound
+                  if (zapSound === ZAP_SOUNDS.RANDOM) {
+                    const randomIndex = Math.floor(Math.random() * ACTUAL_ZAP_SOUNDS.length)
+                    soundToPlay = ACTUAL_ZAP_SOUNDS[randomIndex]
+                  }
+                  const audio = new Audio(`/sounds/${soundToPlay}.mp3`)
+                  audio.volume = 0.5
+                  audio.play().catch(() => {
+                    // Ignore errors (e.g., autoplay policy restrictions)
+                  })
+                }
+
+                const zapResult = await lightning.zap(
                   pubkey,
-                  event.id,
-                  zapResult.invoice,
+                  event,
                   defaultZapSats,
                   defaultZapComment
                 )
+                if (zapResult) {
+                  noteStatsService.addZap(
+                    pubkey,
+                    event.id,
+                    zapResult.invoice,
+                    defaultZapSats,
+                    defaultZapComment
+                  )
+                }
+              } catch (error) {
+                toast.error(`${t('Zap failed')}: ${(error as Error).message}`)
               }
-            } catch (error) {
-              toast.error(`${t('Zap failed')}: ${(error as Error).message}`)
-            }
+            })
           })
-        }
+          .catch((error) => {
+            console.error('like failed', error)
+          })
+          .finally(() => {
+            publishInFlightRef.current = false
+          })
       } catch (error) {
         console.error('like failed', error)
         setLiking(false)
+        publishInFlightRef.current = false
       }
     })
   }

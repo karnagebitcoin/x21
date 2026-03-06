@@ -1,21 +1,20 @@
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { useNoteStatsById } from '@/hooks/useNoteStatsById'
-import { createReactionDraftEvent } from '@/lib/draft-event'
 import { cn } from '@/lib/utils'
 import { useNostr } from '@/providers/NostrProvider'
-import client from '@/services/client.service'
-import noteStatsService from '@/services/note-stats.service'
 import { TEmoji } from '@/types'
 import { Loader } from 'lucide-react'
 import { Event } from 'nostr-tools'
 import { useMemo, useRef, useState } from 'react'
 import Emoji from '../Emoji'
+import { beginOptimisticReaction } from './reaction'
 
 export default function Likes({ event }: { event: Event }) {
-  const { pubkey, checkLogin, publish } = useNostr()
+  const { pubkey, checkLogin, signEvent } = useNostr()
   const noteStats = useNoteStatsById(event.id)
   const [liking, setLiking] = useState<string | null>(null)
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const publishInFlightRef = useRef(false)
   const [isLongPressing, setIsLongPressing] = useState<string | null>(null)
   const [isCompleted, setIsCompleted] = useState<string | null>(null)
 
@@ -38,21 +37,25 @@ export default function Likes({ event }: { event: Event }) {
 
   const like = async (key: string, emoji: TEmoji | string) => {
     checkLogin(async () => {
-      if (liking || !pubkey) return
+      if (liking || publishInFlightRef.current || !pubkey) return
 
       setLiking(key)
-      const timer = setTimeout(() => setLiking((prev) => (prev === key ? null : prev)), 5000)
 
       try {
-        const reaction = createReactionDraftEvent(event, emoji)
-        const seenOn = client.getSeenEventRelayUrls(event.id)
-        const evt = await publish(reaction, { additionalRelayUrls: seenOn })
-        noteStatsService.updateNoteStatsByEvents([evt])
+        const { publishTask } = await beginOptimisticReaction(event, emoji, signEvent)
+        publishInFlightRef.current = true
+        setLiking(null)
+        void publishTask
+          .catch((error) => {
+            console.error('like failed', error)
+          })
+          .finally(() => {
+            publishInFlightRef.current = false
+          })
       } catch (error) {
         console.error('like failed', error)
-      } finally {
         setLiking(null)
-        clearTimeout(timer)
+        publishInFlightRef.current = false
       }
     })
   }

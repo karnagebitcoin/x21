@@ -207,6 +207,15 @@ class NoteStatsService {
     })
   }
 
+  removeInteractionById(interactionId: string) {
+    const updatedEventId = this.removeInteractionByIdInternal(interactionId)
+    if (!updatedEventId) return
+
+    this.notifyNoteStats(updatedEventId)
+    this.schedulePersist(updatedEventId)
+    return updatedEventId
+  }
+
   private addLikeByEvent(evt: Event) {
     const targetEventId = evt.tags.findLast(tagNameEquals('e'))?.[1]
     if (!targetEventId) return
@@ -529,45 +538,52 @@ class NoteStatsService {
     const deletedIds = evt.tags.filter(tagNameEquals('e')).map(([, id]) => id)
 
     deletedIds.forEach((deletedId) => {
-      const interactionMeta = this.interactionMetaById.get(deletedId)
-      if (!interactionMeta) return
-
-      const old = this.noteStatsMap.get(interactionMeta.targetEventId)
-      if (!old) return
-
-      if (interactionMeta.type === 'reaction') {
-        const likeIdSet = old.likeIdSet ? new Set(old.likeIdSet) : new Set<string>()
-        const likes = old.likes ? [...old.likes] : []
-        if (!likeIdSet.has(deletedId)) return
-
-        likeIdSet.delete(deletedId)
-        const nextLikes = likes.filter((like) => like.id !== deletedId)
-        this.noteStatsMap.set(interactionMeta.targetEventId, { ...old, likeIdSet, likes: nextLikes })
-      } else if (interactionMeta.type === 'repost') {
-        const repostPubkeySet = old.repostPubkeySet ? new Set(old.repostPubkeySet) : new Set<string>()
-        const reposts = old.reposts ? [...old.reposts] : []
-
-        repostPubkeySet.delete(interactionMeta.pubkey)
-        const nextReposts = reposts.filter((repost) => repost.id !== deletedId)
-        this.noteStatsMap.set(interactionMeta.targetEventId, {
-          ...old,
-          repostPubkeySet,
-          reposts: nextReposts
-        })
-      } else if (interactionMeta.type === 'zap') {
-        const zapPrSet = old.zapPrSet ? new Set(old.zapPrSet) : new Set<string>()
-        const zaps = old.zaps ? [...old.zaps] : []
-
-        zapPrSet.delete(interactionMeta.pr)
-        const nextZaps = zaps.filter((zap) => zap.pr !== interactionMeta.pr)
-        this.noteStatsMap.set(interactionMeta.targetEventId, { ...old, zapPrSet, zaps: nextZaps })
+      const updatedEventId = this.removeInteractionByIdInternal(deletedId)
+      if (updatedEventId) {
+        updatedEventIds.add(updatedEventId)
       }
-
-      this.interactionMetaById.delete(deletedId)
-      updatedEventIds.add(interactionMeta.targetEventId)
     })
 
     return updatedEventIds
+  }
+
+  private removeInteractionByIdInternal(interactionId: string) {
+    const interactionMeta = this.interactionMetaById.get(interactionId)
+    if (!interactionMeta) return
+
+    const old = this.noteStatsMap.get(interactionMeta.targetEventId)
+    if (!old) return
+
+    if (interactionMeta.type === 'reaction') {
+      const likeIdSet = old.likeIdSet ? new Set(old.likeIdSet) : new Set<string>()
+      const likes = old.likes ? [...old.likes] : []
+      if (!likeIdSet.has(interactionId)) return
+
+      likeIdSet.delete(interactionId)
+      const nextLikes = likes.filter((like) => like.id !== interactionId)
+      this.noteStatsMap.set(interactionMeta.targetEventId, { ...old, likeIdSet, likes: nextLikes })
+    } else if (interactionMeta.type === 'repost') {
+      const repostPubkeySet = old.repostPubkeySet ? new Set(old.repostPubkeySet) : new Set<string>()
+      const reposts = old.reposts ? [...old.reposts] : []
+
+      repostPubkeySet.delete(interactionMeta.pubkey)
+      const nextReposts = reposts.filter((repost) => repost.id !== interactionId)
+      this.noteStatsMap.set(interactionMeta.targetEventId, {
+        ...old,
+        repostPubkeySet,
+        reposts: nextReposts
+      })
+    } else if (interactionMeta.type === 'zap') {
+      const zapPrSet = old.zapPrSet ? new Set(old.zapPrSet) : new Set<string>()
+      const zaps = old.zaps ? [...old.zaps] : []
+
+      zapPrSet.delete(interactionMeta.pr)
+      const nextZaps = zaps.filter((zap) => zap.pr !== interactionMeta.pr)
+      this.noteStatsMap.set(interactionMeta.targetEventId, { ...old, zapPrSet, zaps: nextZaps })
+    }
+
+    this.interactionMetaById.delete(interactionId)
+    return interactionMeta.targetEventId
   }
 
   private async hydrateNoteStatsFromDb(noteIds: string[], notify: boolean = false) {
