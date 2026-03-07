@@ -1,6 +1,6 @@
 import { useSecondaryPage } from '@/PageManager'
 import { ExtendedKind, SUPPORTED_KINDS } from '@/constants'
-import { getParentBech32Id, isFromMutedDomain, isNsfwEvent } from '@/lib/event'
+import { getNoteBech32Id, getParentBech32Id, isFromMutedDomain, isNsfwEvent } from '@/lib/event'
 import { toNote } from '@/lib/link'
 import { cn } from '@/lib/utils'
 import { useFetchProfile } from '@/hooks'
@@ -19,6 +19,7 @@ import ParentNotePreview from '../ParentNotePreview'
 import TranslateButton from '../TranslateButton'
 import UserAvatar from '../UserAvatar'
 import Username from '../Username'
+import { EmbeddedLiveStream } from '../Embedded'
 import LiveStreamPresenceBadge from '../LiveStreamPresenceBadge'
 import CommunityDefinition from './CommunityDefinition'
 import GroupMetadata from './GroupMetadata'
@@ -113,7 +114,16 @@ export default function Note({
       <LongFormArticlePreview className="mt-2" event={event} />
     )
   } else if (event.kind === kinds.LiveEvent) {
-    content = <LiveEvent className="mt-2" event={event} />
+    content =
+      size === 'small' ? (
+        <EmbeddedLiveStream
+          className="mt-2"
+          event={event}
+          noteId={originalNoteId ?? getNoteBech32Id(event)}
+        />
+      ) : (
+        <LiveEvent className="mt-2" event={event} />
+      )
   } else if (event.kind === ExtendedKind.GROUP_METADATA) {
     content = <GroupMetadata className="mt-2" event={event} originalNoteId={originalNoteId} />
   } else if (event.kind === kinds.CommunityDefinition) {
