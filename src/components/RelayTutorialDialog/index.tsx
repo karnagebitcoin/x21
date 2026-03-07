@@ -116,7 +116,7 @@ function RelayTutorialStep({
       <div className="flex items-center justify-between gap-3">
         <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
           <Icon className="size-3.5" />
-          Step {index + 1} of {total}
+          {slide.imageLabel}
         </div>
         <div className="flex items-center gap-1.5">
           {Array.from({ length: total }, (_, stepIndex) => (
@@ -184,13 +184,6 @@ function RelayTutorialDialogContent({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="space-y-5">
-      <div className="space-y-1">
-        <div className="text-xs font-medium uppercase tracking-[0.24em] text-primary/80">Relay guide</div>
-        <p className="text-sm leading-6 text-zinc-200/90">
-          A fast explanation of what relays do in Nostr and how to keep x21 responsive.
-        </p>
-      </div>
-
       {stepContent}
 
       <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-4">
