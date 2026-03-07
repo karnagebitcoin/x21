@@ -38,10 +38,9 @@ export default function Tabs({
     if (activeIndex >= 0 && tabRefs.current[activeIndex]) {
       const activeTab = tabRefs.current[activeIndex]
       const { offsetWidth, offsetLeft } = activeTab
-      const padding = 24 // 12px padding on each side
       setIndicatorStyle({
-        width: offsetWidth - padding,
-        left: offsetLeft + padding / 2
+        width: offsetWidth,
+        left: offsetLeft
       })
     }
   }
@@ -100,14 +99,14 @@ export default function Tabs({
       )}
     >
       <ScrollArea className="flex-1 w-0">
-        <div className="flex w-fit relative">
+        <div className="relative my-1 ml-1 flex w-fit rounded-2xl border border-border/70 bg-muted/70 p-1">
           {tabs.map((tab, index) => (
             <div
               key={tab.value}
               ref={(el) => (tabRefs.current[index] = el)}
               className={cn(
-                `w-fit text-center py-2 px-6 my-1 font-semibold whitespace-nowrap clickable cursor-pointer rounded-lg`,
-                value === tab.value ? '' : 'text-muted-foreground'
+                'relative z-10 w-fit whitespace-nowrap rounded-xl px-6 py-2 text-center font-semibold clickable cursor-pointer',
+                value === tab.value ? 'text-foreground' : 'text-muted-foreground'
               )}
               onClick={() => {
                 onTabChange?.(tab.value)
@@ -118,7 +117,7 @@ export default function Tabs({
             </div>
           ))}
           <div
-            className="absolute bottom-0 h-1 bg-primary rounded-full transition-all duration-500"
+            className="absolute inset-y-1 rounded-xl border border-border/70 bg-card shadow-sm transition-all duration-300"
             style={{
               width: `${indicatorStyle.width}px`,
               left: `${indicatorStyle.left}px`
