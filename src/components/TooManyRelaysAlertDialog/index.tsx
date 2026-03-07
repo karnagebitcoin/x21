@@ -34,7 +34,7 @@ export default function TooManyRelaysAlertDialog() {
     const dismissed = storage.getDismissedTooManyRelaysAlert()
     if (dismissed) return
 
-    if (relayList && (relayList.read.length > 4 || relayList.write.length > 4)) {
+    if (relayList && (relayList.read.length > 2 || relayList.write.length > 4)) {
       setOpen(true)
     } else {
       setOpen(false)
@@ -45,7 +45,7 @@ export default function TooManyRelaysAlertDialog() {
 
   const handleFixNow = () => {
     setOpen(false)
-    push(toRelaySettings('mailbox'))
+    push(toRelaySettings())
   }
 
   const handleDismiss = () => {
@@ -57,10 +57,14 @@ export default function TooManyRelaysAlertDialog() {
     setOpen(false)
   }
 
-  const title = t('Optimize Relay Settings')
-  const description = t(
-    'Your current relay configuration may not be optimal. This could make it difficult for others to find your posts and may result in incomplete notifications.'
-  )
+  const showReadWarning = relayList.read.length > 2
+  const showWriteWarning = relayList.write.length > 4
+  const title = t('Optimize relay settings')
+  const description = showReadWarning
+    ? t('You are reading from too many relays, optimize in settings.')
+    : showWriteWarning
+      ? t('You are publishing to too many relays, optimize in settings.')
+      : t('You are connected to too many relays, optimize in settings.')
 
   if (isSmallScreen) {
     return (

@@ -91,7 +91,7 @@ export default function FollowsRelayRecommendations({
         <span>{title ?? t('Recommended from follows')}</span>
       </div>
       <p className="text-sm text-muted-foreground">
-        {description ?? t('Relays where people you follow publish. Add fast ones as read relays.')}
+        {description ?? t('Not sure what to add? Try some relays from people you follow')}
       </p>
       <div className="space-y-2">
         {topRecommendations.map((rec) => (

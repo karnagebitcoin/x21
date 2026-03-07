@@ -11,7 +11,7 @@ export default function RelayCountWarning({ relays }: { relays: TMailboxRelay[] 
   const writeRelayCount = useMemo(() => {
     return relays.filter((r) => r.scope !== 'read').length
   }, [relays])
-  const showReadWarning = readRelayCount > 4
+  const showReadWarning = readRelayCount > 2
   const showWriteWarning = writeRelayCount > 4
 
   if (!showReadWarning && !showWriteWarning) {
@@ -20,15 +20,15 @@ export default function RelayCountWarning({ relays }: { relays: TMailboxRelay[] 
 
   return (
     <AlertCard
-      title={showReadWarning ? t('Too many read relays') : t('Too many write relays')}
+      title={showReadWarning ? t('Too many read relays') : t('Too many publish relays')}
       content={
         showReadWarning
           ? t(
-              'You have {{count}} read relays. Most clients only use 2-4 relays, setting more is unnecessary.',
+              'You are reading from {{count}} relays. Keep this to 2 or fewer so x21 stays fast.',
               { count: readRelayCount }
             )
           : t(
-              'You have {{count}} write relays. Most clients only use 2-4 relays, setting more is unnecessary.',
+              'You are publishing to {{count}} relays. We recommend 2, and you only need to optimize this if you go above 4.',
               { count: writeRelayCount }
             )
       }
