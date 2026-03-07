@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils'
 import type { TRelayLocation } from '@/services/relay-location.service'
-import { AlertCircle, Globe2 } from 'lucide-react'
+import { Globe2 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 
 const Globe = lazy(() => import('react-globe.gl'))
@@ -44,7 +44,6 @@ export default function RelayGlobe({
     return () => observer.disconnect()
   }, [])
 
-  const totalPoints = points.length
   const height = 360
   const tooltipHtml = (point: TRelayGlobePoint) => {
     const parts = [
@@ -80,26 +79,14 @@ export default function RelayGlobe({
         className
       )}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-4 p-5">
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 rounded-full bg-background/70 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
-            <Globe2 className="h-3.5 w-3.5 text-primary" />
-            Relay map
-          </div>
-          <div>
-            <h3 className="text-xl font-semibold tracking-tight">Approximate relay locations</h3>
-            <p className="max-w-xl text-sm text-muted-foreground">
-              Decorative overview of where public relays appear to be hosted. Hover a dot for details.
-            </p>
-          </div>
-        </div>
-        <div className="rounded-2xl border bg-background/70 px-4 py-3 text-right backdrop-blur">
-          <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Mapped</div>
-          <div className="font-mono text-2xl font-semibold">{totalPoints}</div>
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start p-5">
+        <div className="inline-flex items-center gap-2 rounded-full bg-background/70 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
+          <Globe2 className="h-3.5 w-3.5 text-primary" />
+          Relay map
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-4 p-5">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center p-5">
         <div className="flex flex-wrap items-center gap-3 rounded-full bg-background/70 px-4 py-2 text-xs backdrop-blur">
           {legendItems.map((item) => (
             <div key={item.label} className="inline-flex items-center gap-2 text-muted-foreground">
@@ -108,10 +95,6 @@ export default function RelayGlobe({
               <span className="font-mono text-foreground">{item.count}</span>
             </div>
           ))}
-        </div>
-        <div className="inline-flex items-center gap-2 rounded-full bg-background/70 px-3 py-2 text-xs text-muted-foreground backdrop-blur">
-          <AlertCircle className="h-3.5 w-3.5 text-primary" />
-          CDN and proxy routing can make these approximate.
         </div>
       </div>
 
