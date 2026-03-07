@@ -2,17 +2,11 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog'
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
   DrawerTrigger
 } from '@/components/ui/drawer'
 import { cn } from '@/lib/utils'
@@ -94,31 +88,17 @@ function RelayTutorialStep({
   total: number
 }) {
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-end gap-3">
-        <div className="flex items-center gap-1.5">
-          {Array.from({ length: total }, (_, stepIndex) => (
-            <div
-              key={stepIndex}
-              className={cn(
-                'h-1.5 rounded-full transition-all',
-                stepIndex === index ? 'w-7 bg-primary' : 'w-1.5 bg-white/15'
-              )}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-[1.15fr_0.95fr] lg:items-stretch">
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <h3 className="text-xl font-semibold leading-tight text-foreground">{slide.title}</h3>
-            <p className="text-sm leading-6 text-zinc-200/90">{slide.description}</p>
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] lg:items-stretch">
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <h3 className="text-lg font-semibold leading-tight text-foreground sm:text-xl">{slide.title}</h3>
+            <p className="text-sm leading-5 text-zinc-200/90">{slide.description}</p>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {slide.bullets.map((bullet) => (
-              <div key={bullet} className="flex items-start gap-3 text-sm leading-6 text-zinc-300">
-                <div className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
+              <div key={bullet} className="flex items-start gap-3 text-sm leading-5 text-zinc-300">
+                <div className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
                 <span>{bullet}</span>
               </div>
             ))}
@@ -127,18 +107,18 @@ function RelayTutorialStep({
 
         <div
           className={cn(
-            'relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-black/40 p-5',
-            'min-h-[240px]',
+            'relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/40 p-4',
+            'min-h-[200px]',
             'bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_45%)]'
           )}
         >
           <div className={cn('absolute inset-0 bg-gradient-to-br', slide.accentClassName)} />
           <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:24px_24px] opacity-30" />
-          <div className="relative h-full overflow-hidden rounded-[1.25rem] border border-white/10">
+          <div className="relative h-full overflow-hidden rounded-[1.1rem] border border-white/10">
             <img
               src={slide.imageSrc}
               alt={slide.imageAlt}
-              className="h-full min-h-[240px] w-full object-cover"
+              className="h-full min-h-[200px] w-full object-cover"
               loading="lazy"
               decoding="async"
             />
@@ -159,10 +139,22 @@ function RelayTutorialDialogContent({ onClose }: { onClose: () => void }) {
   const stepContent = <RelayTutorialStep slide={currentSlide} index={step} total={slides.length} />
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {stepContent}
 
-      <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-4">
+      <div className="flex items-center justify-center gap-1.5">
+        {Array.from({ length: slides.length }, (_, stepIndex) => (
+          <div
+            key={stepIndex}
+            className={cn(
+              'h-1.5 rounded-full transition-all',
+              stepIndex === step ? 'w-7 bg-primary' : 'w-1.5 bg-white/15'
+            )}
+          />
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3">
         <Button
           type="button"
           variant="outline"
@@ -204,13 +196,7 @@ export default function RelayTutorialDialog({ children }: { children: ReactNode 
       <Drawer open={open} onOpenChange={setOpen}>
         <DrawerTrigger asChild>{children}</DrawerTrigger>
         <DrawerContent className="max-h-[92vh] bg-zinc-950 px-0 pb-0">
-          <DrawerHeader className="border-b border-white/10 px-5 pb-4">
-            <DrawerTitle className="text-left text-xl">What&apos;s a relay?</DrawerTitle>
-            <DrawerDescription className="text-left !text-zinc-300">
-              Read relays bring notes in. Write relays send your notes out.
-            </DrawerDescription>
-          </DrawerHeader>
-          <div className="overflow-y-auto px-5 py-5">
+          <div className="overflow-y-auto px-5 py-4">
             <RelayTutorialDialogContent onClose={() => setOpen(false)} />
           </div>
         </DrawerContent>
@@ -222,15 +208,7 @@ export default function RelayTutorialDialog({ children }: { children: ReactNode 
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="max-w-4xl border-white/10 bg-zinc-950 p-0 text-foreground">
-        <div className="border-b border-white/10 px-6 py-5">
-          <DialogHeader className="space-y-2 text-left">
-            <DialogTitle className="text-2xl">What&apos;s a relay?</DialogTitle>
-            <DialogDescription className="text-sm leading-6 !text-zinc-300">
-              Read relays bring notes in. Write relays send your notes out.
-            </DialogDescription>
-          </DialogHeader>
-        </div>
-        <div className="px-6 py-6">
+        <div className="px-6 py-5">
           <RelayTutorialDialogContent onClose={() => setOpen(false)} />
         </div>
       </DialogContent>
