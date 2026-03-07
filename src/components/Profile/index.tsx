@@ -22,7 +22,7 @@ import { useMuteList } from '@/providers/MuteListProvider'
 import { useNostr } from '@/providers/NostrProvider'
 import client from '@/services/client.service'
 import modalManager from '@/services/modal-manager.service'
-import { Link, Zap } from 'lucide-react'
+import { BellOff, Link, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -135,6 +135,10 @@ export default function Profile({ id, isInDeckView = false }: { id?: string; isI
   if (!profile) return <NotFound />
 
   const { banner, username, about, avatar, pubkey, website, lightningAddress, gallery } = profile
+  const isMutedProfile = useMemo(
+    () => !!pubkey && !isSelf && mutePubkeySet.has(pubkey),
+    [isSelf, mutePubkeySet, pubkey]
+  )
 
   const handleAvatarClick = (event: React.MouseEvent) => {
     event.stopPropagation()
@@ -192,6 +196,15 @@ export default function Profile({ id, isInDeckView = false }: { id?: string; isI
               </>
             ) : (
               <>
+                {isMutedProfile && (
+                  <div
+                    className="flex size-8 items-center justify-center rounded-full border text-muted-foreground"
+                    title={t('Muted')}
+                    aria-label={t('Muted')}
+                  >
+                    <BellOff className="size-4" />
+                  </div>
+                )}
                 <ProfileOptions pubkey={pubkey} />
                 {!!lightningAddress && <ProfileZapButton pubkey={pubkey} />}
                 <FollowButton pubkey={pubkey} />

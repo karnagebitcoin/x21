@@ -81,15 +81,12 @@ export default function Explore({ isInDeckView = false }: { isInDeckView?: boole
       ]).size,
     [communityCollections, favoriteRelays, globalCollections]
   )
-  const totalCollectionCount = globalCollections.length + communityCollections.length
-
   return (
     <div className="pb-4">
       {!isSmallScreen && !lowBandwidthMode && totalRelayCount > 0 && (
         <div className="px-4 pt-4">
           <RelayPulse
             totalRelayCount={totalRelayCount}
-            totalCollectionCount={totalCollectionCount}
             globalRelayCount={globalRelayCount}
             globalCollectionCount={globalCollections.length}
             communityRelayCount={communityRelayCount}

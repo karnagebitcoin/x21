@@ -6,6 +6,7 @@ import { toNote } from '@/lib/link'
 import { cn } from '@/lib/utils'
 import { useSecondaryPage } from '@/PageManager'
 import { useDeletedEvent } from '@/providers/DeletedEventProvider'
+import { useMuteList } from '@/providers/MuteListProvider'
 import { useUserTrust } from '@/providers/UserTrustProvider'
 import client from '@/services/client.service'
 import { NostrEvent } from 'nostr-tools'
@@ -15,6 +16,7 @@ const DISPLAY_COUNT = 16
 
 export default function CompactTrendingNotes() {
   const { isEventDeleted } = useDeletedEvent()
+  const { mutePubkeySet } = useMuteList()
   const { hideUntrustedNotes, isUserTrusted } = useUserTrust()
   const { push } = useSecondaryPage()
   const [trendingNotes, setTrendingNotes] = useState<NostrEvent[]>([])
@@ -25,6 +27,7 @@ export default function CompactTrendingNotes() {
 
     return trendingNotes.slice(0, DISPLAY_COUNT).filter((evt) => {
       if (isEventDeleted(evt)) return false
+      if (mutePubkeySet.has(evt.pubkey)) return false
       if (hideUntrustedNotes && !isUserTrusted(evt.pubkey)) return false
 
       const id = isReplaceableEvent(evt.kind) ? getReplaceableCoordinateFromEvent(evt) : evt.id
@@ -34,7 +37,7 @@ export default function CompactTrendingNotes() {
       idSet.add(id)
       return true
     })
-  }, [trendingNotes, hideUntrustedNotes, isEventDeleted, isUserTrusted])
+  }, [trendingNotes, hideUntrustedNotes, isEventDeleted, isUserTrusted, mutePubkeySet])
 
   useEffect(() => {
     const fetchTrendingPosts = async () => {

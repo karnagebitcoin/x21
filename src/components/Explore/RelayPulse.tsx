@@ -26,7 +26,6 @@ function buildBars(seed: number, count: number, maxCount: number) {
 
 export default function RelayPulse({
   totalRelayCount,
-  totalCollectionCount,
   globalRelayCount,
   globalCollectionCount,
   communityRelayCount,
@@ -36,7 +35,6 @@ export default function RelayPulse({
   className
 }: {
   totalRelayCount: number
-  totalCollectionCount: number
   globalRelayCount: number
   globalCollectionCount: number
   communityRelayCount: number
@@ -88,97 +86,59 @@ export default function RelayPulse({
       )}
     >
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:28px_28px] opacity-30" />
-      <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-white/[0.05] to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-white/[0.05] to-transparent" />
 
-      <div className="relative z-10 p-5">
-        <div className="inline-flex items-center gap-2 rounded-full bg-background/70 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
-          <Users className="h-3.5 w-3.5 text-primary" />
-          Relay pulse
+      <div className="relative z-10 p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="inline-flex items-center gap-2 rounded-full bg-background/70 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
+            <Users className="h-3.5 w-3.5 text-primary" />
+            Relay pulse
+          </div>
+          <div className="text-right text-xs text-muted-foreground">
+            <span className="font-mono text-sm text-foreground">{totalRelayCount}</span> relays live in Explore
+          </div>
         </div>
 
-        <div className="mt-5 grid gap-4 xl:grid-cols-[1.45fr_0.9fr]">
-          <div className="space-y-4">
-            {lanes.map((lane) => (
-              <div
-                key={lane.label}
-                className="rounded-[1.75rem] border border-white/8 bg-black/25 p-4 backdrop-blur-sm"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className={cn('rounded-2xl p-2.5', lane.badgeClassName)}>
-                      <lane.icon className="h-[18px] w-[18px]" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-foreground">{lane.label}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">{lane.detail}</div>
-                    </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {lanes.map((lane) => (
+            <div
+              key={lane.label}
+              className="rounded-[1.5rem] border border-white/8 bg-black/25 p-3.5 backdrop-blur-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={cn('rounded-2xl p-2.5 shrink-0', lane.badgeClassName)}>
+                    <lane.icon className="h-[18px] w-[18px]" />
                   </div>
-                  <div className="text-right">
-                    <div className="font-mono text-2xl font-semibold text-foreground">
-                      {lane.count}
-                    </div>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-                      relays
-                    </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-foreground">{lane.label}</div>
+                    <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{lane.detail}</div>
                   </div>
                 </div>
-
-                <div className="mt-4 flex h-16 items-end gap-1.5">
-                  {lane.bars.map((height, index) => (
-                    <div
-                      key={`${lane.label}-${index}`}
-                      className={cn(
-                        'min-w-0 flex-1 rounded-full bg-gradient-to-t shadow-[0_0_18px_rgba(255,255,255,0.06)] transition-opacity duration-300',
-                        lane.barClassName
-                      )}
-                      style={{
-                        height: `${height}%`,
-                        opacity: 0.35 + (index % 5) * 0.08
-                      }}
-                    />
-                  ))}
+                <div className="text-right shrink-0">
+                  <div className="font-mono text-xl font-semibold text-foreground">{lane.count}</div>
                 </div>
               </div>
-            ))}
-          </div>
 
-          <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
-            <MetricCard
-              label="All relays"
-              value={totalRelayCount}
-              detail="Across every Explore section"
-            />
-            <MetricCard
-              label="Collections"
-              value={totalCollectionCount}
-              detail="Global feeds and community sets"
-            />
-            <MetricCard
-              label="Following signal"
-              value={favoriteProfileCount}
-              detail="People you follow shaping favorites"
-            />
-          </div>
+              <div className="mt-3 flex h-10 items-end gap-1">
+                {lane.bars.map((height, index) => (
+                  <div
+                    key={`${lane.label}-${index}`}
+                    className={cn(
+                      'min-w-0 flex-1 rounded-full bg-gradient-to-t shadow-[0_0_18px_rgba(255,255,255,0.06)] transition-opacity duration-300',
+                      lane.barClassName
+                    )}
+                    style={{
+                      height: `${Math.max(18, Math.round(height * 0.72))}%`,
+                      opacity: 0.35 + (index % 5) * 0.08
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
-    </div>
-  )
-}
-
-function MetricCard({
-  label,
-  value,
-  detail
-}: {
-  label: string
-  value: number
-  detail: string
-}) {
-  return (
-    <div className="rounded-[1.75rem] border border-white/8 bg-black/25 p-4 backdrop-blur-sm">
-      <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
-      <div className="mt-3 font-mono text-3xl font-semibold text-foreground">{value}</div>
-      <div className="mt-2 text-sm text-muted-foreground">{detail}</div>
     </div>
   )
 }

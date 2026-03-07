@@ -2,6 +2,7 @@ import NoteCard, { NoteCardLoadingSkeleton } from '@/components/NoteCard'
 import { BIG_RELAY_URLS } from '@/constants'
 import { getReplaceableCoordinateFromEvent, isReplaceableEvent } from '@/lib/event'
 import { useDeletedEvent } from '@/providers/DeletedEventProvider'
+import { useMuteList } from '@/providers/MuteListProvider'
 import { useUserTrust } from '@/providers/UserTrustProvider'
 import client from '@/services/client.service'
 import noteStatsService from '@/services/note-stats.service'
@@ -14,6 +15,7 @@ const SHOW_COUNT = 10
 export default function TrendingNotes({ showHeader = true }: { showHeader?: boolean } = {}) {
   const { t } = useTranslation()
   const { isEventDeleted } = useDeletedEvent()
+  const { mutePubkeySet } = useMuteList()
   const { hideUntrustedNotes, isUserTrusted } = useUserTrust()
   const [trendingNotes, setTrendingNotes] = useState<NostrEvent[]>([])
   const [showCount, setShowCount] = useState(10)
@@ -24,6 +26,7 @@ export default function TrendingNotes({ showHeader = true }: { showHeader?: bool
 
     return trendingNotes.slice(0, showCount).filter((evt) => {
       if (isEventDeleted(evt)) return false
+      if (mutePubkeySet.has(evt.pubkey)) return false
       if (hideUntrustedNotes && !isUserTrusted(evt.pubkey)) return false
 
       const id = isReplaceableEvent(evt.kind) ? getReplaceableCoordinateFromEvent(evt) : evt.id
@@ -33,7 +36,7 @@ export default function TrendingNotes({ showHeader = true }: { showHeader?: bool
       idSet.add(id)
       return true
     })
-  }, [trendingNotes, hideUntrustedNotes, showCount, isEventDeleted])
+  }, [trendingNotes, hideUntrustedNotes, isEventDeleted, isUserTrusted, mutePubkeySet, showCount])
 
   useEffect(() => {
     const fetchTrendingPosts = async () => {
