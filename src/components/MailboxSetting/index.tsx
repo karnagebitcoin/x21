@@ -13,6 +13,7 @@ import FollowsRelayRecommendations from './FollowsRelayRecommendations'
 import { createRelayListDraftEvent } from '@/lib/draft-event'
 import { Plus, Trash2 } from 'lucide-react'
 import RelayIcon from '../RelayIcon'
+import RelayTutorialDialog from '../RelayTutorialDialog'
 
 export type TMailboxSettingSaveState = {
   save: () => void
@@ -141,7 +142,17 @@ export default function MailboxSetting({
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">{t('My Relays')}</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-sm">{t('My Relays')}</CardTitle>
+            <RelayTutorialDialog>
+              <button
+                type="button"
+                className="text-sm font-medium text-primary transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                {t("What's a relay?")}
+              </button>
+            </RelayTutorialDialog>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'read' | 'write')}>
