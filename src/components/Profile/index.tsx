@@ -116,6 +116,11 @@ export default function Profile({ id, isInDeckView = false }: { id?: string; isI
     }
   }, [bannerLightboxIndex, bannerLightboxId])
 
+  const isMutedProfile = useMemo(
+    () => !!profile?.pubkey && !isSelf && mutePubkeySet.has(profile.pubkey),
+    [isSelf, mutePubkeySet, profile?.pubkey]
+  )
+
   if (!profile && isFetching) {
     return (
       <>
@@ -135,10 +140,6 @@ export default function Profile({ id, isInDeckView = false }: { id?: string; isI
   if (!profile) return <NotFound />
 
   const { banner, username, about, avatar, pubkey, website, lightningAddress, gallery } = profile
-  const isMutedProfile = useMemo(
-    () => !!pubkey && !isSelf && mutePubkeySet.has(pubkey),
-    [isSelf, mutePubkeySet, pubkey]
-  )
 
   const handleAvatarClick = (event: React.MouseEvent) => {
     event.stopPropagation()
