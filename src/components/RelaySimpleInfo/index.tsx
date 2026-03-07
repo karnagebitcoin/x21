@@ -15,12 +15,16 @@ export default function RelaySimpleInfo({
   className,
   compact = false,
   showPinButton = false,
+  subtleDescription = false,
+  subtleMeta = false,
   ...props
 }: HTMLProps<HTMLDivElement> & {
   relayInfo?: TRelayInfo
   users?: string[]
   compact?: boolean
   showPinButton?: boolean
+  subtleDescription?: boolean
+  subtleMeta?: boolean
 }) {
   const { t } = useTranslation()
 
@@ -52,11 +56,20 @@ export default function RelaySimpleInfo({
         </div>
       </div>
       {!compact && !!relayInfo?.description && (
-        <div className="line-clamp-3">{relayInfo.description}</div>
+        <div
+          className={cn(
+            'line-clamp-3',
+            subtleDescription ? 'text-sm text-muted-foreground/80' : 'text-foreground'
+          )}
+        >
+          {relayInfo.description}
+        </div>
       )}
       {!compact && !!users?.length && (
         <div className="flex items-center gap-2">
-          <div className="text-muted-foreground">{t('Favorited by')} </div>
+          <div className={cn('text-muted-foreground', subtleMeta && 'text-sm')}>
+            {t('Favorited by')}{' '}
+          </div>
           <div className="flex items-center gap-1">
             {users.slice(0, 10).map((user) => (
               <SimpleUserAvatar key={user} userId={user} size="xSmall" />
