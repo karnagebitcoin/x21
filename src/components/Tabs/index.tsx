@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
 import { useScrollVisibility } from '@/providers/ScrollVisibilityProvider'
-import { ReactNode, useEffect, useRef, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ScrollArea, ScrollBar } from '../ui/scroll-area'
 
@@ -32,6 +32,7 @@ export default function Tabs({
   const tabRefs = useRef<(HTMLDivElement | null)[]>([])
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 })
+  const tabsKey = useMemo(() => tabs.map((tab) => tab.value).join('|'), [tabs])
 
   const updateIndicatorPosition = () => {
     const activeIndex = tabs.findIndex((tab) => tab.value === value)
@@ -39,10 +40,13 @@ export default function Tabs({
       const activeTab = tabRefs.current[activeIndex]
       const { offsetWidth, offsetLeft } = activeTab
       const padding = 24 // 12px padding on each side
-      setIndicatorStyle({
+      const nextStyle = {
         width: offsetWidth - padding,
         left: offsetLeft + padding / 2
-      })
+      }
+      setIndicatorStyle((current) =>
+        current.width === nextStyle.width && current.left === nextStyle.left ? current : nextStyle
+      )
     }
   }
 
@@ -54,7 +58,7 @@ export default function Tabs({
     return () => {
       cancelAnimationFrame(animationId)
     }
-  }, [tabs, value])
+  }, [tabsKey, value])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -86,7 +90,7 @@ export default function Tabs({
       resizeObserver.disconnect()
       intersectionObserver.disconnect()
     }
-  }, [tabs, value])
+  }, [tabsKey, value])
 
   return (
     <div
