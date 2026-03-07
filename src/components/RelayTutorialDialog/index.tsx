@@ -17,23 +17,15 @@ import {
 } from '@/components/ui/drawer'
 import { cn } from '@/lib/utils'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
-import {
-  ArrowLeft,
-  ArrowRight,
-  Globe2,
-  PenSquare,
-  Server,
-  Workflow
-} from 'lucide-react'
-import { useState, type ComponentType, type ReactNode } from 'react'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 
 type TRelayTutorialSlide = {
   title: string
   description: string
   bullets: string[]
-  imageLabel: string
-  imagePrompt: string
-  icon: ComponentType<{ className?: string }>
+  imageSrc: string
+  imageAlt: string
   accentClassName: string
 }
 
@@ -47,10 +39,8 @@ const RELAY_TUTORIAL_SLIDES: TRelayTutorialSlide[] = [
       'Some relays are huge and busy, others are smaller or regional.',
       'Different relays can feel very different because they carry different slices of the network.'
     ],
-    imageLabel: 'Relay basics visual',
-    imagePrompt:
-      'Illustration placeholder: a few independent server towers passing notes between users, modern minimal dark UI aesthetic, orange accent',
-    icon: Server,
+    imageSrc: '/tutorial/relays/relay-basics.webp',
+    imageAlt: 'Independent relay servers passing notes between users',
     accentClassName: 'from-orange-500/20 via-orange-500/10 to-transparent'
   },
   {
@@ -62,10 +52,8 @@ const RELAY_TUTORIAL_SLIDES: TRelayTutorialSlide[] = [
       'Big relays often have more content. Regional relays can be useful too if you are close to them or want local language content.',
       'Too many read relays create extra connections and usually make the app slower.'
     ],
-    imageLabel: 'Read relay visual',
-    imagePrompt:
-      'Illustration placeholder: one client pulling notes from two strong servers, dense feed cards flowing in, dark UI, orange and blue accents',
-    icon: Globe2,
+    imageSrc: '/tutorial/relays/read-relays.webp',
+    imageAlt: 'Client reading notes from two strong relays into a fast feed',
     accentClassName: 'from-sky-500/20 via-cyan-500/10 to-transparent'
   },
   {
@@ -77,10 +65,8 @@ const RELAY_TUTORIAL_SLIDES: TRelayTutorialSlide[] = [
       'It is normal to write to more relays than you read from.',
       'Adding write relays can help your notes spread farther without slowing the app as much.'
     ],
-    imageLabel: 'Write relay visual',
-    imagePrompt:
-      'Illustration placeholder: a note being published outward to multiple relay servers, clean network diagram, dark background, orange glow',
-    icon: PenSquare,
+    imageSrc: '/tutorial/relays/publish-relays.webp',
+    imageAlt: 'Publishing one note outward to multiple relay servers',
     accentClassName: 'from-violet-500/20 via-fuchsia-500/10 to-transparent'
   },
   {
@@ -92,10 +78,8 @@ const RELAY_TUTORIAL_SLIDES: TRelayTutorialSlide[] = [
       'Use more write relays if you want wider distribution.',
       'Simple mode is the right default for most people. Advanced mode is there when you want to tune things yourself.'
     ],
-    imageLabel: 'Fast setup visual',
-    imagePrompt:
-      'Illustration placeholder: simple relay dashboard with two read relays and several write relays, performance-oriented UI, dark mode, orange highlights',
-    icon: Workflow,
+    imageSrc: '/tutorial/relays/fast-setup.webp',
+    imageAlt: 'Fast relay setup with two read relays and several publish relays',
     accentClassName: 'from-emerald-500/20 via-emerald-500/10 to-transparent'
   }
 ]
@@ -109,15 +93,9 @@ function RelayTutorialStep({
   index: number
   total: number
 }) {
-  const Icon = slide.icon
-
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-          <Icon className="size-3.5" />
-          {slide.imageLabel}
-        </div>
+      <div className="flex items-center justify-end gap-3">
         <div className="flex items-center gap-1.5">
           {Array.from({ length: total }, (_, stepIndex) => (
             <div
@@ -156,16 +134,14 @@ function RelayTutorialStep({
         >
           <div className={cn('absolute inset-0 bg-gradient-to-br', slide.accentClassName)} />
           <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:24px_24px] opacity-30" />
-          <div className="relative flex h-full flex-col justify-between">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-background/70 px-3 py-1 text-[11px] font-medium text-zinc-200/85 backdrop-blur">
-              <Icon className="size-3.5 text-primary" />
-              Image placeholder
-            </div>
-
-            <div className="space-y-3">
-              <div className="text-base font-semibold text-foreground">{slide.imageLabel}</div>
-              <div className="text-xs leading-5 text-zinc-300/90">{slide.imagePrompt}</div>
-            </div>
+          <div className="relative h-full overflow-hidden rounded-[1.25rem] border border-white/10">
+            <img
+              src={slide.imageSrc}
+              alt={slide.imageAlt}
+              className="h-full min-h-[240px] w-full object-cover"
+              loading="lazy"
+              decoding="async"
+            />
           </div>
         </div>
       </div>
