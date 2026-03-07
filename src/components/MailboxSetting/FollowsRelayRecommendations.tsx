@@ -15,13 +15,15 @@ type Props = {
   onAddRelay: (url: string) => void
   title?: string
   description?: string
+  hideHeader?: boolean
 }
 
 export default function FollowsRelayRecommendations({
   existingRelayUrls,
   onAddRelay,
   title,
-  description
+  description,
+  hideHeader = false
 }: Props) {
   const { t } = useTranslation()
   const { pubkey } = useNostr()
@@ -86,10 +88,12 @@ export default function FollowsRelayRecommendations({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 font-semibold">
-        <Users className="w-4 h-4" />
-        <span>{title ?? t('Recommended from follows')}</span>
-      </div>
+      {!hideHeader && (
+        <div className="flex items-center gap-2 font-semibold">
+          <Users className="w-4 h-4" />
+          <span>{title ?? t('Recommended from follows')}</span>
+        </div>
+      )}
       <p className="text-sm text-muted-foreground">
         {description ?? t('Not sure what to add? Try some relays from people you follow')}
       </p>
