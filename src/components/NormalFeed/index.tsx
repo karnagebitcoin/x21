@@ -79,6 +79,7 @@ export default function NormalFeed({
         showKinds={temporaryShowKinds}
         mediaOnly={temporaryMediaOnly}
         subRequests={subRequests}
+        isMainFeed={isMainFeed}
         hideReplies={listMode === 'posts'}
         hideUntrustedNotes={hideUntrustedNotes}
         areAlgoRelays={areAlgoRelays}

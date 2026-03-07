@@ -29,7 +29,8 @@ const StoreNames = {
   TRANSLATED_EVENTS: 'translatedEvents',
   NOTE_STATS: 'noteStats',
   NOTE_STATS_INTERACTION_META: 'noteStatsInteractionMeta',
-  LAST_ACTIVITY: 'lastActivity'
+  LAST_ACTIVITY: 'lastActivity',
+  RECENT_FEEDS: 'recentFeeds'
 }
 
 class IndexedDbService {
@@ -48,7 +49,7 @@ class IndexedDbService {
   init(): Promise<void> {
     if (!this.initPromise) {
       this.initPromise = new Promise((resolve, reject) => {
-        const request = window.indexedDB.open('jumble', 13)
+        const request = window.indexedDB.open('jumble', 14)
 
         request.onerror = (event) => {
           reject(event)
@@ -124,6 +125,10 @@ class IndexedDbService {
           if (!db.objectStoreNames.contains(StoreNames.LAST_ACTIVITY)) {
             const lastActivityStore = db.createObjectStore(StoreNames.LAST_ACTIVITY, { keyPath: 'key' })
             lastActivityStore.createIndex('addedAt', 'addedAt', { unique: false })
+          }
+          if (!db.objectStoreNames.contains(StoreNames.RECENT_FEEDS)) {
+            const recentFeedsStore = db.createObjectStore(StoreNames.RECENT_FEEDS, { keyPath: 'key' })
+            recentFeedsStore.createIndex('addedAt', 'addedAt', { unique: false })
           }
           if (db.objectStoreNames.contains(StoreNames.RELAY_INFO_EVENTS)) {
             db.deleteObjectStore(StoreNames.RELAY_INFO_EVENTS)
@@ -697,6 +702,10 @@ class IndexedDbService {
       {
         name: StoreNames.LAST_ACTIVITY,
         expirationTimestamp: Date.now() - 1000 * 60 * 60 * 24 * 3 // 3 days
+      },
+      {
+        name: StoreNames.RECENT_FEEDS,
+        expirationTimestamp: Date.now() - 1000 * 60 * 60 * 6 // 6 hours
       }
     ]
     const transaction = this.db!.transaction(
@@ -913,6 +922,39 @@ class IndexedDbService {
           }
         }
       })
+    })
+  }
+
+  async getRecentFeed(key: string): Promise<Event[] | null> {
+    await this.init()
+    if (!this.db) return null
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([StoreNames.RECENT_FEEDS], 'readonly')
+      const store = transaction.objectStore(StoreNames.RECENT_FEEDS)
+      const request = store.get(key)
+
+      request.onsuccess = () => {
+        const result = request.result as TValue<Event[]> | undefined
+        resolve(result?.value ?? null)
+      }
+
+      request.onerror = (event) => reject(event)
+    })
+  }
+
+  async putRecentFeed(key: string, events: Event[]): Promise<void> {
+    if (events.length === 0) return
+    await this.init()
+    if (!this.db) return
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([StoreNames.RECENT_FEEDS], 'readwrite')
+      const store = transaction.objectStore(StoreNames.RECENT_FEEDS)
+      const request = store.put(this.formatValue(key, events))
+
+      request.onsuccess = () => resolve()
+      request.onerror = (event) => reject(event)
     })
   }
 

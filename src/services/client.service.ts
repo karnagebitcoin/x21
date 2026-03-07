@@ -5,6 +5,7 @@ import {
   getReplaceableCoordinateFromEvent,
   isReplaceableEvent
 } from '@/lib/event'
+import { BoundedMap } from '@/lib/bounded-map'
 import { getProfileFromEvent, getRelayListFromEvent } from '@/lib/event-metadata'
 import { formatPubkey, isValidPubkey, pubkeyToNpub, userIdToPubkey } from '@/lib/pubkey'
 import { getPubkeysFromPTags, getServersFromServerTags, tagNameEquals } from '@/lib/tag'
@@ -34,6 +35,19 @@ import { AbstractRelay } from 'nostr-tools/abstract-relay'
 import indexedDb from './indexed-db.service'
 
 type TTimelineRef = [string, number]
+type TTimeline =
+  | {
+      refs: TTimelineRef[]
+      filter: TSubRequestFilter
+      urls: string[]
+    }
+  | string[]
+
+const TIMELINE_CACHE_MAX = 64
+const REPLACEABLE_EVENT_CACHE_MAX = 4000
+const EVENT_PROMISE_CACHE_MAX = 4000
+const LIVE_STREAM_CACHE_MAX = 256
+const RECENT_FEED_CACHE_MAX_EVENTS = 120
 
 class ClientService extends EventTarget {
   static instance: ClientService
@@ -46,18 +60,9 @@ class ClientService extends EventTarget {
   private _preferredReadRelays: string[] = []
   private _favoriteRelays: string[] = []
 
-  private timelines: Record<
-    string,
-    | {
-        refs: TTimelineRef[]
-        filter: TSubRequestFilter
-        urls: string[]
-      }
-    | string[]
-    | undefined
-  > = {}
-  private replaceableEventCacheMap = new Map<string, NEvent>()
-  private eventCacheMap = new Map<string, Promise<NEvent | undefined>>()
+  private timelines = new BoundedMap<string, TTimeline>(TIMELINE_CACHE_MAX)
+  private replaceableEventCacheMap = new BoundedMap<string, NEvent>(REPLACEABLE_EVENT_CACHE_MAX)
+  private eventCacheMap = new BoundedMap<string, Promise<NEvent | undefined>>(EVENT_PROMISE_CACHE_MAX)
   private eventDataLoader = new DataLoader<string, NEvent | undefined>(
     (ids) => Promise.all(ids.map((id) => this._fetchEvent(id))),
     { cacheMap: this.eventCacheMap }
@@ -69,7 +74,7 @@ class ClientService extends EventTarget {
   private trendingNotesCache: NEvent[] | null = null
   private trendingNotesCacheTime: number = 0
   private readonly TRENDING_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
-  private liveStreamCacheMap = new Map<string, NEvent>()
+  private liveStreamCacheMap = new BoundedMap<string, NEvent>(LIVE_STREAM_CACHE_MAX)
   private liveStreamCacheTime = 0
   private liveStreamPrefetchPromise: Promise<NEvent[]> | null = null
   private readonly LIVE_STREAM_CACHE_DURATION = 60 * 1000 // 1 minute
@@ -306,18 +311,42 @@ class ClientService extends EventTarget {
     },
     {
       startLogin,
-      needSort = true
+      needSort = true,
+      cacheRecentEvents = false
     }: {
       startLogin?: () => void
       needSort?: boolean
+      cacheRecentEvents?: boolean
     } = {}
   ) {
     const newEventIdSet = new Set<string>()
     const requestCount = subRequests.length
     const threshold = Math.floor(requestCount / 2)
+    const key = this.generateMultipleTimelinesKey(subRequests)
+    const recentFeedKey = cacheRecentEvents && needSort ? `recentFeed:${key}` : undefined
+    const renderLimit = Math.min(
+      Math.max(...subRequests.map(({ filter }) => filter.limit ?? 0), 50),
+      RECENT_FEED_CACHE_MAX_EVENTS
+    )
     let eventIdSet = new Set<string>()
     let events: NEvent[] = []
     let eosedCount = 0
+    let lastPersistedSignature = ''
+
+    if (recentFeedKey) {
+      const cachedFeed = await indexedDb.getRecentFeed(recentFeedKey).catch(() => null)
+      if (cachedFeed?.length) {
+        events = cachedFeed
+          .slice(0, renderLimit)
+          .sort((a, b) => b.created_at - a.created_at)
+        eventIdSet = new Set(events.map((evt) => evt.id))
+        events.forEach((evt) => {
+          this.addEventToCache(evt)
+        })
+        this.prefetchProfilesForEvents(events)
+        onEvents([...events], false)
+      }
+    }
 
     const subs = await Promise.all(
       subRequests.map(({ urls, filter }) => {
@@ -339,6 +368,14 @@ class ClientService extends EventTarget {
               eventIdSet = new Set(events.map((evt) => evt.id))
 
               if (eosedCount >= threshold) {
+                if (recentFeedKey && events.length > 0) {
+                  const snapshot = events.slice(0, renderLimit)
+                  const signature = `${snapshot[0]?.id ?? ''}:${snapshot[snapshot.length - 1]?.id ?? ''}:${snapshot.length}`
+                  if (signature !== lastPersistedSignature) {
+                    lastPersistedSignature = signature
+                    void indexedDb.putRecentFeed(recentFeedKey, snapshot)
+                  }
+                }
                 // Prefetch profiles for aggregated events before rendering
                 this.prefetchProfilesForEvents(events)
                 onEvents(events, eosedCount >= requestCount)
@@ -358,8 +395,7 @@ class ClientService extends EventTarget {
       })
     )
 
-    const key = this.generateMultipleTimelinesKey(subRequests)
-    this.timelines[key] = subs.map((sub) => sub.timelineKey)
+    this.timelines.set(key, subs.map((sub) => sub.timelineKey))
 
     return {
       closer: () => {
@@ -374,7 +410,7 @@ class ClientService extends EventTarget {
   }
 
   async loadMoreTimeline(key: string, until: number, limit: number) {
-    const timeline = this.timelines[key]
+    const timeline = this.timelines.get(key)
     if (!timeline) return []
 
     if (!Array.isArray(timeline)) {
@@ -580,7 +616,7 @@ class ClientService extends EventTarget {
   ) {
     const relays = Array.from(new Set(urls))
     const key = this.generateTimelineKey(relays, filter)
-    const timeline = this.timelines[key]
+    const timeline = this.timelines.get(key)
     let cachedEvents: NEvent[] = []
     let since: number | undefined
     if (timeline && !Array.isArray(timeline) && timeline.refs.length && needSort) {
@@ -614,7 +650,7 @@ class ClientService extends EventTarget {
           onNew(evt)
         }
 
-        const timeline = that.timelines[key]
+        const timeline = that.timelines.get(key)
         if (!timeline || Array.isArray(timeline) || !timeline.refs.length) {
           return
         }
@@ -656,14 +692,14 @@ class ClientService extends EventTarget {
         }
 
         events = events.sort((a, b) => b.created_at - a.created_at).slice(0, filter.limit)
-        const timeline = that.timelines[key]
+        const timeline = that.timelines.get(key)
         // no cache yet
         if (!timeline || Array.isArray(timeline) || !timeline.refs.length) {
-          that.timelines[key] = {
+          that.timelines.set(key, {
             refs: events.map((evt) => [evt.id, evt.created_at]),
             filter,
             urls
-          }
+          })
           // Prefetch profiles before rendering
           that.prefetchProfilesForEvents(events)
           return onEvents([...events], true)
@@ -704,7 +740,7 @@ class ClientService extends EventTarget {
   }
 
   private async _loadMoreTimeline(key: string, until: number, limit: number) {
-    const timeline = this.timelines[key]
+    const timeline = this.timelines.get(key)
     if (!timeline || Array.isArray(timeline)) return []
 
     const { filter, urls, refs } = timeline

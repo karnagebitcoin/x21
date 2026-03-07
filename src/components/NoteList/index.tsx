@@ -50,6 +50,7 @@ const NoteList = forwardRef(
     {
       subRequests,
       showKinds,
+      isMainFeed = false,
       mediaOnly = false,
       filterMutedNotes = true,
       hideReplies = false,
@@ -61,6 +62,7 @@ const NoteList = forwardRef(
     }: {
       subRequests: TFeedSubRequest[]
       showKinds: number[]
+      isMainFeed?: boolean
       mediaOnly?: boolean
       filterMutedNotes?: boolean
       hideReplies?: boolean
@@ -286,7 +288,8 @@ const NoteList = forwardRef(
           },
           {
             startLogin,
-            needSort: !areAlgoRelays
+            needSort: !areAlgoRelays,
+            cacheRecentEvents: isMainFeed && !areAlgoRelays
           }
         )
         setTimelineKey(timelineKey)
@@ -297,7 +300,7 @@ const NoteList = forwardRef(
       return () => {
         promise.then((closer) => closer())
       }
-    }, [JSON.stringify(subRequests), refreshCount, showKinds])
+    }, [JSON.stringify(subRequests), refreshCount, showKinds, isMainFeed, areAlgoRelays])
 
     useEffect(() => {
       if (onEventsChange) {
