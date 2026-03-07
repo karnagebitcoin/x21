@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import type { TRelayLocation } from '@/services/relay-location.service'
 import { Globe2 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 
 const Globe = lazy(() => import('react-globe.gl'))
 
@@ -12,10 +12,10 @@ type TRelayGlobePoint = TRelayLocation & {
   color: string
 }
 
-const SOURCE_STYLES: Record<TRelayGlobePoint['source'], { color: string; label: string }> = {
-  global: { color: '#f97316', label: 'Global' },
-  community: { color: '#38bdf8', label: 'Community' },
-  favorite: { color: '#fbbf24', label: 'Followed favorite' }
+const SOURCE_STYLES: Record<TRelayGlobePoint['source'], { label: string }> = {
+  global: { label: 'Global' },
+  community: { label: 'Community' },
+  favorite: { label: 'Followed favorite' }
 }
 
 export default function RelayGlobe({
@@ -56,21 +56,6 @@ export default function RelayGlobe({
     return parts.join('')
   }
 
-  const legendItems = useMemo(
-    () => [
-      { ...SOURCE_STYLES.global, count: points.filter((point) => point.source === 'global').length },
-      {
-        ...SOURCE_STYLES.community,
-        count: points.filter((point) => point.source === 'community').length
-      },
-      {
-        ...SOURCE_STYLES.favorite,
-        count: points.filter((point) => point.source === 'favorite').length
-      }
-    ].filter((item) => item.count > 0),
-    [points]
-  )
-
   return (
     <div
       ref={containerRef}
@@ -85,19 +70,6 @@ export default function RelayGlobe({
           Relay map
         </div>
       </div>
-
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center p-5">
-        <div className="flex flex-wrap items-center gap-3 rounded-full bg-background/70 px-4 py-2 text-xs backdrop-blur">
-          {legendItems.map((item) => (
-            <div key={item.label} className="inline-flex items-center gap-2 text-muted-foreground">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-              <span>{item.label}</span>
-              <span className="font-mono text-foreground">{item.count}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div className="h-[360px]">
         {mounted && width > 0 ? (
           <Suspense fallback={<GlobeSkeleton />}>
@@ -166,9 +138,9 @@ function RelayGlobeScene({
       pointLat="lat"
       pointLng="lng"
       pointColor="color"
-      pointAltitude={0.04}
-      pointRadius={0.42}
-      pointResolution={10}
+      pointAltitude={0.05}
+      pointRadius={0.6}
+      pointResolution={12}
       pointLabel={(point) => tooltipHtml(point as TRelayGlobePoint)}
     />
   )
