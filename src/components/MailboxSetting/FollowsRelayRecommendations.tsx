@@ -142,7 +142,7 @@ function RecommendationItem({
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <RelayHealthBadge url={recommendation.url} />
+        <RelayHealthBadge url={recommendation.url} result={recommendation.health} />
         <Button size="sm" variant="secondary" onClick={() => onAdd(recommendation.url)}>
           <Plus className="w-4 h-4" />
         </Button>

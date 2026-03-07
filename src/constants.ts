@@ -110,6 +110,7 @@ export const StorageKey = {
   MAX_HASHTAGS: 'maxHashtags',
   MAX_MENTIONS: 'maxMentions',
   MENU_ITEMS: 'menuItems',
+  LIVE_STREAMS_MENU_MIGRATION: 'liveStreamsMenuMigration',
   TEXT_ONLY_MODE: 'textOnlyMode',
   LOW_BANDWIDTH_MODE: 'lowBandwidthMode',
   DISABLE_AVATAR_ANIMATIONS: 'disableAvatarAnimations',

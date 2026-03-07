@@ -1508,6 +1508,7 @@ class LocalStorageService {
     const storedItems = getStorageItem(StorageKey.MENU_ITEMS)
 
     if (!storedItems) {
+      setStorageBoolean(StorageKey.LIVE_STREAMS_MENU_MIGRATION, true)
       // Return default menu items if nothing stored
       return getDefaultMenuItems()
     }
@@ -1518,6 +1519,19 @@ class LocalStorageService {
     if (mergedItems.length !== stored.length) {
       this.setMenuItems(mergedItems)
     }
+
+    const liveStreamsMigrationDone =
+      getStorageItem(StorageKey.LIVE_STREAMS_MENU_MIGRATION) === 'true'
+
+    if (!liveStreamsMigrationDone) {
+      const migratedItems = mergedItems.map((item) =>
+        item.id === 'livestreams' ? { ...item, visible: true } : item
+      )
+      this.setMenuItems(migratedItems)
+      setStorageBoolean(StorageKey.LIVE_STREAMS_MENU_MIGRATION, true)
+      return migratedItems
+    }
+
     return mergedItems
   }
 

@@ -24,7 +24,7 @@ export const DEFAULT_MENU_ITEMS: TMenuItemConfig[] = [
   { id: 'explore', visible: true, order: 3, canToggle: true, canReorder: true },
   { id: 'notifications', visible: true, order: 4, canToggle: true, canReorder: true },
   { id: 'search', visible: true, order: 5, canToggle: true, canReorder: true },
-  { id: 'livestreams', visible: false, order: 6, canToggle: true, canReorder: true },
+  { id: 'livestreams', visible: true, order: 6, canToggle: true, canReorder: true },
   { id: 'post', visible: true, order: 7, canToggle: false, canReorder: true },
   { id: 'deck', visible: true, order: 8, canToggle: true, canReorder: false }
 ]

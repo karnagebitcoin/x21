@@ -7,6 +7,7 @@ import {
 } from '@/lib/event'
 import { BoundedMap } from '@/lib/bounded-map'
 import { getProfileFromEvent, getRelayListFromEvent } from '@/lib/event-metadata'
+import { LIVE_STREAM_RELAYS } from '@/lib/live-stream'
 import { formatPubkey, isValidPubkey, pubkeyToNpub, userIdToPubkey } from '@/lib/pubkey'
 import { getPubkeysFromPTags, getServersFromServerTags, tagNameEquals } from '@/lib/tag'
 import { isLocalNetworkUrl, isWebsocketUrl, normalizeUrl } from '@/lib/url'
@@ -78,16 +79,6 @@ class ClientService extends EventTarget {
   private liveStreamCacheTime = 0
   private liveStreamPrefetchPromise: Promise<NEvent[]> | null = null
   private readonly LIVE_STREAM_CACHE_DURATION = 60 * 1000 // 1 minute
-  private readonly LIVE_STREAM_RELAYS = Array.from(
-    new Set([
-      ...BIG_RELAY_URLS,
-      'wss://relay.snort.social/',
-      'wss://relay.primal.net/',
-      'wss://nostr.wine/'
-    ])
-  )
-    .map((relay) => normalizeUrl(relay))
-    .filter((relay): relay is string => relay.length > 0)
 
   private userIndex = new FlexSearch.Index({
     tokenize: 'forward'
@@ -962,7 +953,7 @@ class ClientService extends EventTarget {
     }
 
     const targetRelays = Array.from(
-      new Set((relays && relays.length > 0 ? relays : this.LIVE_STREAM_RELAYS).map((relay) => normalizeUrl(relay)).filter((relay): relay is string => relay.length > 0))
+      new Set((relays && relays.length > 0 ? relays : LIVE_STREAM_RELAYS).map((relay) => normalizeUrl(relay)).filter((relay): relay is string => relay.length > 0))
     )
     this.liveStreamPrefetchPromise = this.querySync(targetRelays, {
       kinds: [30311],
@@ -1000,7 +991,16 @@ class ClientService extends EventTarget {
       return event
     }
 
-    return this.tryHarderToFetchEvent(relayUrls, { ids: [id], limit: 1 }, true)
+    const fallbackEvent = await this.tryHarderToFetchEvent(relayUrls, { ids: [id], limit: 1 }, true)
+    if (fallbackEvent) {
+      return fallbackEvent
+    }
+
+    if (relayUrls.length === 0) {
+      return this.tryHarderToFetchEvent(LIVE_STREAM_RELAYS, { ids: [id], limit: 1 }, true)
+    }
+
+    return undefined
   }
 
   private async _fetchEvent(id: string): Promise<NEvent | undefined> {
@@ -1031,6 +1031,9 @@ class ClientService extends EventTarget {
             filter['#d'] = [data.identifier]
           }
           if (data.relays) relays = data.relays
+          if (data.kind === kinds.LiveEvent) {
+            relays = Array.from(new Set([...(relays ?? []), ...LIVE_STREAM_RELAYS]))
+          }
       }
     }
     if (!filter) {

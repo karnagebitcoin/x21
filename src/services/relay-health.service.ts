@@ -6,6 +6,10 @@ export type TRelayHealthResult = {
   latency?: number // in milliseconds
 }
 
+type TCachedRelayHealthResult = TRelayHealthResult & {
+  checkedAt: number
+}
+
 const LATENCY_THRESHOLDS = {
   great: 100,
   good: 300,
@@ -14,10 +18,11 @@ const LATENCY_THRESHOLDS = {
 }
 
 const CONNECTION_TIMEOUT = 10000 // 10 seconds
+const HEALTH_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
 class RelayHealthService {
   private static instance: RelayHealthService
-  private healthCache = new Map<string, TRelayHealthResult>()
+  private healthCache = new Map<string, TCachedRelayHealthResult>()
 
   public static getInstance(): RelayHealthService {
     if (!RelayHealthService.instance) {
@@ -30,6 +35,11 @@ class RelayHealthService {
    * Check the health of a single relay by measuring WebSocket connection latency
    */
   async checkRelayHealth(url: string): Promise<TRelayHealthResult> {
+    const cached = this.getCachedHealth(url)
+    if (cached) {
+      return cached
+    }
+
     const startTime = performance.now()
 
     return new Promise((resolve) => {
@@ -54,7 +64,10 @@ class RelayHealthService {
         if (resolved) return
         resolved = true
         cleanup()
-        this.healthCache.set(url, result)
+        this.healthCache.set(url, {
+          ...result,
+          checkedAt: Date.now()
+        })
         resolve(result)
       }
 
@@ -107,7 +120,19 @@ class RelayHealthService {
    * Get cached health result for a relay
    */
   getCachedHealth(url: string): TRelayHealthResult | undefined {
-    return this.healthCache.get(url)
+    const cached = this.healthCache.get(url)
+    if (!cached) return undefined
+
+    if (Date.now() - cached.checkedAt > HEALTH_CACHE_DURATION) {
+      this.healthCache.delete(url)
+      return undefined
+    }
+
+    return {
+      url: cached.url,
+      status: cached.status,
+      latency: cached.latency
+    }
   }
 
   /**

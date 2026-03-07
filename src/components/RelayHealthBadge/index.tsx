@@ -1,5 +1,5 @@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import relayHealthService, { TRelayHealthStatus } from '@/services/relay-health.service'
+import relayHealthService, { TRelayHealthResult, TRelayHealthStatus } from '@/services/relay-health.service'
 import { Loader } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 type RelayHealthBadgeProps = {
   url: string
   autoCheck?: boolean
+  result?: TRelayHealthResult
 }
 
 const STATUS_CONFIG: Record<
@@ -40,12 +41,18 @@ const STATUS_CONFIG: Record<
   }
 }
 
-export default function RelayHealthBadge({ url, autoCheck = true }: RelayHealthBadgeProps) {
+export default function RelayHealthBadge({ url, autoCheck = true, result }: RelayHealthBadgeProps) {
   const { t } = useTranslation()
   const [status, setStatus] = useState<TRelayHealthStatus>('checking')
   const [latency, setLatency] = useState<number | undefined>(undefined)
 
   useEffect(() => {
+    if (result) {
+      setStatus(result.status)
+      setLatency(result.latency)
+      return
+    }
+
     if (!autoCheck) return
 
     const cachedResult = relayHealthService.getCachedHealth(url)
@@ -60,7 +67,7 @@ export default function RelayHealthBadge({ url, autoCheck = true }: RelayHealthB
       setStatus(result.status)
       setLatency(result.latency)
     })
-  }, [url, autoCheck])
+  }, [url, autoCheck, result])
 
   if (status === 'checking') {
     return (

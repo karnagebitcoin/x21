@@ -1,53 +1,13 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Event as NostrEvent } from 'nostr-tools'
-import { BIG_RELAY_URLS } from '@/constants'
 import client from '@/services/client.service'
 import LiveEventCard from '@/components/LiveEventCard'
 import { LiveEventCardSkeleton } from '@/components/LiveEventCard'
 import RelayFetchState from '@/components/RelayFetchState'
+import { getLiveStreamTagValue, isActiveLiveStream, LIVE_STREAM_RELAYS } from '@/lib/live-stream'
 
 export type TLiveEventListRef = {
   refresh: () => void
-}
-
-const LIVE_STREAM_RELAYS = Array.from(new Set([
-  ...BIG_RELAY_URLS,
-  'wss://relay.snort.social/',
-  'wss://relay.primal.net/',
-  'wss://nostr.wine/'
-]))
-
-function getTagValue(event: NostrEvent, tagName: string): string | undefined {
-  return event.tags.find((tag) => tag[0] === tagName)?.[1]
-}
-
-function parseUnix(value?: string): number | null {
-  if (!value) return null
-  const normalized = value.trim()
-  const parsed = Number(normalized)
-  if (Number.isFinite(parsed)) {
-    // Some clients publish unix timestamps in milliseconds.
-    if (parsed > 1e10) return Math.floor(parsed / 1000)
-    return Math.floor(parsed)
-  }
-
-  const dateMs = Date.parse(normalized)
-  if (!Number.isNaN(dateMs)) return Math.floor(dateMs / 1000)
-
-  return null
-}
-
-function isActiveLiveStream(event: NostrEvent, now: number): boolean {
-  const status = getTagValue(event, 'status')?.trim().toLowerCase()
-  if (status !== 'live') return false
-
-  const starts = parseUnix(getTagValue(event, 'starts'))
-  const ends = parseUnix(getTagValue(event, 'ends'))
-
-  if (starts && starts > now + 10 * 60) return false
-  if (ends && ends <= now) return false
-
-  return true
 }
 
 const LiveEventList = forwardRef<
@@ -87,8 +47,14 @@ const LiveEventList = forwardRef<
     const activeEvents = Array.from(eventMapRef.current.values())
       .filter((event) => isActiveLiveStream(event, now))
       .sort((a, b) => {
-        const aParticipants = Number.parseInt(getTagValue(a, 'current_participants') || '0', 10)
-        const bParticipants = Number.parseInt(getTagValue(b, 'current_participants') || '0', 10)
+        const aParticipants = Number.parseInt(
+          getLiveStreamTagValue(a, 'current_participants') || '0',
+          10
+        )
+        const bParticipants = Number.parseInt(
+          getLiveStreamTagValue(b, 'current_participants') || '0',
+          10
+        )
 
         if (aParticipants !== bParticipants) {
           return bParticipants - aParticipants
@@ -127,7 +93,7 @@ const LiveEventList = forwardRef<
     const cachedEvents = client.getCachedLiveStreamEvents()
     if (cachedEvents.length > 0) {
       for (const event of cachedEvents) {
-        const dTag = getTagValue(event, 'd')
+        const dTag = getLiveStreamTagValue(event, 'd')
         if (!dTag) continue
         eventMapRef.current.set(`${event.pubkey}:${dTag}`, event)
       }
@@ -143,7 +109,7 @@ const LiveEventList = forwardRef<
       .prefetchLiveStreamEvents({ relays: LIVE_STREAM_RELAYS })
       .then((seedEvents) => {
         for (const event of seedEvents) {
-          const dTag = getTagValue(event, 'd')
+          const dTag = getLiveStreamTagValue(event, 'd')
           if (!dTag) continue
 
           const key = `${event.pubkey}:${dTag}`
@@ -172,7 +138,7 @@ const LiveEventList = forwardRef<
       },
       {
         onevent: (event: NostrEvent) => {
-          const dTag = getTagValue(event, 'd')
+          const dTag = getLiveStreamTagValue(event, 'd')
           if (!dTag) return
 
           const key = `${event.pubkey}:${dTag}`
@@ -262,7 +228,7 @@ const LiveEventList = forwardRef<
   return (
     <div className="space-y-4 p-4">
       {events.map((event) => {
-        const dTag = getTagValue(event, 'd') || ''
+        const dTag = getLiveStreamTagValue(event, 'd') || ''
         const key = `${event.pubkey}:${dTag}`
         return <LiveEventCard key={key} event={event} onOpenStream={onOpenStream} />
       })}

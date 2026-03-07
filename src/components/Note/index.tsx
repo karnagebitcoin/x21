@@ -19,6 +19,7 @@ import ParentNotePreview from '../ParentNotePreview'
 import TranslateButton from '../TranslateButton'
 import UserAvatar from '../UserAvatar'
 import Username from '../Username'
+import LiveStreamPresenceBadge from '../LiveStreamPresenceBadge'
 import CommunityDefinition from './CommunityDefinition'
 import GroupMetadata from './GroupMetadata'
 import Highlight from './Highlight'
@@ -151,7 +152,10 @@ export default function Note({
     <div className={className}>
       <header className="flex justify-between items-start gap-2">
         <div className="flex items-center space-x-2 flex-1">
-          <UserAvatar userId={event.pubkey} size={size === 'small' ? 'medium' : 'normal'} />
+          <div className="flex items-center gap-2 shrink-0">
+            <UserAvatar userId={event.pubkey} size={size === 'small' ? 'medium' : 'normal'} />
+            <LiveStreamPresenceBadge pubkey={event.pubkey} />
+          </div>
           <div className="flex-1 w-0">
             <div className="flex gap-2 items-center">
               <Username

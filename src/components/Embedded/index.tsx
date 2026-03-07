@@ -1,4 +1,5 @@
 export * from './EmbeddedHashtag'
+export * from './EmbeddedLiveStream'
 export * from './EmbeddedLNInvoice'
 export * from './EmbeddedMention'
 export * from './EmbeddedNormalUrl'

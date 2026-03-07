@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import PrimaryPageLayout from '@/layouts/PrimaryPageLayout'
 import { RefreshButton } from '@/components/RefreshButton'
@@ -12,14 +12,27 @@ import { Button } from '@/components/ui/button'
 import { ChevronLeft } from 'lucide-react'
 import { Event as NostrEvent } from 'nostr-tools'
 
-const LiveStreamsPage = forwardRef((_, ref) => {
+type LiveStreamsPageProps = {
+  streamToOpen?: {
+    naddr: string
+    title?: string
+    event?: NostrEvent
+    openedAt?: number
+  } | null
+}
+
+const LiveStreamsPage = forwardRef<TPageRef, LiveStreamsPageProps>(({ streamToOpen }, ref) => {
   const { t } = useTranslation()
   const layoutRef = useRef<TPageRef>(null)
   const liveEventListRef = useRef<TLiveEventListRef>(null)
   const supportTouch = useMemo(() => isTouchDevice(), [])
-  const [activeStream, setActiveStream] = useState<{ naddr: string; title: string; event: NostrEvent } | null>(null)
+  const [activeStream, setActiveStream] = useState<{
+    naddr: string
+    title: string
+    event?: NostrEvent
+  } | null>(null)
 
-  useImperativeHandle(ref, () => layoutRef.current)
+  useImperativeHandle(ref, () => layoutRef.current as TPageRef)
 
   const handleOpenStream = (naddr: string, event: NostrEvent) => {
     const title = event.tags.find((tag) => tag[0] === 'title')?.[1] || t('Live Stream')
@@ -29,6 +42,19 @@ const LiveStreamsPage = forwardRef((_, ref) => {
   const handleCloseStream = () => {
     setActiveStream(null)
   }
+
+  useEffect(() => {
+    if (!streamToOpen?.naddr) return
+
+    setActiveStream({
+      naddr: streamToOpen.naddr,
+      title:
+        streamToOpen.title ||
+        streamToOpen.event?.tags.find((tag) => tag[0] === 'title')?.[1] ||
+        t('Live Stream'),
+      event: streamToOpen.event
+    })
+  }, [streamToOpen?.naddr, streamToOpen?.openedAt, streamToOpen?.title, streamToOpen?.event, t])
 
   return (
     <PrimaryPageLayout

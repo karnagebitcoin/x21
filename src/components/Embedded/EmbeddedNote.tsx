@@ -1,9 +1,11 @@
 import { Skeleton } from '@/components/ui/skeleton'
 import { useFetchEvent } from '@/hooks'
 import { cn } from '@/lib/utils'
+import { kinds } from 'nostr-tools'
 import { useTranslation } from 'react-i18next'
 import ClientSelect from '../ClientSelect'
 import MainNoteCard from '../NoteCard/MainNoteCard'
+import { EmbeddedLiveStream } from './EmbeddedLiveStream'
 
 export function EmbeddedNote({ noteId, className }: { noteId: string; className?: string }) {
   const { event, isFetching } = useFetchEvent(noteId)
@@ -14,6 +16,10 @@ export function EmbeddedNote({ noteId, className }: { noteId: string; className?
 
   if (!event) {
     return <EmbeddedNoteNotFound className={className} noteId={noteId} />
+  }
+
+  if (event.kind === kinds.LiveEvent) {
+    return <EmbeddedLiveStream className={className} event={event} noteId={noteId} />
   }
 
   return (
