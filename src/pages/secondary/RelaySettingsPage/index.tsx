@@ -1,5 +1,6 @@
 import FavoriteRelaysSetting from '@/components/FavoriteRelaysSetting'
 import MailboxSetting from '@/components/MailboxSetting'
+import RelayTutorialDialog from '@/components/RelayTutorialDialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -60,6 +61,16 @@ const RelaySettingsPage = forwardRef(({ index }: { index?: number }, ref) => {
                 'Relays decide where you receive posts from and where your posts are published. Use Simple mode for standard behavior, or Advanced for full control.'
               )}
             </CardDescription>
+            <div className="pt-1">
+              <RelayTutorialDialog>
+                <button
+                  type="button"
+                  className="text-sm font-medium text-primary transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                >
+                  {t("What's a relay?")}
+                </button>
+              </RelayTutorialDialog>
+            </div>
           </CardHeader>
         </Card>
 

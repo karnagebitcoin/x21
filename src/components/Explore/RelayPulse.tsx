@@ -1,3 +1,4 @@
+import RelayTutorialDialog from '@/components/RelayTutorialDialog'
 import { cn } from '@/lib/utils'
 import { Compass, Globe2, Star, Users } from 'lucide-react'
 import type { ComponentType } from 'react'
@@ -96,9 +97,19 @@ export default function RelayPulse({
 
       <div className="relative z-10 p-4">
         <div className="flex items-center justify-between gap-4">
-          <div className="inline-flex items-center gap-2 rounded-full bg-background/70 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
-            <Users className="h-3.5 w-3.5 text-primary" />
-            Relay pulse
+          <div className="flex items-center gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full bg-background/70 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
+              <Users className="h-3.5 w-3.5 text-primary" />
+              Relay pulse
+            </div>
+            <RelayTutorialDialog>
+              <button
+                type="button"
+                className="text-xs font-medium text-primary transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                What&apos;s a relay?
+              </button>
+            </RelayTutorialDialog>
           </div>
           <div className="text-right text-xs text-muted-foreground">
             <span className="font-mono text-sm text-foreground">{totalRelayCount}</span> relays live in Explore
