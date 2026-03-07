@@ -17,6 +17,7 @@ import TrendingNotes from '../TrendingNotes'
 
 type TExploreTab = 'trending' | 'global-communities' | 'followed-favorites'
 type TFavoriteRelayEntry = [string, string[]]
+type TPulseTarget = 'global-feeds' | 'communities' | 'followed-favorites'
 
 const GLOBAL_COLLECTION_IDS = new Set(['featured', 'global'])
 
@@ -26,6 +27,7 @@ export default function Explore({ isInDeckView = false }: { isInDeckView?: boole
   const { isSmallScreen } = useScreenSize()
   const { lowBandwidthMode } = useLowBandwidthMode()
   const [tab, setTab] = useState<TExploreTab>('trending')
+  const [pendingPulseTarget, setPendingPulseTarget] = useState<TPulseTarget | null>(null)
   const [collections, setCollections] = useState<TAwesomeRelayCollection[] | null>(null)
   const [favoriteRelays, setFavoriteRelays] = useState<TFavoriteRelayEntry[]>([])
   const [favoritesLoading, setFavoritesLoading] = useState(false)
@@ -81,6 +83,51 @@ export default function Explore({ isInDeckView = false }: { isInDeckView?: boole
       ]).size,
     [communityCollections, favoriteRelays, globalCollections]
   )
+
+  useEffect(() => {
+    if (!pendingPulseTarget) return
+
+    if (pendingPulseTarget === 'followed-favorites') {
+      if (tab !== 'followed-favorites') return
+      setPendingPulseTarget(null)
+      return
+    }
+
+    if (tab !== 'global-communities') return
+
+    const elementId =
+      pendingPulseTarget === 'global-feeds' ? 'explore-global-feeds' : 'explore-communities'
+
+    const scrollToTarget = () => {
+      const element = document.getElementById(elementId)
+      if (!element) return false
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return true
+    }
+
+    if (scrollToTarget()) {
+      setPendingPulseTarget(null)
+      return
+    }
+
+    const timeout = window.setTimeout(() => {
+      if (scrollToTarget()) {
+        setPendingPulseTarget(null)
+      }
+    }, 80)
+
+    return () => window.clearTimeout(timeout)
+  }, [pendingPulseTarget, tab])
+
+  const handlePulseLaneClick = (target: TPulseTarget) => {
+    setPendingPulseTarget(target)
+    if (target === 'followed-favorites') {
+      setTab('followed-favorites')
+      return
+    }
+    setTab('global-communities')
+  }
+
   return (
     <div className="pb-4">
       {!isSmallScreen && !lowBandwidthMode && totalRelayCount > 0 && (
@@ -93,6 +140,7 @@ export default function Explore({ isInDeckView = false }: { isInDeckView?: boole
             communityCollectionCount={communityCollections.length}
             favoriteRelayCount={favoriteRelayCount}
             favoriteProfileCount={favoriteProfileCount}
+            onLaneClick={handlePulseLaneClick}
           />
         </div>
       )}
@@ -112,11 +160,13 @@ export default function Explore({ isInDeckView = false }: { isInDeckView?: boole
       {tab === 'global-communities' && (
         <div className="space-y-8 px-4 pt-4">
           <CollectionGroup
+            id="explore-global-feeds"
             title={t('Global feeds')}
             description="Widely-used relays and major public feeds across Nostr."
             collections={globalCollections}
           />
           <CollectionGroup
+            id="explore-communities"
             title={t('Communities')}
             description="Interest-driven, language-focused, and curated community relays."
             collections={communityCollections}
@@ -142,17 +192,19 @@ export default function Explore({ isInDeckView = false }: { isInDeckView?: boole
 }
 
 function CollectionGroup({
+  id,
   title,
   description,
   collections
 }: {
+  id?: string
   title: string
   description: string
   collections: TAwesomeRelayCollection[]
 }) {
   if (!collections.length) {
     return (
-      <div className="rounded-3xl border bg-card/60 p-5">
+      <div id={id} className="rounded-3xl border bg-card/60 p-5 scroll-mt-28">
         <div className="text-lg font-semibold">{title}</div>
         <div className="mt-1 text-sm text-muted-foreground">{description}</div>
         <div className="mt-6 space-y-2">
@@ -163,7 +215,7 @@ function CollectionGroup({
   }
 
   return (
-    <section className="rounded-3xl border bg-card/60 p-5">
+    <section id={id} className="rounded-3xl border bg-card/60 p-5 scroll-mt-28">
       <div className="mb-5">
         <h2 className="text-lg font-semibold">{title}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>

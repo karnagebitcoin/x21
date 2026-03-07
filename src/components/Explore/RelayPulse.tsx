@@ -3,6 +3,7 @@ import { Compass, Globe2, Star, Users } from 'lucide-react'
 import type { ComponentType } from 'react'
 
 type TPulseLane = {
+  id: 'global-feeds' | 'communities' | 'followed-favorites'
   label: string
   detail: string
   count: number
@@ -32,6 +33,7 @@ export default function RelayPulse({
   communityCollectionCount,
   favoriteRelayCount,
   favoriteProfileCount,
+  onLaneClick,
   className
 }: {
   totalRelayCount: number
@@ -41,12 +43,14 @@ export default function RelayPulse({
   communityCollectionCount: number
   favoriteRelayCount: number
   favoriteProfileCount: number
+  onLaneClick?: (laneId: TPulseLane['id']) => void
   className?: string
 }) {
   const maxCount = Math.max(globalRelayCount, communityRelayCount, favoriteRelayCount, 1)
 
   const lanes: TPulseLane[] = [
     {
+      id: 'global-feeds',
       label: 'Global feeds',
       detail: `${globalCollectionCount} curated lists`,
       count: globalRelayCount,
@@ -56,6 +60,7 @@ export default function RelayPulse({
       bars: buildBars(1.7, globalRelayCount, maxCount)
     },
     {
+      id: 'communities',
       label: 'Communities',
       detail: `${communityCollectionCount} themed collections`,
       count: communityRelayCount,
@@ -65,6 +70,7 @@ export default function RelayPulse({
       bars: buildBars(2.9, communityRelayCount, maxCount)
     },
     {
+      id: 'followed-favorites',
       label: 'Followed favorites',
       detail:
         favoriteProfileCount > 0
@@ -101,9 +107,11 @@ export default function RelayPulse({
 
         <div className="mt-4 grid gap-3 lg:grid-cols-3">
           {lanes.map((lane) => (
-            <div
+            <button
+              type="button"
               key={lane.label}
-              className="rounded-[1.5rem] border border-white/8 bg-black/25 p-3.5 backdrop-blur-sm"
+              className="rounded-[1.5rem] border border-white/8 bg-black/25 p-3.5 text-left backdrop-blur-sm transition-colors hover:border-primary/30 hover:bg-black/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              onClick={() => onLaneClick?.(lane.id)}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -135,7 +143,7 @@ export default function RelayPulse({
                   />
                 ))}
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
