@@ -135,11 +135,11 @@ function RelayTutorialStep({
         <div className="space-y-4">
           <div className="space-y-2">
             <h3 className="text-xl font-semibold leading-tight text-foreground">{slide.title}</h3>
-            <p className="text-sm leading-6 text-muted-foreground">{slide.description}</p>
+            <p className="text-sm leading-6 text-zinc-200/90">{slide.description}</p>
           </div>
           <div className="space-y-3">
             {slide.bullets.map((bullet) => (
-              <div key={bullet} className="flex items-start gap-3 text-sm leading-6 text-muted-foreground">
+              <div key={bullet} className="flex items-start gap-3 text-sm leading-6 text-zinc-300">
                 <div className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
                 <span>{bullet}</span>
               </div>
@@ -157,14 +157,14 @@ function RelayTutorialStep({
           <div className={cn('absolute inset-0 bg-gradient-to-br', slide.accentClassName)} />
           <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:24px_24px] opacity-30" />
           <div className="relative flex h-full flex-col justify-between">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-background/70 px-3 py-1 text-[11px] font-medium text-muted-foreground backdrop-blur">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-background/70 px-3 py-1 text-[11px] font-medium text-zinc-200/85 backdrop-blur">
               <Icon className="size-3.5 text-primary" />
               Image placeholder
             </div>
 
             <div className="space-y-3">
               <div className="text-base font-semibold text-foreground">{slide.imageLabel}</div>
-              <div className="text-xs leading-5 text-muted-foreground">{slide.imagePrompt}</div>
+              <div className="text-xs leading-5 text-zinc-300/90">{slide.imagePrompt}</div>
             </div>
           </div>
         </div>
@@ -186,7 +186,7 @@ function RelayTutorialDialogContent({ onClose }: { onClose: () => void }) {
     <div className="space-y-5">
       <div className="space-y-1">
         <div className="text-xs font-medium uppercase tracking-[0.24em] text-primary/80">Relay guide</div>
-        <p className="text-sm leading-6 text-muted-foreground">
+        <p className="text-sm leading-6 text-zinc-200/90">
           A fast explanation of what relays do in Nostr and how to keep x21 responsive.
         </p>
       </div>
@@ -237,7 +237,7 @@ export default function RelayTutorialDialog({ children }: { children: ReactNode 
         <DrawerContent className="max-h-[92vh] bg-zinc-950 px-0 pb-0">
           <DrawerHeader className="border-b border-white/10 px-5 pb-4">
             <DrawerTitle className="text-left text-xl">What&apos;s a relay?</DrawerTitle>
-            <DrawerDescription className="text-left">
+            <DrawerDescription className="text-left !text-zinc-300">
               Read relays bring notes in. Write relays send your notes out.
             </DrawerDescription>
           </DrawerHeader>
@@ -256,7 +256,7 @@ export default function RelayTutorialDialog({ children }: { children: ReactNode 
         <div className="border-b border-white/10 px-6 py-5">
           <DialogHeader className="space-y-2 text-left">
             <DialogTitle className="text-2xl">What&apos;s a relay?</DialogTitle>
-            <DialogDescription className="text-sm leading-6">
+            <DialogDescription className="text-sm leading-6 !text-zinc-300">
               Read relays bring notes in. Write relays send your notes out.
             </DialogDescription>
           </DialogHeader>
