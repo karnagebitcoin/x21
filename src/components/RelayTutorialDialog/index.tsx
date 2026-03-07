@@ -10,6 +10,7 @@ import {
   DrawerTrigger
 } from '@/components/ui/drawer'
 import { cn } from '@/lib/utils'
+import { useNostr } from '@/providers/NostrProvider'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
@@ -80,17 +81,22 @@ const RELAY_TUTORIAL_SLIDES: TRelayTutorialSlide[] = [
 
 function RelayTutorialStep({
   slide,
-  index,
-  total
+  readRelayCount,
+  publishRelayCount
 }: {
   slide: TRelayTutorialSlide
-  index: number
-  total: number
+  readRelayCount: number
+  publishRelayCount: number
 }) {
+  const showRelaySummary = slide.title === 'A fast x21 setup is simple'
+  const readStatus = readRelayCount === 0 ? 'Add 1 or 2' : readRelayCount <= 2 ? 'Good shape' : 'Needs trimming'
+  const publishStatus =
+    publishRelayCount === 0 ? 'Add 1 or 2' : publishRelayCount <= 3 ? 'Good shape' : 'Could trim'
+
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] lg:items-stretch">
-        <div className="space-y-3">
+      <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <div className="flex h-full flex-col justify-center space-y-3 lg:pr-2">
           <div className="space-y-1.5">
             <h3 className="text-lg font-semibold leading-tight text-foreground sm:text-xl">{slide.title}</h3>
             <p className="text-sm leading-5 text-zinc-200/90">{slide.description}</p>
@@ -103,12 +109,30 @@ function RelayTutorialStep({
               </div>
             ))}
           </div>
+          {showRelaySummary ? (
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Read</div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-lg font-semibold text-foreground">{readRelayCount}</span>
+                  <span className="text-xs text-zinc-300">{readStatus}</span>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Publish</div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-lg font-semibold text-foreground">{publishRelayCount}</span>
+                  <span className="text-xs text-zinc-300">{publishStatus}</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div
           className={cn(
             'relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/40 p-4',
-            'min-h-[200px]',
+            'min-h-[200px] lg:min-h-[240px]',
             'bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_45%)]'
           )}
         >
@@ -131,12 +155,21 @@ function RelayTutorialStep({
 
 function RelayTutorialDialogContent({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState(0)
+  const { relayList } = useNostr()
   const slides = RELAY_TUTORIAL_SLIDES
   const currentSlide = slides[step]
   const isFirstStep = step === 0
   const isLastStep = step === slides.length - 1
+  const readRelayCount = relayList?.read.length ?? 0
+  const publishRelayCount = relayList?.write.length ?? 0
 
-  const stepContent = <RelayTutorialStep slide={currentSlide} index={step} total={slides.length} />
+  const stepContent = (
+    <RelayTutorialStep
+      slide={currentSlide}
+      readRelayCount={readRelayCount}
+      publishRelayCount={publishRelayCount}
+    />
+  )
 
   return (
     <div className="space-y-4">
