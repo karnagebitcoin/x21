@@ -1,48 +1,247 @@
+import FollowingFavoriteRelayList from '@/components/FollowingFavoriteRelayList'
+import RelayGlobe, { TRelayGlobePoint } from '@/components/Explore/RelayGlobe'
 import { Skeleton } from '@/components/ui/skeleton'
+import Tabs from '@/components/Tabs'
 import { useFetchRelayInfo } from '@/hooks'
 import { toRelay } from '@/lib/link'
 import { useSecondaryPage } from '@/PageManager'
+import { useLowBandwidthMode } from '@/providers/LowBandwidthModeProvider'
+import { useNostr } from '@/providers/NostrProvider'
+import { useScreenSize } from '@/providers/ScreenSizeProvider'
+import relayLocationService from '@/services/relay-location.service'
 import relayInfoService from '@/services/relay-info.service'
+import client from '@/services/client.service'
 import { TAwesomeRelayCollection } from '@/types'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import RelaySimpleInfo, { RelaySimpleInfoSkeleton } from '../RelaySimpleInfo'
+import TrendingNotes from '../TrendingNotes'
 
-export default function Explore() {
+type TExploreTab = 'trending' | 'global-communities' | 'followed-favorites'
+type TFavoriteRelayEntry = [string, string[]]
+
+const GLOBAL_COLLECTION_IDS = new Set(['featured', 'global'])
+
+export default function Explore({ isInDeckView = false }: { isInDeckView?: boolean } = {}) {
+  const { t } = useTranslation()
+  const { pubkey } = useNostr()
+  const { isSmallScreen } = useScreenSize()
+  const { lowBandwidthMode } = useLowBandwidthMode()
+  const [tab, setTab] = useState<TExploreTab>('trending')
   const [collections, setCollections] = useState<TAwesomeRelayCollection[] | null>(null)
+  const [favoriteRelays, setFavoriteRelays] = useState<TFavoriteRelayEntry[]>([])
+  const [favoritesLoading, setFavoritesLoading] = useState(false)
+  const [globePoints, setGlobePoints] = useState<TRelayGlobePoint[]>([])
 
   useEffect(() => {
     relayInfoService.getAwesomeRelayCollections().then(setCollections)
   }, [])
 
-  if (!collections) {
-    return (
-      <div>
-        <div className="p-4 max-md:border-b">
-          <Skeleton className="h-6 w-20" />
+  useEffect(() => {
+    if (!pubkey) {
+      setFavoriteRelays([])
+      setFavoritesLoading(false)
+      return
+    }
+
+    setFavoritesLoading(true)
+    client
+      .fetchFollowingFavoriteRelays(pubkey)
+      .then((relays) => setFavoriteRelays(relays ?? []))
+      .finally(() => setFavoritesLoading(false))
+  }, [pubkey])
+
+  const { globalCollections, communityCollections } = useMemo(() => {
+    const allCollections = collections ?? []
+    return {
+      globalCollections: allCollections.filter((collection) => GLOBAL_COLLECTION_IDS.has(collection.id)),
+      communityCollections: allCollections.filter((collection) => !GLOBAL_COLLECTION_IDS.has(collection.id))
+    }
+  }, [collections])
+
+  const globeMetadata = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        label: string
+        source: TRelayGlobePoint['source']
+        favoriteCount?: number
+      }
+    >()
+
+    globalCollections.forEach((collection) => {
+      collection.relays.forEach((url) => {
+        map.set(url, {
+          label: url,
+          source: 'global'
+        })
+      })
+    })
+
+    communityCollections.forEach((collection) => {
+      collection.relays.forEach((url) => {
+        if (!map.has(url)) {
+          map.set(url, {
+            label: url,
+            source: 'community'
+          })
+        }
+      })
+    })
+
+    favoriteRelays.forEach(([url, users]) => {
+      map.set(url, {
+        label: url,
+        source: 'favorite',
+        favoriteCount: users.length
+      })
+    })
+
+    return map
+  }, [communityCollections, favoriteRelays, globalCollections])
+
+  const globeRelayUrls = useMemo(() => Array.from(globeMetadata.keys()), [globeMetadata])
+  const globeRelayUrlsKey = useMemo(() => globeRelayUrls.join('|'), [globeRelayUrls])
+
+  useEffect(() => {
+    if (isSmallScreen || lowBandwidthMode || globeRelayUrls.length === 0) {
+      setGlobePoints([])
+      return
+    }
+
+    let cancelled = false
+    relayLocationService
+      .fetchRelayLocations(globeRelayUrls)
+      .then((locations) => {
+        if (cancelled) return
+        const points = locations
+          .map((location) => {
+            const metadata = globeMetadata.get(location.url)
+            if (!metadata) return null
+            return {
+              ...location,
+              ...metadata,
+              color:
+                metadata.source === 'favorite'
+                  ? '#fbbf24'
+                  : metadata.source === 'global'
+                    ? '#f97316'
+                    : '#38bdf8'
+            } satisfies TRelayGlobePoint
+          })
+          .filter((point): point is TRelayGlobePoint => Boolean(point))
+        setGlobePoints(points)
+      })
+      .catch((error) => {
+        console.error('Failed to fetch relay locations', error)
+        if (!cancelled) {
+          setGlobePoints([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [globeMetadata, globeRelayUrls, globeRelayUrlsKey, isSmallScreen, lowBandwidthMode])
+
+  return (
+    <div className="pb-4">
+      {!isSmallScreen && !lowBandwidthMode && globeRelayUrls.length > 0 && (
+        <div className="px-4 pt-4">
+          <RelayGlobe points={globePoints} />
         </div>
-        <div className="md:px-4 space-y-2">
-          <RelaySimpleInfoSkeleton className="h-auto px-4 py-3 md:rounded-lg md:border" />
+      )}
+
+      <Tabs
+        value={tab}
+        tabs={[
+          { value: 'trending', label: 'Trending' },
+          { value: 'global-communities', label: 'Global & Communities' },
+          { value: 'followed-favorites', label: 'Followed Favorites' }
+        ]}
+        onTabChange={(nextTab) => setTab(nextTab as TExploreTab)}
+        isInDeckView={isInDeckView}
+      />
+
+      {tab === 'trending' && <TrendingNotes showHeader={false} />}
+      {tab === 'global-communities' && (
+        <div className="space-y-8 px-4 pt-4">
+          <CollectionGroup
+            title={t('Global feeds')}
+            description="Widely-used relays and major public feeds across Nostr."
+            collections={globalCollections}
+          />
+          <CollectionGroup
+            title={t('Communities')}
+            description="Interest-driven, language-focused, and curated community relays."
+            collections={communityCollections}
+          />
+        </div>
+      )}
+      {tab === 'followed-favorites' && (
+        <div className="pt-4">
+          <div className="px-4 pb-3">
+            <h2 className="text-lg font-semibold">{t('Followed Favorites')}</h2>
+            <p className="text-sm text-muted-foreground">
+              Relays that people you follow have explicitly saved as favorites.
+            </p>
+          </div>
+          <FollowingFavoriteRelayList
+            initialRelays={favoriteRelays}
+            initialLoading={favoritesLoading}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CollectionGroup({
+  title,
+  description,
+  collections
+}: {
+  title: string
+  description: string
+  collections: TAwesomeRelayCollection[]
+}) {
+  if (!collections.length) {
+    return (
+      <div className="rounded-3xl border bg-card/60 p-5">
+        <div className="text-lg font-semibold">{title}</div>
+        <div className="mt-1 text-sm text-muted-foreground">{description}</div>
+        <div className="mt-6 space-y-2">
+          <RelaySimpleInfoSkeleton className="h-auto rounded-2xl border px-4 py-3" />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {collections.map((collection) => (
-        <RelayCollection key={collection.id} collection={collection} />
-      ))}
-    </div>
+    <section className="rounded-3xl border bg-card/60 p-5">
+      <div className="mb-5">
+        <h2 className="text-lg font-semibold">{title}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </div>
+      <div className="space-y-6">
+        {collections.map((collection) => (
+          <RelayCollection key={collection.id} collection={collection} />
+        ))}
+      </div>
+    </section>
   )
 }
 
 function RelayCollection({ collection }: { collection: TAwesomeRelayCollection }) {
   return (
-    <div className="-mt-6 first:mt-0 pt-6">
-      <div className="bg-background px-4 py-3 text-base font-semibold max-md:border-b -mt-6">
-        {collection.name}
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <div className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          {collection.name}
+        </div>
+        <div className="text-sm text-muted-foreground">{collection.description}</div>
       </div>
-      <div className="md:px-4 space-y-2">
+      <div className="space-y-2">
         {collection.relays.map((url) => (
           <RelayItem key={url} url={url} />
         ))}
@@ -56,7 +255,7 @@ function RelayItem({ url }: { url: string }) {
   const { relayInfo, isFetching } = useFetchRelayInfo(url)
 
   if (isFetching) {
-    return <RelaySimpleInfoSkeleton className="h-auto px-4 py-2 border-b md:rounded-lg md:border" />
+    return <RelaySimpleInfoSkeleton className="h-auto rounded-2xl border px-4 py-3" />
   }
 
   if (!relayInfo) {
@@ -66,7 +265,7 @@ function RelayItem({ url }: { url: string }) {
   return (
     <RelaySimpleInfo
       key={relayInfo.url}
-      className="clickable h-auto px-4 py-2 border-b md:rounded-lg md:border"
+      className="clickable h-auto rounded-2xl border px-4 py-3"
       relayInfo={relayInfo}
       compact
       showPinButton

@@ -42,7 +42,7 @@ export default function DeckColumn({ column }: { column: TPinnedColumn }) {
   switch (column.type) {
     case 'explore':
       titlebar = <ExploreTitlebar onClose={() => unpinColumn(column.id)} />
-      content = <Explore />
+      content = <Explore isInDeckView />
       break
     case 'notifications':
       titlebar = <NotificationsTitlebar onClose={() => unpinColumn(column.id)} />

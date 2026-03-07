@@ -9,20 +9,28 @@ import RelaySimpleInfo, { RelaySimpleInfoSkeleton } from '../RelaySimpleInfo'
 
 const SHOW_COUNT = 10
 
-export default function FollowingFavoriteRelayList() {
+export default function FollowingFavoriteRelayList({
+  initialRelays,
+  initialLoading = false
+}: {
+  initialRelays?: [string, string[]][]
+  initialLoading?: boolean
+} = {}) {
   const { t } = useTranslation()
   const { pubkey } = useNostr()
-  const [loading, setLoading] = useState(true)
-  const [relays, setRelays] = useState<[string, string[]][]>([])
+  const [loading, setLoading] = useState(initialLoading)
+  const [relays, setRelays] = useState<[string, string[]][]>(initialRelays ?? [])
   const [showCount, setShowCount] = useState(SHOW_COUNT)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    setLoading(true)
-
     const init = async () => {
-      if (!pubkey) return
+      if (!pubkey) {
+        setRelays([])
+        return
+      }
 
+      setLoading(true)
       const relays = (await client.fetchFollowingFavoriteRelays(pubkey)) ?? []
       setRelays(relays)
     }
@@ -65,7 +73,11 @@ export default function FollowingFavoriteRelayList() {
       {loading && <RelaySimpleInfoSkeleton className="p-4" />}
       {!loading && (
         <div className="text-center text-muted-foreground text-sm mt-2">
-          {relays.length === 0 ? t('no relays found') : t('no more relays')}
+          {!pubkey
+            ? t('Login to see favorite relays from people you follow')
+            : relays.length === 0
+              ? t('no relays found')
+              : t('no more relays')}
         </div>
       )}
     </div>

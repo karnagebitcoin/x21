@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 
 const SHOW_COUNT = 10
 
-export default function TrendingNotes() {
+export default function TrendingNotes({ showHeader = true }: { showHeader?: boolean } = {}) {
   const { t } = useTranslation()
   const { isEventDeleted } = useDeletedEvent()
   const { hideUntrustedNotes, isUserTrusted } = useUserTrust()
@@ -77,9 +77,11 @@ export default function TrendingNotes() {
 
   return (
     <div className="min-h-screen">
-      <div className="sticky top-12 h-12 px-4 flex flex-col justify-center text-lg font-bold bg-background z-30 border-b">
-        {t('Trending Notes')}
-      </div>
+      {showHeader && (
+        <div className="sticky top-12 h-12 px-4 flex flex-col justify-center text-lg font-bold bg-background z-30 border-b">
+          {t('Trending Notes')}
+        </div>
+      )}
       {filteredEvents.map((event) => (
         <NoteCard key={event.id} className="w-full" event={event} />
       ))}

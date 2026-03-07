@@ -11,6 +11,7 @@ let adminConfigStore
 let adminAuditStore
 let nip5Store
 let nip5SalesStore
+let relayGeoStore
 
 const TRANSLATION_LIGHTNING_ADDRESS =
   process.env.TRANSLATION_LIGHTNING_ADDRESS || 'translation@katvibes.com'
@@ -257,6 +258,7 @@ function refreshBlobStoresForRequest(request) {
   adminAuditStore = getStore('translation-admin-audit')
   nip5Store = getStore('nip5-registry')
   nip5SalesStore = getStore('nip5-sales')
+  relayGeoStore = getStore('relay-geo-cache')
 }
 
 export default async (request) => {
@@ -274,6 +276,11 @@ export default async (request) => {
     if (request.method === 'GET' && route === '/v1/transactions/quote') {
       const quote = await buildTopUpQuote()
       return json(200, quote)
+    }
+
+    if (request.method === 'POST' && route === '/v1/relay/locations') {
+      const body = await parseJson(request)
+      return await getRelayLocations(body)
     }
 
     if (request.method === 'GET' && route === '/v1/admin/translation/config') {
@@ -2775,6 +2782,99 @@ function getTag(tags, name) {
 
 function isHexPubkey(value) {
   return typeof value === 'string' && /^[0-9a-f]{64}$/i.test(value)
+}
+
+async function getRelayLocations(body) {
+  const urls = Array.isArray(body?.urls) ? body.urls : []
+  const normalizedUrls = Array.from(
+    new Set(
+      urls
+        .map((url) => normalizeRelayUrl(typeof url === 'string' ? url : ''))
+        .filter(Boolean)
+        .slice(0, 200)
+    )
+  )
+
+  if (normalizedUrls.length === 0) {
+    return json(200, { locations: [] })
+  }
+
+  const entries = await Promise.all(
+    normalizedUrls.map(async (url) => {
+      const location = await getRelayLocation(url)
+      return location ? { url, ...location } : null
+    })
+  )
+
+  return json(200, { locations: entries.filter(Boolean) })
+}
+
+async function getRelayLocation(url) {
+  const hostname = extractRelayHostname(url)
+  if (!hostname) return null
+
+  const cacheKey = `host:${hostname}`
+  const cached = await relayGeoStore.get(cacheKey, { type: 'json' }).catch(() => null)
+  const maxAgeMs = 1000 * 60 * 60 * 24 * 30
+  if (cached?.lat && cached?.lng && cached.updatedAt && Date.now() - cached.updatedAt < maxAgeMs) {
+    return cached
+  }
+
+  const fresh = await fetchRelayLocationFromIpApi(hostname)
+  if (!fresh) {
+    return cached?.lat && cached?.lng ? cached : null
+  }
+
+  const next = {
+    ...fresh,
+    updatedAt: Date.now()
+  }
+  await relayGeoStore.setJSON(cacheKey, next).catch(() => {})
+  return next
+}
+
+async function fetchRelayLocationFromIpApi(hostname) {
+  try {
+    const res = await fetch(
+      `http://ip-api.com/json/${encodeURIComponent(hostname)}?fields=status,message,country,countryCode,regionName,city,lat,lon,timezone,isp,org,query`,
+      {
+        headers: {
+          Accept: 'application/json'
+        }
+      }
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    if (data?.status !== 'success') return null
+
+    const lat = Number(data.lat)
+    const lng = Number(data.lon)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+
+    return {
+      hostname,
+      lat,
+      lng,
+      city: typeof data.city === 'string' ? data.city : '',
+      region: typeof data.regionName === 'string' ? data.regionName : '',
+      country: typeof data.country === 'string' ? data.country : '',
+      countryCode: typeof data.countryCode === 'string' ? data.countryCode : '',
+      timezone: typeof data.timezone === 'string' ? data.timezone : '',
+      isp: typeof data.isp === 'string' ? data.isp : '',
+      org: typeof data.org === 'string' ? data.org : '',
+      query: typeof data.query === 'string' ? data.query : ''
+    }
+  } catch {
+    return null
+  }
+}
+
+function extractRelayHostname(url) {
+  try {
+    return new URL(url).hostname.toLowerCase()
+  } catch {
+    return ''
+  }
 }
 
 function parseRelayList(value, fallbackRelays) {
