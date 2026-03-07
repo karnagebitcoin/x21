@@ -4,15 +4,27 @@ import { Event as NostrEvent, kinds } from 'nostr-tools'
 
 type TListener = () => void
 
+type TLiveStreamPresenceSnapshot = {
+  event: NostrEvent | undefined
+  naddr: string | undefined
+  isLive: boolean
+}
+
 class LiveStreamStatusService {
   static instance: LiveStreamStatusService
 
   private listeners = new Set<TListener>()
   private streamEventMap = new Map<string, NostrEvent>()
   private activeByPubkeyMap = new Map<string, NostrEvent>()
+  private snapshotByPubkeyMap = new Map<string, TLiveStreamPresenceSnapshot>()
   private subscriptionCloser: { close: () => void } | null = null
   private pruneTimer: number | null = null
   private initialized = false
+  private readonly emptySnapshot: TLiveStreamPresenceSnapshot = Object.freeze({
+    event: undefined,
+    naddr: undefined,
+    isLive: false
+  })
 
   public static getInstance() {
     if (!LiveStreamStatusService.instance) {
@@ -35,14 +47,33 @@ class LiveStreamStatusService {
   }
 
   getSnapshot(pubkey?: string) {
-    const event = this.getLiveEvent(pubkey)
-    const naddr = event ? getLiveStreamNaddr(event) : undefined
+    if (!pubkey) return this.emptySnapshot
 
-    return {
+    const event = this.getLiveEvent(pubkey)
+    if (!event) {
+      this.snapshotByPubkeyMap.delete(pubkey)
+      return this.emptySnapshot
+    }
+
+    const naddr = getLiveStreamNaddr(event)
+    if (!naddr) {
+      this.snapshotByPubkeyMap.delete(pubkey)
+      return this.emptySnapshot
+    }
+
+    const existing = this.snapshotByPubkeyMap.get(pubkey)
+    if (existing && existing.event?.id === event.id && existing.naddr === naddr && existing.isLive) {
+      return existing
+    }
+
+    const snapshot = {
       event,
       naddr,
-      isLive: !!event && !!naddr
+      isLive: true
     }
+
+    this.snapshotByPubkeyMap.set(pubkey, snapshot)
+    return snapshot
   }
 
   private ensureInitialized() {
@@ -120,6 +151,11 @@ class LiveStreamStatusService {
     if (!changed) return
 
     this.activeByPubkeyMap = nextActiveByPubkey
+    for (const pubkey of this.snapshotByPubkeyMap.keys()) {
+      if (!nextActiveByPubkey.has(pubkey)) {
+        this.snapshotByPubkeyMap.delete(pubkey)
+      }
+    }
     this.emit()
   }
 
