@@ -1,6 +1,5 @@
 import FollowingFavoriteRelayList from '@/components/FollowingFavoriteRelayList'
-import RelayGlobe, { TRelayGlobePoint } from '@/components/Explore/RelayGlobe'
-import { Skeleton } from '@/components/ui/skeleton'
+import RelayPulse from '@/components/Explore/RelayPulse'
 import Tabs from '@/components/Tabs'
 import { useFetchRelayInfo } from '@/hooks'
 import { toRelay } from '@/lib/link'
@@ -8,7 +7,6 @@ import { useSecondaryPage } from '@/PageManager'
 import { useLowBandwidthMode } from '@/providers/LowBandwidthModeProvider'
 import { useNostr } from '@/providers/NostrProvider'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
-import relayLocationService from '@/services/relay-location.service'
 import relayInfoService from '@/services/relay-info.service'
 import client from '@/services/client.service'
 import { TAwesomeRelayCollection } from '@/types'
@@ -31,7 +29,6 @@ export default function Explore({ isInDeckView = false }: { isInDeckView?: boole
   const [collections, setCollections] = useState<TAwesomeRelayCollection[] | null>(null)
   const [favoriteRelays, setFavoriteRelays] = useState<TFavoriteRelayEntry[]>([])
   const [favoritesLoading, setFavoritesLoading] = useState(false)
-  const [globePoints, setGlobePoints] = useState<TRelayGlobePoint[]>([])
 
   useEffect(() => {
     relayInfoService.getAwesomeRelayCollections().then(setCollections)
@@ -59,96 +56,47 @@ export default function Explore({ isInDeckView = false }: { isInDeckView?: boole
     }
   }, [collections])
 
-  const globeMetadata = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        label: string
-        source: TRelayGlobePoint['source']
-        favoriteCount?: number
-      }
-    >()
-
-    globalCollections.forEach((collection) => {
-      collection.relays.forEach((url) => {
-        map.set(url, {
-          label: url,
-          source: 'global'
-        })
-      })
-    })
-
-    communityCollections.forEach((collection) => {
-      collection.relays.forEach((url) => {
-        if (!map.has(url)) {
-          map.set(url, {
-            label: url,
-            source: 'community'
-          })
-        }
-      })
-    })
-
-    favoriteRelays.forEach(([url, users]) => {
-      map.set(url, {
-        label: url,
-        source: 'favorite',
-        favoriteCount: users.length
-      })
-    })
-
-    return map
-  }, [communityCollections, favoriteRelays, globalCollections])
-
-  const globeRelayUrls = useMemo(() => Array.from(globeMetadata.keys()), [globeMetadata])
-  const globeRelayUrlsKey = useMemo(() => globeRelayUrls.join('|'), [globeRelayUrls])
-
-  useEffect(() => {
-    if (isSmallScreen || lowBandwidthMode || globeRelayUrls.length === 0) {
-      setGlobePoints([])
-      return
-    }
-
-    let cancelled = false
-    relayLocationService
-      .fetchRelayLocations(globeRelayUrls)
-      .then((locations) => {
-        if (cancelled) return
-        const points = locations
-          .map((location) => {
-            const metadata = globeMetadata.get(location.url)
-            if (!metadata) return null
-            return {
-              ...location,
-              ...metadata,
-              color:
-                metadata.source === 'favorite'
-                  ? '#fbbf24'
-                  : metadata.source === 'global'
-                    ? '#f97316'
-                    : '#38bdf8'
-            } satisfies TRelayGlobePoint
-          })
-          .filter((point): point is TRelayGlobePoint => Boolean(point))
-        setGlobePoints(points)
-      })
-      .catch((error) => {
-        console.error('Failed to fetch relay locations', error)
-        if (!cancelled) {
-          setGlobePoints([])
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [globeMetadata, globeRelayUrls, globeRelayUrlsKey, isSmallScreen, lowBandwidthMode])
+  const globalRelayCount = useMemo(
+    () => new Set(globalCollections.flatMap((collection) => collection.relays)).size,
+    [globalCollections]
+  )
+  const communityRelayCount = useMemo(
+    () => new Set(communityCollections.flatMap((collection) => collection.relays)).size,
+    [communityCollections]
+  )
+  const favoriteRelayCount = useMemo(
+    () => new Set(favoriteRelays.map(([url]) => url)).size,
+    [favoriteRelays]
+  )
+  const favoriteProfileCount = useMemo(
+    () => new Set(favoriteRelays.flatMap(([, users]) => users)).size,
+    [favoriteRelays]
+  )
+  const totalRelayCount = useMemo(
+    () =>
+      new Set([
+        ...globalCollections.flatMap((collection) => collection.relays),
+        ...communityCollections.flatMap((collection) => collection.relays),
+        ...favoriteRelays.map(([url]) => url)
+      ]).size,
+    [communityCollections, favoriteRelays, globalCollections]
+  )
+  const totalCollectionCount = globalCollections.length + communityCollections.length
 
   return (
     <div className="pb-4">
-      {!isSmallScreen && !lowBandwidthMode && globeRelayUrls.length > 0 && (
+      {!isSmallScreen && !lowBandwidthMode && totalRelayCount > 0 && (
         <div className="px-4 pt-4">
-          <RelayGlobe points={globePoints} />
+          <RelayPulse
+            totalRelayCount={totalRelayCount}
+            totalCollectionCount={totalCollectionCount}
+            globalRelayCount={globalRelayCount}
+            globalCollectionCount={globalCollections.length}
+            communityRelayCount={communityRelayCount}
+            communityCollectionCount={communityCollections.length}
+            favoriteRelayCount={favoriteRelayCount}
+            favoriteProfileCount={favoriteProfileCount}
+          />
         </div>
       )}
 
