@@ -7,7 +7,7 @@ import {
 } from '@/lib/event'
 import { BoundedMap } from '@/lib/bounded-map'
 import { getProfileFromEvent, getRelayListFromEvent } from '@/lib/event-metadata'
-import { LIVE_STREAM_RELAYS } from '@/lib/live-stream'
+import { getLiveStreamTagValue, LIVE_STREAM_RELAYS } from '@/lib/live-stream'
 import { formatPubkey, isValidPubkey, pubkeyToNpub, userIdToPubkey } from '@/lib/pubkey'
 import { getPubkeysFromPTags, getServersFromServerTags, tagNameEquals } from '@/lib/tag'
 import { isLocalNetworkUrl, isWebsocketUrl, normalizeUrl } from '@/lib/url'
@@ -881,6 +881,36 @@ class ClientService extends EventTarget {
     return this.eventDataLoader.load(id)
   }
 
+  private findMatchingCachedLiveStreamEvent(id: string) {
+    const cachedEvents = this.getCachedLiveStreamEvents(Number.MAX_SAFE_INTEGER)
+    if (!cachedEvents.length) return undefined
+
+    if (/^[0-9a-f]{64}$/.test(id)) {
+      return cachedEvents.find((event) => event.id === id)
+    }
+
+    try {
+      const { type, data } = nip19.decode(id)
+      if (type === 'nevent') {
+        return cachedEvents.find((event) => event.id === data.id)
+      }
+
+      if (type === 'naddr' && data.kind === kinds.LiveEvent) {
+        return cachedEvents.find((event) => {
+          return (
+            event.kind === kinds.LiveEvent &&
+            event.pubkey === data.pubkey &&
+            getLiveStreamTagValue(event, 'd') === data.identifier
+          )
+        })
+      }
+    } catch {
+      return undefined
+    }
+
+    return undefined
+  }
+
   async fetchTrendingNotes() {
     const now = Date.now()
 
@@ -1007,6 +1037,7 @@ class ClientService extends EventTarget {
     let filter: Filter | undefined
     let relays: string[] = []
     let author: string | undefined
+    let isLiveStreamPointer = false
     if (/^[0-9a-f]{64}$/.test(id)) {
       filter = { ids: [id] }
     } else {
@@ -1019,6 +1050,10 @@ class ClientService extends EventTarget {
           filter = { ids: [data.id] }
           if (data.relays) relays = data.relays
           if (data.author) author = data.author
+          if (data.kind === kinds.LiveEvent) {
+            isLiveStreamPointer = true
+            relays = Array.from(new Set([...(relays ?? []), ...LIVE_STREAM_RELAYS]))
+          }
           break
         case 'naddr':
           filter = {
@@ -1032,6 +1067,7 @@ class ClientService extends EventTarget {
           }
           if (data.relays) relays = data.relays
           if (data.kind === kinds.LiveEvent) {
+            isLiveStreamPointer = true
             relays = Array.from(new Set([...(relays ?? []), ...LIVE_STREAM_RELAYS]))
           }
       }
@@ -1051,6 +1087,39 @@ class ClientService extends EventTarget {
     if (!event && author) {
       const relayList = await this.fetchRelayList(author)
       event = await this.tryHarderToFetchEvent(relayList.write.slice(0, 5), filter, true)
+    }
+
+    if (!event && isLiveStreamPointer) {
+      event = this.findMatchingCachedLiveStreamEvent(id)
+    }
+
+    if (!event && isLiveStreamPointer) {
+      const liveRelays = Array.from(new Set([...(relays ?? []), ...LIVE_STREAM_RELAYS]))
+      const liveEvents = await this.prefetchLiveStreamEvents({ relays: liveRelays, force: true })
+      event = liveEvents.find((liveEvent) => {
+        if (/^[0-9a-f]{64}$/.test(id)) {
+          return liveEvent.id === id
+        }
+
+        try {
+          const { type, data } = nip19.decode(id)
+          if (type === 'nevent') {
+            return liveEvent.id === data.id
+          }
+
+          if (type === 'naddr') {
+            return (
+              liveEvent.kind === kinds.LiveEvent &&
+              liveEvent.pubkey === data.pubkey &&
+              getLiveStreamTagValue(liveEvent, 'd') === data.identifier
+            )
+          }
+        } catch {
+          return false
+        }
+
+        return false
+      })
     }
 
     if (event && event.id !== id) {
