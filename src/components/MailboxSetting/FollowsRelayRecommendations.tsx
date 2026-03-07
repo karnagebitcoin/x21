@@ -114,6 +114,11 @@ function RecommendationItem({
   onAdd: (url: string) => void
 }) {
   const { t } = useTranslation()
+  const followerCountLabel = t('n follows use this', { count: recommendation.followerCount })
+  const usesThisLabel =
+    followerCountLabel === 'n follows use this'
+      ? `${recommendation.followerCount} ${recommendation.followerCount === 1 ? 'follow uses this' : 'follows use this'}`
+      : followerCountLabel
 
   return (
     <div className="flex items-center justify-between gap-2 p-2 border rounded-lg bg-muted/30">
@@ -126,9 +131,7 @@ function RecommendationItem({
               <TooltipTrigger asChild>
                 <div className="text-xs text-muted-foreground flex items-center gap-1 cursor-help">
                   <Users className="w-3 h-3" />
-                  <span>
-                    {t('n follows use this', { count: recommendation.followerCount })}
-                  </span>
+                  <span>{usesThisLabel}</span>
                 </div>
               </TooltipTrigger>
               <TooltipContent className="max-w-xs">
