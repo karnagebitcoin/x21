@@ -12,7 +12,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useNostr } from '@/providers/NostrProvider'
 import { useScreenSize } from '@/providers/ScreenSizeProvider'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 
 type TRelayTutorialSlide = {
@@ -89,9 +89,10 @@ function RelayTutorialStep({
   publishRelayCount: number
 }) {
   const showRelaySummary = slide.title === 'A fast x21 setup is simple'
-  const readStatus = readRelayCount === 0 ? 'Add 1 or 2' : readRelayCount <= 2 ? 'Good shape' : 'Needs trimming'
-  const publishStatus =
-    publishRelayCount === 0 ? 'Add 1 or 2' : publishRelayCount <= 3 ? 'Good shape' : 'Could trim'
+  const isReadHealthy = readRelayCount > 0 && readRelayCount <= 2
+  const isPublishHealthy = publishRelayCount > 0 && publishRelayCount <= 3
+  const readStatus = readRelayCount === 0 ? 'Add 1 or 2' : isReadHealthy ? 'Good shape' : 'Needs trimming'
+  const publishStatus = publishRelayCount === 0 ? 'Add 1 or 2' : isPublishHealthy ? 'Good shape' : 'Could trim'
 
   return (
     <div className="space-y-4">
@@ -115,14 +116,30 @@ function RelayTutorialStep({
                 <div className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Read</div>
                 <div className="mt-1 flex items-baseline gap-2">
                   <span className="text-lg font-semibold text-foreground">{readRelayCount}</span>
-                  <span className="text-xs text-zinc-300">{readStatus}</span>
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1 text-xs',
+                      isReadHealthy ? 'text-emerald-300' : 'text-zinc-300'
+                    )}
+                  >
+                    {isReadHealthy ? <CheckCircle2 className="size-3.5" /> : null}
+                    {readStatus}
+                  </span>
                 </div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
                 <div className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">Publish</div>
                 <div className="mt-1 flex items-baseline gap-2">
                   <span className="text-lg font-semibold text-foreground">{publishRelayCount}</span>
-                  <span className="text-xs text-zinc-300">{publishStatus}</span>
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1 text-xs',
+                      isPublishHealthy ? 'text-emerald-300' : 'text-zinc-300'
+                    )}
+                  >
+                    {isPublishHealthy ? <CheckCircle2 className="size-3.5" /> : null}
+                    {publishStatus}
+                  </span>
                 </div>
               </div>
             </div>
