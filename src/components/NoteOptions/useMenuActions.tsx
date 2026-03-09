@@ -1,5 +1,5 @@
 import { getNoteBech32Id, isProtectedEvent, isReplyNoteEvent, getParentEventHexId, getRootEventHexId } from '@/lib/event'
-import { toNjump } from '@/lib/link'
+import { toNlink } from '@/lib/link'
 import { pubkeyToNpub } from '@/lib/pubkey'
 import { simplifyUrl } from '@/lib/url'
 import { useCurrentRelays } from '@/providers/CurrentRelaysProvider'
@@ -223,7 +223,7 @@ export function useMenuActions({
         label: t('Copy share link'),
         onClick: async () => {
           try {
-            await navigator.clipboard.writeText(toNjump(getNoteBech32Id(event)))
+            await navigator.clipboard.writeText(toNlink(getNoteBech32Id(event)))
             toast.success('Share link copied')
           } catch (error) {
             console.error('Failed to copy share link:', error)
