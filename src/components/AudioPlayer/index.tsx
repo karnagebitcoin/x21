@@ -231,14 +231,14 @@ export default function AudioPlayer({
       </Button>
 
       <div className="min-w-0 flex-1">
-        <div className="relative overflow-hidden rounded-[22px] border border-white/6 bg-muted/40 px-3 py-2">
+        <div className="relative overflow-hidden rounded-[22px] border border-white/10 bg-black/35 px-3 py-2.5 shadow-inner shadow-black/30">
           <div
-            className="pointer-events-none absolute inset-y-0 left-0 rounded-[22px] bg-primary/10 transition-[width] duration-300"
+            className="pointer-events-none absolute inset-y-0 left-0 rounded-[22px] bg-primary/12 transition-[width] duration-300"
             style={{ width: `${playbackRatio * 100}%` }}
           />
 
-          <div className="relative h-7">
-            <div className="flex h-full items-end gap-[3px]">
+          <div className="relative h-9">
+            <div className="flex h-full items-end gap-1.5">
               {waveformSeed.map((seed, index) => {
                 const height =
                   waveformLevels[index] ?? clamp(seed, isPlaying ? 26 : 22, isPlaying ? 100 : 82)
@@ -248,9 +248,11 @@ export default function AudioPlayer({
                   <span
                     key={`${src}-${index}`}
                     className={cn(
-                      'block flex-1 rounded-full transition-[height,opacity,background-color] duration-200',
-                      isPlayed ? 'bg-primary' : 'bg-foreground/18',
-                      isPlaying ? 'opacity-100' : 'opacity-70'
+                      'block min-w-[4px] flex-1 rounded-full transition-[height,opacity,background-color,box-shadow] duration-150',
+                      isPlayed
+                        ? 'bg-primary shadow-[0_0_10px_hsl(var(--primary)/0.28)]'
+                        : 'bg-white/22',
+                      isPlaying ? 'opacity-100' : 'opacity-85'
                     )}
                     style={{ height: `${height}%` }}
                   />
@@ -304,7 +306,7 @@ export default function AudioPlayer({
   )
 }
 
-function createWaveformSeed(src: string, bars = 28) {
+function createWaveformSeed(src: string, bars = 20) {
   let hash = 0
 
   for (let index = 0; index < src.length; index++) {
