@@ -1,9 +1,10 @@
 import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
 import mediaManager from '@/services/media-manager.service'
-import { Minimize2, Pause, Play, X } from 'lucide-react'
-import { MutableRefObject, useEffect, useMemo, useRef, useState } from 'react'
+import { Minimize2, Pause, Play, Volume1, Volume2, VolumeX, X } from 'lucide-react'
+import { MouseEvent, MutableRefObject, useEffect, useMemo, useRef, useState } from 'react'
 import ExternalLink from '../ExternalLink'
 
 interface AudioPlayerProps {
@@ -27,14 +28,15 @@ export default function AudioPlayer({
   const [duration, setDuration] = useState(0)
   const [error, setError] = useState(false)
   const [waveformLevels, setWaveformLevels] = useState<number[]>([])
-  const seekTimeoutRef = useRef<NodeJS.Timeout>()
-  const isSeeking = useRef(false)
+  const [volume, setVolume] = useState(1)
+  const [isMuted, setIsMuted] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null)
   const animationFrameRef = useRef<number>()
   const frequencyDataRef = useRef<Uint8Array | null>(null)
+  const lastVolumeRef = useRef(1)
 
   const waveformSeed = useMemo(() => createWaveformSeed(src), [src])
   const playbackRatio = duration > 0 ? Math.min(currentTime / duration, 1) : 0
@@ -56,21 +58,27 @@ export default function AudioPlayer({
       void mediaManager.play(audio)
     }
 
-    const updateTime = () => {
-      if (!isSeeking.current) {
-        setCurrentTime(audio.currentTime)
-      }
-    }
+    audio.volume = volume
+
+    const updateTime = () => setCurrentTime(audio.currentTime)
     const updateDuration = () => setDuration(audio.duration)
     const handleEnded = () => setIsPlaying(false)
     const handlePause = () => setIsPlaying(false)
     const handlePlay = () => setIsPlaying(true)
+    const handleVolumeStateChange = () => {
+      setVolume(audio.volume)
+      setIsMuted(audio.muted || audio.volume === 0)
+      if (audio.volume > 0) {
+        lastVolumeRef.current = audio.volume
+      }
+    }
 
     audio.addEventListener('timeupdate', updateTime)
     audio.addEventListener('loadedmetadata', updateDuration)
     audio.addEventListener('ended', handleEnded)
     audio.addEventListener('pause', handlePause)
     audio.addEventListener('play', handlePlay)
+    audio.addEventListener('volumechange', handleVolumeStateChange)
 
     return () => {
       audio.removeEventListener('timeupdate', updateTime)
@@ -78,8 +86,9 @@ export default function AudioPlayer({
       audio.removeEventListener('ended', handleEnded)
       audio.removeEventListener('pause', handlePause)
       audio.removeEventListener('play', handlePlay)
+      audio.removeEventListener('volumechange', handleVolumeStateChange)
     }
-  }, [autoPlay, startTime])
+  }, [autoPlay, startTime, volume])
 
   useEffect(() => {
     if (!isPlaying) {
@@ -159,9 +168,6 @@ export default function AudioPlayer({
 
   useEffect(() => {
     return () => {
-      if (seekTimeoutRef.current) {
-        clearTimeout(seekTimeoutRef.current)
-      }
       if (animationFrameRef.current) {
         window.cancelAnimationFrame(animationFrameRef.current)
       }
@@ -182,21 +188,63 @@ export default function AudioPlayer({
     }
   }
 
-  const handleSeek = (value: number[]) => {
+  const handleVolumeChange = (value: number[]) => {
     const audio = audioRef.current
     if (!audio) return
 
-    isSeeking.current = true
-    setCurrentTime(value[0])
+    const nextVolume = Math.max(0, Math.min(1, value[0] / 100))
+    audio.muted = nextVolume === 0
+    audio.volume = nextVolume
+    setVolume(nextVolume)
+    setIsMuted(nextVolume === 0)
 
-    if (seekTimeoutRef.current) {
-      clearTimeout(seekTimeoutRef.current)
+    if (nextVolume > 0) {
+      lastVolumeRef.current = nextVolume
+    }
+  }
+
+  const toggleMute = () => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    if (audio.muted || audio.volume === 0) {
+      const restoredVolume = Math.max(lastVolumeRef.current, 0.35)
+      audio.muted = false
+      audio.volume = restoredVolume
+      setVolume(restoredVolume)
+      setIsMuted(false)
+      return
     }
 
-    seekTimeoutRef.current = setTimeout(() => {
-      audio.currentTime = value[0]
-      isSeeking.current = false
-    }, 160)
+    lastVolumeRef.current = audio.volume
+    audio.muted = true
+    setIsMuted(true)
+  }
+
+  const volumeButtonIcon =
+    isMuted || volume === 0 ? (
+      <VolumeX className="size-4" />
+    ) : volume < 0.5 ? (
+      <Volume1 className="size-4" />
+    ) : (
+      <Volume2 className="size-4" />
+    )
+
+  const timeLabel =
+    duration > 0
+      ? `${formatTime(currentTime)} / ${formatTime(duration)}`
+      : formatTime(currentTime)
+
+  const renderedWaveformLevels = waveformSeed.map((seed, index) => {
+    const rawHeight =
+      waveformLevels[index] ?? clamp(seed, isPlaying ? 24 : 20, isPlaying ? 100 : 74)
+    return clamp(rawHeight * 0.6, 10, 58)
+  })
+
+  const playedBars = Math.max(0, Math.ceil(playbackRatio * renderedWaveformLevels.length))
+
+  const handleVolumePopoverClick = (event: MouseEvent) => {
+    event.stopPropagation()
   }
 
   if (error) {
@@ -231,55 +279,72 @@ export default function AudioPlayer({
       </Button>
 
       <div className="min-w-0 flex-1">
-        <div className="relative overflow-hidden rounded-[22px] border border-white/10 bg-black/35 px-3 py-2.5 shadow-inner shadow-black/30">
-          <div
-            className="pointer-events-none absolute inset-y-0 left-0 rounded-[22px] bg-primary/12 transition-[width] duration-300"
-            style={{ width: `${playbackRatio * 100}%` }}
-          />
+        <div className="rounded-[22px] border border-white/10 bg-black/35 px-3 py-2 shadow-inner shadow-black/30">
+          <div className="grid h-6 grid-cols-[repeat(20,minmax(0,1fr))] items-center gap-0.5">
+            {renderedWaveformLevels.map((height, index) => {
+              const isPlayed = index < playedBars
 
-          <div className="relative h-9">
-            <div className="flex h-full items-end gap-1.5">
-              {waveformSeed.map((seed, index) => {
-                const height =
-                  waveformLevels[index] ?? clamp(seed, isPlaying ? 26 : 22, isPlaying ? 100 : 82)
-                const isPlayed = (index + 1) / waveformSeed.length <= playbackRatio + 0.015
-
-                return (
+              return (
+                <div key={`${src}-${index}`} className="flex h-full items-center justify-center">
                   <span
-                    key={`${src}-${index}`}
                     className={cn(
-                      'block min-w-[4px] flex-1 rounded-full transition-[height,opacity,background-color,box-shadow] duration-150',
+                      'block w-[2px] rounded-full transition-[height,opacity,background-color,box-shadow] duration-150',
                       isPlayed
-                        ? 'bg-primary shadow-[0_0_10px_hsl(var(--primary)/0.28)]'
-                        : 'bg-white/22',
-                      isPlaying ? 'opacity-100' : 'opacity-85'
+                        ? 'bg-primary shadow-[0_0_10px_hsl(var(--primary)/0.3)]'
+                        : 'bg-white/18',
+                      isPlaying ? 'opacity-100' : 'opacity-80'
                     )}
                     style={{ height: `${height}%` }}
                   />
-                )
-              })}
-            </div>
+                </div>
+              )
+            })}
           </div>
-
-          <Slider
-            className="absolute inset-0 z-10 opacity-0"
-            value={[currentTime]}
-            max={duration || 100}
-            step={1}
-            onValueChange={handleSeek}
-            hideThumb
-          />
         </div>
       </div>
 
-      <div className="shrink-0 text-right">
-        <div className="font-mono text-sm font-medium tracking-tight text-foreground/90">
-          {formatTime(Math.max(duration - currentTime, 0))}
-        </div>
-        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          remaining
-        </div>
+      <div className="shrink-0 font-mono text-sm font-medium tracking-tight text-foreground/85">
+        {timeLabel}
       </div>
+
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 shrink-0 rounded-full text-muted-foreground hover:bg-white/5 hover:text-foreground"
+            onClick={(event) => event.stopPropagation()}
+            aria-label="Adjust volume"
+          >
+            {volumeButtonIcon}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="end"
+          sideOffset={10}
+          className="w-44 rounded-2xl border-white/10 bg-popover/95 px-4 py-3 backdrop-blur"
+          onClick={handleVolumePopoverClick}
+        >
+          <div className="mb-2 text-xs font-medium text-foreground/80">Volume</div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-white/5 hover:text-foreground"
+              onClick={toggleMute}
+              aria-label={isMuted || volume === 0 ? 'Unmute audio' : 'Mute audio'}
+            >
+              {volumeButtonIcon}
+            </Button>
+            <Slider
+              value={[Math.round((isMuted ? 0 : volume) * 100)]}
+              max={100}
+              step={1}
+              onValueChange={handleVolumeChange}
+            />
+          </div>
+        </PopoverContent>
+      </Popover>
 
       {isMinimized ? (
         <Button
