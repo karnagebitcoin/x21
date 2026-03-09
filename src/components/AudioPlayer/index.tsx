@@ -3,7 +3,7 @@ import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
 import mediaManager from '@/services/media-manager.service'
 import { Minimize2, Pause, Play, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { MutableRefObject, useEffect, useMemo, useRef, useState } from 'react'
 import ExternalLink from '../ExternalLink'
 
 interface AudioPlayerProps {
@@ -26,13 +26,22 @@ export default function AudioPlayer({
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [error, setError] = useState(false)
-  const [visualTick, setVisualTick] = useState(0)
+  const [waveformLevels, setWaveformLevels] = useState<number[]>([])
   const seekTimeoutRef = useRef<NodeJS.Timeout>()
   const isSeeking = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null)
+  const animationFrameRef = useRef<number>()
+  const frequencyDataRef = useRef<Uint8Array | null>(null)
 
   const waveformSeed = useMemo(() => createWaveformSeed(src), [src])
   const playbackRatio = duration > 0 ? Math.min(currentTime / duration, 1) : 0
+
+  useEffect(() => {
+    setWaveformLevels(waveformSeed.map((seed) => clamp(seed, 22, 82)))
+  }, [waveformSeed])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -74,18 +83,57 @@ export default function AudioPlayer({
 
   useEffect(() => {
     if (!isPlaying) {
-      setVisualTick(0)
+      if (animationFrameRef.current) {
+        window.cancelAnimationFrame(animationFrameRef.current)
+      }
+      setWaveformLevels(waveformSeed.map((seed) => clamp(seed, 22, 82)))
       return
     }
 
-    const interval = window.setInterval(() => {
-      setVisualTick((tick) => tick + 1)
-    }, 140)
+    let cancelled = false
+
+    const animate = async () => {
+      const analyser = await setupAudioVisualizer(
+        audioRef.current,
+        audioContextRef,
+        sourceNodeRef,
+        analyserRef,
+        frequencyDataRef
+      )
+
+      let tick = 0
+
+      const frame = () => {
+        if (cancelled) {
+          return
+        }
+
+        const liveLevels = getLiveWaveformLevels(analyser, frequencyDataRef.current, waveformSeed.length)
+
+        if (liveLevels) {
+          setWaveformLevels(liveLevels)
+        } else {
+          setWaveformLevels(
+            waveformSeed.map((seed, index) => getFallbackWaveformBarHeight(seed, index, tick))
+          )
+        }
+
+        tick += 1
+        animationFrameRef.current = window.requestAnimationFrame(frame)
+      }
+
+      frame()
+    }
+
+    void animate()
 
     return () => {
-      window.clearInterval(interval)
+      cancelled = true
+      if (animationFrameRef.current) {
+        window.cancelAnimationFrame(animationFrameRef.current)
+      }
     }
-  }, [isPlaying])
+  }, [isPlaying, waveformSeed])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -114,6 +162,12 @@ export default function AudioPlayer({
       if (seekTimeoutRef.current) {
         clearTimeout(seekTimeoutRef.current)
       }
+      if (animationFrameRef.current) {
+        window.cancelAnimationFrame(animationFrameRef.current)
+      }
+      sourceNodeRef.current?.disconnect()
+      analyserRef.current?.disconnect()
+      audioContextRef.current?.close().catch(() => undefined)
     }
   }, [])
 
@@ -186,7 +240,8 @@ export default function AudioPlayer({
           <div className="relative h-7">
             <div className="flex h-full items-end gap-[3px]">
               {waveformSeed.map((seed, index) => {
-                const height = getWaveformBarHeight(seed, index, visualTick, isPlaying)
+                const height =
+                  waveformLevels[index] ?? clamp(seed, isPlaying ? 26 : 22, isPlaying ? 100 : 82)
                 const isPlayed = (index + 1) / waveformSeed.length <= playbackRatio + 0.015
 
                 return (
@@ -274,6 +329,100 @@ function getWaveformBarHeight(base: number, index: number, tick: number, isPlayi
   const animated = base * 0.72 + pulseA * 18 + pulseB * 10
 
   return clamp(animated, 22, 100)
+}
+
+function getFallbackWaveformBarHeight(base: number, index: number, tick: number) {
+  return getWaveformBarHeight(base, index, tick, true)
+}
+
+async function setupAudioVisualizer(
+  audio: HTMLAudioElement | null,
+  audioContextRef: MutableRefObject<AudioContext | null>,
+  sourceNodeRef: MutableRefObject<MediaElementAudioSourceNode | null>,
+  analyserRef: MutableRefObject<AnalyserNode | null>,
+  frequencyDataRef: MutableRefObject<Uint8Array | null>
+) {
+  if (!audio || typeof window === 'undefined') {
+    return null
+  }
+
+  const AudioContextCtor = window.AudioContext || (window as typeof window & {
+    webkitAudioContext?: typeof AudioContext
+  }).webkitAudioContext
+
+  if (!AudioContextCtor) {
+    return null
+  }
+
+  try {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContextCtor()
+    }
+
+    const audioContext = audioContextRef.current
+
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume()
+    }
+
+    if (!sourceNodeRef.current) {
+      sourceNodeRef.current = audioContext.createMediaElementSource(audio)
+    }
+
+    if (!analyserRef.current) {
+      const analyser = audioContext.createAnalyser()
+      analyser.fftSize = 256
+      analyser.smoothingTimeConstant = 0.84
+      sourceNodeRef.current.connect(analyser)
+      analyser.connect(audioContext.destination)
+      analyserRef.current = analyser
+      frequencyDataRef.current = new Uint8Array(analyser.frequencyBinCount)
+    }
+
+    return analyserRef.current
+  } catch (error) {
+    console.debug('Audio visualizer unavailable:', error)
+    return null
+  }
+}
+
+function getLiveWaveformLevels(
+  analyser: AnalyserNode | null,
+  dataArray: Uint8Array | null,
+  barCount: number
+) {
+  if (!analyser || !dataArray) {
+    return null
+  }
+
+  analyser.getByteFrequencyData(dataArray)
+
+  let maxValue = 0
+  for (const value of dataArray) {
+    if (value > maxValue) {
+      maxValue = value
+    }
+  }
+
+  if (maxValue < 6) {
+    return null
+  }
+
+  const binsPerBar = Math.max(1, Math.floor(dataArray.length / barCount))
+  const levels = Array.from({ length: barCount }, (_, index) => {
+    const start = index * binsPerBar
+    const end = index === barCount - 1 ? dataArray.length : start + binsPerBar
+
+    let sum = 0
+    for (let offset = start; offset < end; offset++) {
+      sum += dataArray[offset]
+    }
+
+    const average = sum / Math.max(1, end - start)
+    return clamp(18 + (average / 255) * 82, 22, 100)
+  })
+
+  return levels
 }
 
 function clamp(value: number, min: number, max: number) {
