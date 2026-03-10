@@ -1,5 +1,11 @@
 import LoginDialog from '@/components/LoginDialog'
-import { ApplicationDataKey, BIG_RELAY_URLS, ExtendedKind } from '@/constants'
+import {
+  ApplicationDataKey,
+  BIG_RELAY_URLS,
+  DEFAULT_READ_RELAY_URLS,
+  DEFAULT_WRITE_RELAY_URLS,
+  ExtendedKind
+} from '@/constants'
 import {
   createDeletionRequestDraftEvent,
   createFollowListDraftEvent,
@@ -627,14 +633,24 @@ export function NostrProvider({ children }: { children: React.ReactNode }) {
   }
 
   const setupNewUser = async (signer: ISigner) => {
+    const defaultMailboxRelays = Array.from(
+      new Set([...DEFAULT_READ_RELAY_URLS, ...DEFAULT_WRITE_RELAY_URLS])
+    ).map((url) => {
+      const isRead = DEFAULT_READ_RELAY_URLS.includes(url)
+      const isWrite = DEFAULT_WRITE_RELAY_URLS.includes(url)
+
+      return {
+        url,
+        scope: isRead && isWrite ? 'both' : isRead ? 'read' : 'write'
+      } as const
+    })
+
     await Promise.allSettled([
       client.publishEvent(BIG_RELAY_URLS, await signer.signEvent(createFollowListDraftEvent([]))),
       client.publishEvent(BIG_RELAY_URLS, await signer.signEvent(createMuteListDraftEvent([]))),
       client.publishEvent(
         BIG_RELAY_URLS,
-        await signer.signEvent(
-          createRelayListDraftEvent(BIG_RELAY_URLS.map((url) => ({ url, scope: 'both' })))
-        )
+        await signer.signEvent(createRelayListDraftEvent(defaultMailboxRelays))
       )
     ])
   }

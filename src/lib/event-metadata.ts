@@ -1,4 +1,10 @@
-import { BIG_RELAY_URLS, MAX_PINNED_NOTES, POLL_TYPE } from '@/constants'
+import {
+  BIG_RELAY_URLS,
+  DEFAULT_READ_RELAY_URLS,
+  DEFAULT_WRITE_RELAY_URLS,
+  MAX_PINNED_NOTES,
+  POLL_TYPE
+} from '@/constants'
 import { TEmoji, TPollType, TRelayList, TRelaySet } from '@/types'
 import { Event, kinds } from 'nostr-tools'
 import { buildATag } from './draft-event'
@@ -10,12 +16,21 @@ import { isWebsocketUrl, normalizeHttpUrl, normalizeUrl } from './url'
 import { isTorBrowser } from './utils'
 
 export function getRelayListFromEvent(event?: Event | null) {
+  const defaultOriginalRelays = buildDefaultRelayList()
+
   if (!event) {
-    return { write: BIG_RELAY_URLS, read: BIG_RELAY_URLS, originalRelays: [] }
+    return {
+      write: DEFAULT_WRITE_RELAY_URLS,
+      read: DEFAULT_READ_RELAY_URLS,
+      originalRelays: defaultOriginalRelays
+    }
   }
 
   const torBrowserDetected = isTorBrowser()
-  const relayList = { write: [], read: [], originalRelays: [] } as TRelayList
+  const writeSet = new Set<string>()
+  const readSet = new Set<string>()
+  const relayScopeMap = new Map<string, TRelayList['originalRelays'][number]['scope']>()
+
   event.tags.filter(tagNameEquals('r')).forEach(([, url, type]) => {
     if (!url || !isWebsocketUrl(url)) return
 
@@ -23,28 +38,61 @@ export function getRelayListFromEvent(event?: Event | null) {
     if (!normalizedUrl) return
 
     const scope = type === 'read' ? 'read' : type === 'write' ? 'write' : 'both'
-    relayList.originalRelays.push({ url: normalizedUrl, scope })
+    relayScopeMap.set(normalizedUrl, mergeRelayScopes(relayScopeMap.get(normalizedUrl), scope))
 
     // Filter out .onion URLs if not using Tor browser
     if (normalizedUrl.endsWith('.onion/') && !torBrowserDetected) return
 
     if (type === 'write') {
-      relayList.write.push(normalizedUrl)
+      writeSet.add(normalizedUrl)
     } else if (type === 'read') {
-      relayList.read.push(normalizedUrl)
+      readSet.add(normalizedUrl)
     } else {
-      relayList.write.push(normalizedUrl)
-      relayList.read.push(normalizedUrl)
+      writeSet.add(normalizedUrl)
+      readSet.add(normalizedUrl)
     }
   })
+
+  const originalRelays = Array.from(relayScopeMap.entries()).map(([url, scope]) => ({ url, scope }))
+  const write = Array.from(writeSet)
+  const read = Array.from(readSet)
 
   // If there are too many relays, use the default BIG_RELAY_URLS
   // Because they don't know anything about relays, their settings cannot be trusted
   return {
-    write: relayList.write.length && relayList.write.length <= 8 ? relayList.write : BIG_RELAY_URLS,
-    read: relayList.read.length && relayList.write.length <= 8 ? relayList.read : BIG_RELAY_URLS,
-    originalRelays: relayList.originalRelays
+    write: write.length && write.length <= 8 ? write : DEFAULT_WRITE_RELAY_URLS,
+    read: read.length && read.length <= 8 ? read : DEFAULT_READ_RELAY_URLS,
+    originalRelays: originalRelays.length ? originalRelays : defaultOriginalRelays
   }
+}
+
+function buildDefaultRelayList() {
+  const scopeMap = new Map<string, 'read' | 'write' | 'both'>()
+
+  DEFAULT_READ_RELAY_URLS.forEach((url) => {
+    const normalizedUrl = normalizeUrl(url)
+    if (normalizedUrl) {
+      scopeMap.set(normalizedUrl, mergeRelayScopes(scopeMap.get(normalizedUrl), 'read'))
+    }
+  })
+
+  DEFAULT_WRITE_RELAY_URLS.forEach((url) => {
+    const normalizedUrl = normalizeUrl(url)
+    if (normalizedUrl) {
+      scopeMap.set(normalizedUrl, mergeRelayScopes(scopeMap.get(normalizedUrl), 'write'))
+    }
+  })
+
+  return Array.from(scopeMap.entries()).map(([url, scope]) => ({ url, scope }))
+}
+
+function mergeRelayScopes(
+  existingScope: 'read' | 'write' | 'both' | undefined,
+  nextScope: 'read' | 'write' | 'both'
+) {
+  if (!existingScope || existingScope === nextScope) return nextScope
+  if (existingScope === 'both' || nextScope === 'both') return 'both'
+  return 'both'
 }
 
 export function getProfileFromEvent(event: Event) {

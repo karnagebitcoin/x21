@@ -139,6 +139,10 @@ export const BIG_RELAY_URLS = [
   'wss://nostr.mom/'
 ]
 
+export const DEFAULT_READ_RELAY_URLS = ['wss://relay.damus.io', 'wss://relay.primal.net']
+
+export const DEFAULT_WRITE_RELAY_URLS = ['wss://relay.damus.io', 'wss://relay.primal.net']
+
 export const SEARCHABLE_RELAY_URLS = ['wss://relay.nostr.band/', 'wss://search.nos.today/']
 
 export const GROUP_METADATA_EVENT_KIND = 39000
