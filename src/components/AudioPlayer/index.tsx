@@ -39,7 +39,6 @@ export default function AudioPlayer({
   const lastVolumeRef = useRef(1)
 
   const waveformSeed = useMemo(() => createWaveformSeed(src), [src])
-  const playbackRatio = duration > 0 ? Math.min(currentTime / duration, 1) : 0
 
   useEffect(() => {
     setWaveformLevels(waveformSeed.map((seed) => clamp(seed, 22, 82)))
@@ -237,11 +236,9 @@ export default function AudioPlayer({
 
   const renderedWaveformLevels = waveformSeed.map((seed, index) => {
     const rawHeight =
-      waveformLevels[index] ?? clamp(seed, isPlaying ? 24 : 20, isPlaying ? 100 : 74)
-    return clamp(rawHeight * 0.6, 10, 58)
+      waveformLevels[index] ?? clamp(seed, isPlaying ? 16 : 12, isPlaying ? 100 : 52)
+    return clamp(rawHeight * 0.72, 6, 82)
   })
-
-  const playedBars = Math.max(0, Math.ceil(playbackRatio * renderedWaveformLevels.length))
 
   const handleVolumePopoverClick = (event: MouseEvent) => {
     event.stopPropagation()
@@ -260,7 +257,13 @@ export default function AudioPlayer({
       )}
       onClick={(event) => event.stopPropagation()}
     >
-      <audio ref={audioRef} src={src} preload="metadata" onError={() => setError(true)} />
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="metadata"
+        crossOrigin="anonymous"
+        onError={() => setError(true)}
+      />
 
       <Button
         size="icon"
@@ -282,19 +285,21 @@ export default function AudioPlayer({
         <div className="rounded-[22px] border border-white/10 bg-black/35 px-3 py-2 shadow-inner shadow-black/30">
           <div className="grid h-6 grid-cols-[repeat(20,minmax(0,1fr))] items-center gap-0.5">
             {renderedWaveformLevels.map((height, index) => {
-              const isPlayed = index < playedBars
+              const intensity = clamp(height / 82, 0.18, 1)
 
               return (
                 <div key={`${src}-${index}`} className="flex h-full items-center justify-center">
                   <span
                     className={cn(
                       'block w-[2px] rounded-full transition-[height,opacity,background-color,box-shadow] duration-150',
-                      isPlayed
-                        ? 'bg-primary shadow-[0_0_10px_hsl(var(--primary)/0.3)]'
-                        : 'bg-white/18',
-                      isPlaying ? 'opacity-100' : 'opacity-80'
+                      isPlaying
+                        ? 'bg-primary shadow-[0_0_10px_hsl(var(--primary)/0.24)]'
+                        : 'bg-white/22'
                     )}
-                    style={{ height: `${height}%` }}
+                    style={{
+                      height: `${height}%`,
+                      opacity: isPlaying ? intensity : 0.8
+                    }}
                   />
                 </div>
               )
