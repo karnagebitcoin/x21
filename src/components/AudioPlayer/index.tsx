@@ -261,7 +261,6 @@ export default function AudioPlayer({
         ref={audioRef}
         src={src}
         preload="metadata"
-        crossOrigin="anonymous"
         onError={() => setError(true)}
       />
 
